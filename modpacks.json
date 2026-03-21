@@ -1,0 +1,35 @@
+[
+  {
+    "id": "stalker",
+    "name": "S.T.A.L.K.E.R BATTLE",
+    "bgImage": "https://pub-92f6d77298494443beaa85bcdc1b20cb.r2.dev/bg.jpg",
+    "logo": "https://pub-92f6d77298494443beaa85bcdc1b20cb.r2.dev/minecraft.png",
+    "icon": "https://pub-92f6d77298494443beaa85bcdc1b20cb.r2.dev/minecraft.png",
+    "mcVersion": "1.20.1",
+    "loaderType": "forge",
+    "forgeUrl": "https://maven.minecraftforge.net/net/minecraftforge/forge/1.20.1-47.4.10/forge-1.20.1-47.4.10-installer.jar",
+    "forgeInstallerName": "forge-1.20.1-47.4.10-installer.jar",
+    "modsJsonUrl": "https://pub-92f6d77298494443beaa85bcdc1b20cb.r2.dev/mods.json",
+    "useZip": false,
+    "clientDir": ".my-server-game",
+    "serverDir": ".my-dedicated-server"
+  },
+  {
+    "id": "statech",
+    "name": "StaTech Industry",
+    "bgImage": "https://pub-92f6d77298494443beaa85bcdc1b20cb.r2.dev/DivLauncher/statech/assets/bg.jpg",
+    "logo": "https://pub-92f6d77298494443beaa85bcdc1b20cb.r2.dev/DivLauncher/statech/assets/banner.png",
+    "icon": "https://pub-92f6d77298494443beaa85bcdc1b20cb.r2.dev/DivLauncher/statech/assets/icon.png",
+    "mcVersion": "1.19.2",
+    "loaderType": "fabric",
+    "loaderVersion": "0.16.10",
+    "installerUrl": "https://maven.fabricmc.net/net/fabricmc/fabric-installer/1.0.1/fabric-installer-1.0.1.jar",
+    "installerName": "fabric-installer-1.0.1.jar",
+    "packVersion": "1.0.0",
+    "packZipUrl": "https://pub-92f6d77298494443beaa85bcdc1b20cb.r2.dev/DivLauncher/statech/statech.zip",
+    "modsJsonUrl": "",
+    "useZip": true,
+    "clientDir": ".statech-client",
+    "serverDir": ".statech-server"
+  }
+]

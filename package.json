@@ -1,0 +1,60 @@
+{
+  "name": "div-launcher",
+  "version": "1.0.3",
+  "description": "Custom Minecraft Launcher",
+  "author": "Diverlin",
+  "main": "src/main.js",
+  "scripts": {
+    "dev:ui": "vite",
+    "build:ui": "vite build",
+    "start": "electron src/main.js",
+    "dist": "npm run build:ui && electron-builder --win"
+  },
+  "build": {
+    "appId": "com.diverlin.launcher",
+    "productName": "DivLauncher",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "src/**/*",
+      "dist-ui/**/*",
+      "package.json"
+    ],
+    "publish": [
+      {
+        "provider": "generic",
+        "url": "https://mc.diverlin.ru/DivLauncher/updates"
+      }
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    }
+  },
+  "dependencies": {
+    "adm-zip": "^0.5.16",
+    "axios": "^1.13.6",
+    "dotenv": "^17.3.1",
+    "electron-updater": "^6.8.3",
+    "extract-zip": "^2.0.1",
+    "framer-motion": "^12.38.0",
+    "minecraft-launcher-core": "^3.18.2",
+    "msmc": "^5.0.5",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^6.0.1",
+    "electron": "^29.4.6",
+    "electron-builder": "^26.8.1",
+    "vite": "^8.0.0"
+  }
+}
