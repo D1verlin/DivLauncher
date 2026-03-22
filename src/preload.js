@@ -37,4 +37,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   updatePack: (pack) => ipcRenderer.send('update-pack', pack),
   onDownloadProgress: (callback) => ipcRenderer.on('download-progress', callback),
   onUpdateDone: (callback) => ipcRenderer.on('update-done', callback),
+  // --- DISCORD RPC ---
+  setDiscordIdle: () => ipcRenderer.send('discord-status-idle'),
+  setDiscordPlaying: (packName) => ipcRenderer.send('discord-status-playing', packName),
 });

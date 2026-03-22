@@ -111,6 +111,16 @@ function UpdateNotification() {
   );
 }
 
+// ВЕРХНЯЯ ПАНЕЛЬ С КНОПКАМИ (Отображается везде)
+const TopBar = () => (
+  <div style={{ height: '40px', WebkitAppRegion: 'drag', display: 'flex', justifyContent: 'flex-end', alignItems: 'center', padding: '0 15px', position: 'absolute', top: 0, right: 0, left: 0, zIndex: 100 }}>
+    <div style={{ WebkitAppRegion: 'no-drag', display: 'flex', gap: '15px' }}>
+      <button onClick={() => window.electronAPI.minimizeWindow()} style={{ background: 'transparent', border: 'none', color: '#a0a0a0', cursor: 'pointer', fontSize: '18px' }}><i className="fa-solid fa-minus h-minimize"></i></button>
+      <button onClick={() => window.electronAPI.closeWindow()} style={{ background: 'transparent', border: 'none', color: '#a0a0a0', cursor: 'pointer', fontSize: '18px' }}><i className="fa-solid fa-xmark h-close"></i></button>
+    </div>
+  </div>
+);
+
 // --- ОСНОВНОЕ ПРИЛОЖЕНИЕ ---
 export default function App() {
   const [currentPage, setCurrentPage] = useState('client');
@@ -118,7 +128,6 @@ export default function App() {
   const [currentPack, setCurrentPack] = useState(null);
   const [loadingError, setLoadingError] = useState(null); 
   
-  // Новые состояния для версии и обновлений
   const [appVersion, setAppVersion] = useState('0.0.0');
   const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
 
@@ -126,9 +135,11 @@ export default function App() {
   const [isServerRunning, setIsServerRunning] = useState(false);
   const [serverPlayers, setServerPlayers] = useState([]);
 
-const fetchModpacks = () => {
+  // Чтение настройки видеофона (по умолчанию включено)
+  const [enableVideoBg, setEnableVideoBg] = useState(localStorage.getItem('launcher_video_bg') !== 'false');
+
+  const fetchModpacks = () => {
     setLoadingError(null);
-    // Добавляем защиту от кэширования!
     fetch(`${MODPACKS_URL}?t=${new Date().getTime()}`, { cache: 'no-store' })
       .then(res => {
         if (!res.ok) throw new Error(`Ошибка HTTP: ${res.status}`);
@@ -137,8 +148,13 @@ const fetchModpacks = () => {
       .then(data => {
         setModpacks(data);
         if (data.length > 0) {
-          setCurrentPack(data[0]);
-          setServerLogs(`Выбрана сборка: ${data[0].name}. Сервер готов к запуску...\n`);
+          // --- УМНЫЙ ВЫБОР СБОРКИ ---
+          const savedPackId = localStorage.getItem('launcher_last_pack');
+          const lastPack = data.find(p => p.id === savedPackId);
+          const packToSelect = lastPack || data[0];
+
+          setCurrentPack(packToSelect);
+          setServerLogs(`Выбрана сборка: ${packToSelect.name}. Сервер готов к запуску...\n`);
         } else {
           setLoadingError("Список сборок на сервере пуст.");
         }
@@ -151,7 +167,6 @@ const fetchModpacks = () => {
   useEffect(() => {
     fetchModpacks();
     
-    // Получаем версию из системы автоматически
     if (window.electronAPI?.getAppVersion) {
       window.electronAPI.getAppVersion().then(v => setAppVersion(v));
     }
@@ -159,6 +174,14 @@ const fetchModpacks = () => {
     window.electronAPI.onServerLog((e, data) => setServerLogs(p => p + data));
     window.electronAPI.onServerStatus((e, status) => setIsServerRunning(status === 'starting'));
     window.electronAPI.onServerPlayers((e, playerList) => setServerPlayers(playerList));
+
+    const checkVideoSetting = () => {
+      setEnableVideoBg(localStorage.getItem('launcher_video_bg') !== 'false');
+    };
+    
+    const interval = setInterval(checkVideoSetting, 500);
+    return () => clearInterval(interval);
+
   }, []);
 
   const handleManualUpdate = () => {
@@ -166,20 +189,10 @@ const fetchModpacks = () => {
     if (window.electronAPI?.checkForUpdates) {
       window.electronAPI.checkForUpdates();
     }
-    setTimeout(() => setIsCheckingUpdate(false), 2000); // Анимация на 2 сек
+    setTimeout(() => setIsCheckingUpdate(false), 2000); 
   };
 
-  // ВЕРХНЯЯ ПАНЕЛЬ С КНОПКАМИ (Отображается везде)
-  const TopBar = () => (
-    <div style={{ height: '40px', WebkitAppRegion: 'drag', display: 'flex', justifyContent: 'flex-end', alignItems: 'center', padding: '0 15px', position: 'absolute', top: 0, right: 0, left: 0, zIndex: 100 }}>
-      <div style={{ WebkitAppRegion: 'no-drag', display: 'flex', gap: '15px' }}>
-        <button onClick={() => window.electronAPI.minimizeWindow()} style={{ background: 'transparent', border: 'none', color: '#a0a0a0', cursor: 'pointer', fontSize: '18px' }}><i className="fa-solid fa-minus h-minimize"></i></button>
-        <button onClick={() => window.electronAPI.closeWindow()} style={{ background: 'transparent', border: 'none', color: '#a0a0a0', cursor: 'pointer', fontSize: '18px' }}><i className="fa-solid fa-xmark h-close"></i></button>
-      </div>
-    </div>
-  );
 
-  // ЭКРАН ЗАГРУЗКИ / ОШИБКИ
   if (!currentPack) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', width: '100%', height: '100%', background: '#0a0a0c', color: '#fff', position: 'relative' }}>
@@ -209,60 +222,114 @@ const fetchModpacks = () => {
     );
   }
 
-  // ОСНОВНОЙ ЭКРАН ЛАУНЧЕРА
-  const appStyle = {
-    display: 'flex', flexDirection: 'column', width: '100%', height: '100%', position: 'relative',
-    background: `linear-gradient(rgba(20, 20, 20, 0.7), rgba(20, 20, 20, 0.9)), url('${currentPack.bgImage}') center/cover`,
-    transition: 'background 0.5s ease-in-out'
-  };
-
   return (
-    <div style={appStyle}>
-      <TopBar />
-      <UpdateNotification />
+    <div style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden', background: '#0a0a0c' }}>
+      
+      {/* 1. СТАТИЧНЫЙ ФОН (Нижний слой) */}
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={currentPack.id + "_img"}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.5 }}
+          style={{
+            position: 'absolute', top: 0, left: 0, width: '100%', height: '100%',
+            background: `url('${currentPack.bgImage}') center/cover`,
+            zIndex: 1
+          }}
+        />
+      </AnimatePresence>
 
-      <div style={{ display: 'flex', flexGrow: 1, padding: '40px 20px 20px 20px', gap: '40px', overflow: 'hidden' }}>
-        <div style={{ width: '60px', minWidth: '60px', background: '#11111157', backdropFilter: 'blur(20px)', borderRadius: '30px', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '20px 0', border: '1px solid rgba(255,255,255,0.05)', overflowY: 'auto', zIndex: 10 }}>
+      {/* 2. ВИДЕО-ФОН (Средний слой, если доступен) */}
+      <AnimatePresence mode="wait">
+        {enableVideoBg && currentPack.bgVideo && (
+          <motion.div
+            key={currentPack.id + "_vid"}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.8 }}
+            style={{ 
+              position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', 
+              zIndex: 2, overflow: 'hidden' 
+            }}
+          >
+            <video 
+              src={currentPack.bgVideo} 
+              autoPlay loop muted playsInline
+              style={{ 
+                position: 'absolute',
+                top: '50%',
+                left: '50%',
+                width: '100vw', 
+                height: '100vh', 
+                minWidth: '100%',
+                minHeight: '100%',
+                objectFit: 'cover',
+                transform: 'translate(-50%, -50%)', 
+                pointerEvents: 'none' 
+              }}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* 3. ЗАТЕМНЕНИЕ И РАЗМЫТИЕ (Верхний слой для читаемости текста) */}
+      <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', background: 'linear-gradient(rgba(20, 20, 20, 0.5), rgba(20, 20, 20, 0.9))', zIndex: 3 }} />
+
+      {/* КОНТЕНТ ЛАУНЧЕРА (Поверх всего) */}
+      <div style={{ position: 'relative', zIndex: 10, display: 'flex', flexDirection: 'column', width: '100%', height: '100%' }}>
+        <TopBar />
+        <UpdateNotification />
+
+        <div style={{ display: 'flex', flexGrow: 1, padding: '40px 20px 20px 20px', gap: '40px', overflow: 'hidden' }}>
           
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '20px', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '20px' }}>
-            {modpacks.map(pack => (
-              <motion.img 
-                key={pack.id} src={pack.icon} alt={pack.name} title={pack.name}
-                whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}
-                onClick={() => { setCurrentPack(pack); setServerLogs(`Выбрана сборка: ${pack.name}...\n`); }}
-                style={{ width: '40px', height: '40px', cursor: 'pointer', opacity: currentPack.id === pack.id ? 1 : 0.4, borderRadius: '8px', objectFit: 'contain' }}
-              />
-            ))}
-          </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-            <NavButton icon="fa-gamepad" active={currentPage === 'client'} onClick={() => setCurrentPage('client')} color="#10b981" />
-            <NavButton icon="fa-server" active={currentPage === 'server'} onClick={() => setCurrentPage('server')} color="#3b82f6" />
-          </div>
-
-          {/* НИЖНЯЯ ЧАСТЬ SIDEBAR С ВЕРСИЕЙ */}
-          <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '15px' }}>
-            <NavButton icon="fa-gear" active={currentPage === 'settings'} onClick={() => setCurrentPage('settings')} color="#f59e0b" />
+          <div style={{ width: '60px', minWidth: '60px', background: '#11111157', backdropFilter: 'blur(20px)', borderRadius: '30px', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '20px 0', border: '1px solid rgba(255,255,255,0.05)', overflowY: 'auto' }}>
             
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', paddingBottom: '10px' }}>
-              <motion.button
-                onClick={handleManualUpdate}
-                title="Проверить обновления"
-                animate={isCheckingUpdate ? { rotate: 360 } : {}}
-                transition={isCheckingUpdate ? { repeat: Infinity, duration: 1, ease: "linear" } : {}}
-                style={{ background: 'transparent', border: 'none', color: isCheckingUpdate ? '#10b981' : '#52525b', cursor: 'pointer', fontSize: '14px' }}
-              >
-                <i className="fa-solid fa-arrows-rotate"></i>
-              </motion.button>
-              <span style={{ fontSize: '9px', fontWeight: 800, color: '#ffffff33', letterSpacing: '0.5px' }}>v{appVersion}</span>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '20px', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '20px' }}>
+              {modpacks.map(pack => (
+                <motion.img 
+                  key={pack.id} src={pack.icon} alt={pack.name} title={pack.name}
+                  whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}
+                  onClick={() => { 
+                    setCurrentPack(pack); 
+                    localStorage.setItem('launcher_last_pack', pack.id); // Запоминаем выбор!
+                    setServerLogs(`Выбрана сборка: ${pack.name}...\n`); 
+                  }}
+                  style={{ width: '40px', height: '40px', cursor: 'pointer', opacity: currentPack.id === pack.id ? 1 : 0.4, borderRadius: '8px', objectFit: 'contain' }}
+                />
+              ))}
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+              <NavButton icon="fa-gamepad" active={currentPage === 'client'} onClick={() => setCurrentPage('client')} color="#10b981" />
+              <NavButton icon="fa-server" active={currentPage === 'server'} onClick={() => setCurrentPage('server')} color="#3b82f6" />
+            </div>
+
+            <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '15px' }}>
+              <NavButton icon="fa-gear" active={currentPage === 'settings'} onClick={() => setCurrentPage('settings')} color="#f59e0b" />
+              
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', paddingBottom: '10px' }}>
+                <motion.button
+                  onClick={handleManualUpdate}
+                  title="Проверить обновления"
+                  animate={isCheckingUpdate ? { rotate: 360 } : {}}
+                  transition={isCheckingUpdate ? { repeat: Infinity, duration: 1, ease: "linear" } : {}}
+                  style={{ background: 'transparent', border: 'none', color: isCheckingUpdate ? '#10b981' : '#52525b', cursor: 'pointer', fontSize: '14px' }}
+                >
+                  <i className="fa-solid fa-arrows-rotate"></i>
+                </motion.button>
+                <span style={{ fontSize: '9px', fontWeight: 800, color: '#ffffff33', letterSpacing: '0.5px' }}>v{appVersion}</span>
+              </div>
             </div>
           </div>
-        </div>
 
-        <div style={{ flexGrow: 1, overflow: 'hidden', position: 'relative', zIndex: 10 }}>
-          {currentPage === 'client' && <ClientPage openSettings={() => setCurrentPage('settings')} currentPack={currentPack} />}
-          {currentPage === 'server' && <ServerPage logs={serverLogs} isRunning={isServerRunning} players={serverPlayers} currentPack={currentPack} />}
-          {currentPage === 'settings' && <SettingsPage />}
+          <div style={{ flexGrow: 1, overflow: 'hidden', position: 'relative' }}>
+            {currentPage === 'client' && <ClientPage openSettings={() => setCurrentPage('settings')} currentPack={currentPack} />}
+            {currentPage === 'server' && <ServerPage logs={serverLogs} isRunning={isServerRunning} players={serverPlayers} currentPack={currentPack} />}
+            {currentPage === 'settings' && <SettingsPage />}
+          </div>
         </div>
       </div>
     </div>

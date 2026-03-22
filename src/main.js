@@ -8,6 +8,7 @@ const AdmZip = require('adm-zip');
 
 const setupClient = require('./core/client');
 const setupServer = require('./core/server');
+const { initDiscord, setIdleStatus, setPlayingStatus } = require('./core/discord');
 
 let mainWindow;
 
@@ -18,7 +19,7 @@ function createWindow() {
     resizable: false, 
     frame: false, 
     transparent: true,
-    icon: path.join(__dirname, '..', 'icon.ico'), // Убедись, что icon.ico лежит в корне проекта
+    icon: path.join(__dirname, '..', 'icon.ico'),
     webPreferences: { 
       preload: path.join(__dirname, 'preload.js'), 
       nodeIntegration: false, 
@@ -27,6 +28,10 @@ function createWindow() {
   });
   
   mainWindow.setMenu(null); 
+  
+  // Режим разработчика
+  
+   // mainWindow.webContents.openDevTools();
   
   // Настраиваем автоапдейтер
   autoUpdater.autoDownload = true;
@@ -64,6 +69,7 @@ app.whenReady().then(() => {
   createWindow();
   setupClient(ipcMain);
   setupServer(ipcMain, mainWindow);
+  initDiscord();
 });
 
 app.on('window-all-closed', () => { 
@@ -81,6 +87,15 @@ ipcMain.on('window-close', () => {
 
 ipcMain.on('check-for-updates', () => {
   autoUpdater.checkForUpdatesAndNotify();
+});
+
+// --- DISCORD RPC СОБЫТИЯ ---
+ipcMain.on('discord-status-idle', () => {
+  setIdleStatus();
+});
+
+ipcMain.on('discord-status-playing', (event, packName) => {
+  setPlayingStatus(packName);
 });
 
 // Умное получение версии (чтобы в dev-режиме не показывало версию Electron)

@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 // Усиленный стиль для "стекла"
 const glassControlStyle = {
-  background: 'rgba(15, 15, 20, 0.45)', // Чуть больше плотности для читаемости
+  background: 'rgba(15, 15, 20, 0.45)', 
   backdropFilter: 'blur(20px)',
   WebkitBackdropFilter: 'blur(20px)',
   border: '1px solid rgba(255, 255, 255, 0.15)',
@@ -25,7 +25,6 @@ function CustomDropdown({ value, options, onChange }) {
   const selectedOption = options.find(opt => opt.value === value);
 
   return (
-    // Динамический z-index решает проблему перекрытия слоев
     <div style={{ position: 'relative', width: '100%', zIndex: isOpen ? 50 : 1 }}>
       
       <motion.div
@@ -90,6 +89,42 @@ function CustomDropdown({ value, options, onChange }) {
   );
 }
 
+// Новый компонент стильного переключателя (Toggle)
+function CustomToggle({ isToggled, onToggle }) {
+  return (
+    <motion.div 
+      onClick={() => onToggle(!isToggled)}
+      whileHover={{ scale: 1.05 }}
+      whileTap={{ scale: 0.95 }}
+      style={{
+        width: '56px',
+        height: '30px',
+        background: isToggled ? 'linear-gradient(135deg, #10b981, #059669)' : 'rgba(255,255,255,0.1)',
+        borderRadius: '20px',
+        display: 'flex',
+        alignItems: 'center',
+        padding: '0 4px',
+        cursor: 'pointer',
+        boxShadow: isToggled ? '0 0 15px rgba(16,185,129,0.4)' : 'inset 0 2px 5px rgba(0,0,0,0.5)',
+        border: '1px solid rgba(255,255,255,0.1)',
+        transition: 'background 0.3s, box-shadow 0.3s'
+      }}
+    >
+      <motion.div 
+        animate={{ x: isToggled ? 26 : 0 }}
+        transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+        style={{
+          width: '22px',
+          height: '22px',
+          background: '#fff',
+          borderRadius: '50%',
+          boxShadow: '0 2px 5px rgba(0,0,0,0.3)'
+        }}
+      />
+    </motion.div>
+  );
+}
+
 export default function SettingsPage() {
   const [authMode, setAuthMode] = useState(localStorage.getItem('launcher_auth_mode') || 'offline');
   const [username, setUsername] = useState(localStorage.getItem('launcher_username') || '');
@@ -99,6 +134,9 @@ export default function SettingsPage() {
   
   const [serverJava, setServerJava] = useState(localStorage.getItem('launcher_server_java') || '');
   const [clientJava, setClientJava] = useState(localStorage.getItem('launcher_client_java') || '');
+  
+  // Новое состояние для настройки видеофона (по умолчанию true)
+  const [videoBg, setVideoBg] = useState(localStorage.getItem('launcher_video_bg') !== 'false');
 
   useEffect(() => {
     localStorage.setItem('launcher_auth_mode', authMode);
@@ -108,14 +146,14 @@ export default function SettingsPage() {
     localStorage.setItem('launcher_ram', ram);
     localStorage.setItem('launcher_server_java', serverJava);
     localStorage.setItem('launcher_client_java', clientJava);
-  }, [authMode, username, mode, ip, ram, serverJava, clientJava]);
+    localStorage.setItem('launcher_video_bg', videoBg); // Сохраняем настройку видео
+  }, [authMode, username, mode, ip, ram, serverJava, clientJava, videoBg]);
 
   const containerVariants = {
     hidden: { opacity: 0 },
     visible: { opacity: 1, transition: { staggerChildren: 0.1, delayChildren: 0.1 } }
   };
 
-  // УБРАН filter: blur() чтобы не ломать backdrop-filter у детей
   const itemVariants = {
     hidden: { opacity: 0, y: 30 },
     visible: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 250, damping: 20 } }
@@ -136,7 +174,7 @@ export default function SettingsPage() {
       
       <motion.div variants={containerVariants} initial="hidden" animate="visible" style={{ display: 'flex', flexDirection: 'column', gap: '35px', width: '100%', maxWidth: '750px' }}>
         
-        <motion.h1 variants={itemVariants} style={{ fontSize: '42px', fontWeight: 900, margin: '0 0 10px 0', color: '#fff', textTransform: 'uppercase', letterSpacing: '3px', textShadow: '0 5px 15px rgba(0,0,0,0.8)', textAlign: 'center' }}>
+        <motion.h1 variants={itemVariants} style={{ fontSize: '42px', fontWeight: 900, margin: '0 0 10px 0', color: '#fff', textTransform: 'uppercase', letterSpacing: '3px', textShadow: '0 5px 15px rgba(0,0,0,0.8)', textAlign: 'left' }}>
           Параметры
         </motion.h1>
 
@@ -215,6 +253,19 @@ export default function SettingsPage() {
             <motion.input whileHover={whileHoverFocus} whileFocus={whileHoverFocus} type="text" value={serverJava} onChange={(e) => setServerJava(e.target.value)} placeholder="Оставьте пустым для авто-загрузки (Рекомендуется)" spellCheck="false" style={glassControlStyle} />
           </motion.div>
         </div>
+
+                {/* --- НОВЫЙ БЛОК: ВИЗУАЛ --- */}
+        <motion.div variants={itemVariants} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 25px', background: 'rgba(15, 15, 20, 0.45)', backdropFilter: 'blur(20px)', border: '1px solid rgba(255, 255, 255, 0.15)', borderRadius: '30px', boxShadow: '0 8px 32px rgba(0,0,0,0.4)' }}>
+          <div style={{ width: '55%' }}>
+            <div style={{ color: '#fff', fontSize: '15px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '1px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <i className="fa-solid fa-film" style={{ color: '#ec4899' }}></i> Анимированные фоны
+            </div>
+            <div style={{ color: '#a1a1aa', fontSize: '12px', fontWeight: 600, marginTop: '5px' }}>
+              Включите для воспроизведения видео на заднем плане (может снизить FPS в лаунчере на слабых ПК).
+            </div>
+          </div>
+          <CustomToggle isToggled={videoBg} onToggle={setVideoBg} />
+        </motion.div>
 
       </motion.div>
     </div>

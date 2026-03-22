@@ -1,6 +1,16 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
+// --- ФУНКЦИЯ ФОРМАТИРОВАНИЯ ВРЕМЕНИ ---
+const formatPlaytime = (ms) => {
+  const totalMins = Math.floor(ms / 60000);
+  if (totalMins === 0) return 'Меньше минуты';
+  if (totalMins < 60) return `${totalMins} мин.`;
+  const h = Math.floor(totalMins / 60);
+  const m = totalMins % 60;
+  return `${h} ч. ${m} мин.`;
+};
+
 export default function ClientPage({ openSettings, currentPack }) {
   const [status, setStatus] = useState(`Готово к запуску`);
   const [isLaunching, setIsLaunching] = useState(false);
@@ -10,17 +20,17 @@ export default function ClientPage({ openSettings, currentPack }) {
   const [isUpdating, setIsUpdating] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState(0);
   
+  // Состояния для счетчика времени
+  const [playtime, setPlaytime] = useState(0);
+  const sessionStartRef = useRef(null);
+  
   const isLaunchingRef = useRef(false);
   const currentPackRef = useRef(currentPack); 
 
   // --- УМНАЯ ПРОВЕРКА ВЕРСИИ И УСТАНОВКИ ---
   const installedVersion = localStorage.getItem(`installed_v_${currentPack.id}`);
   const isZipPack = currentPack.useZip && currentPack.packVersion;
-
-  // Если версии в памяти вообще нет - значит сборка еще не скачивалась
   const needsInstall = isZipPack && !installedVersion;
-
-  // Если версия есть, но она не совпадает с той, что на сервере - нужно обновление
   const needsUpdate = isZipPack && installedVersion && (currentPack.packVersion !== installedVersion);
 
   useEffect(() => {
@@ -30,7 +40,10 @@ export default function ClientPage({ openSettings, currentPack }) {
   useEffect(() => {
     currentPackRef.current = currentPack;
     
-    // Ставим правильный статус при переключении сборок
+    // Подгружаем сохраненное время при переключении сборки
+    const savedTime = parseInt(localStorage.getItem(`playtime_${currentPack.id}`) || '0', 10);
+    setPlaytime(savedTime);
+    
     let initialStatus = 'Готово к запуску';
     if (needsInstall) initialStatus = `Требуется установка: v${currentPack.packVersion}`;
     else if (needsUpdate) initialStatus = `Доступно обновление: v${currentPack.packVersion}`;
@@ -42,6 +55,25 @@ export default function ClientPage({ openSettings, currentPack }) {
     setIsUpdating(false);
     setDownloadProgress(0);
   }, [currentPack, needsInstall, needsUpdate]);
+
+  // АВТОСОХРАНЕНИЕ ВРЕМЕНИ (раз в минуту, защита от закрытия лаунчера)
+  useEffect(() => {
+    let interval;
+    if (isPlaying && sessionStartRef.current) {
+      interval = setInterval(() => {
+        const playedMs = Date.now() - sessionStartRef.current;
+        const saved = parseInt(localStorage.getItem(`playtime_${currentPackRef.current.id}`) || '0', 10);
+        const newTotal = saved + playedMs;
+        
+        setPlaytime(newTotal); // Обновляем UI
+        localStorage.setItem(`playtime_${currentPackRef.current.id}`, newTotal); // Пишем в память
+        
+        // Сдвигаем точку отсчета, чтобы не прибавлять одно и то же время дважды
+        sessionStartRef.current = Date.now();
+      }, 60000); 
+    }
+    return () => clearInterval(interval);
+  }, [isPlaying]);
 
   useEffect(() => {
     if (window.electronAPI.onDownloadProgress) {
@@ -78,6 +110,13 @@ export default function ClientPage({ openSettings, currentPack }) {
             setIsLaunching(false);
             setIsPlaying(true); 
             setStatus('Игра запущена!'); 
+            // ЗАПУСКАЕМ ТАЙМЕР
+            sessionStartRef.current = Date.now();
+
+            // ---> МЕНЯЕМ СТАТУС В DISCORD НА ИГРОВОЙ <---
+            if (window.electronAPI.setDiscordPlaying) {
+              window.electronAPI.setDiscordPlaying(currentPackRef.current.name);
+            }
           }
         }
         return;
@@ -97,12 +136,27 @@ export default function ClientPage({ openSettings, currentPack }) {
     });
 
     window.electronAPI.onClosed(() => { 
+      // СОХРАНЯЕМ ОСТАТКИ ВРЕМЕНИ ПРИ ЗАКРЫТИИ
+      if (sessionStartRef.current) {
+        const playedMs = Date.now() - sessionStartRef.current;
+        const saved = parseInt(localStorage.getItem(`playtime_${currentPackRef.current.id}`) || '0', 10);
+        const newTotal = saved + playedMs;
+        localStorage.setItem(`playtime_${currentPackRef.current.id}`, newTotal);
+        setPlaytime(newTotal);
+        sessionStartRef.current = null;
+      }
+
       setStatus('Игра закрыта.'); 
       setIsLaunching(false); 
       setIsPlaying(false); 
       setConsoleLogs([]); 
+
+      // ---> ВОЗВРАЩАЕМ СТАТУС В DISCORD В РЕЖИМ ОЖИДАНИЯ <---
+      if (window.electronAPI.setDiscordIdle) {
+        window.electronAPI.setDiscordIdle();
+      }
     });
-  }, [needsInstall]); // Добавили зависимость
+  }, [needsInstall]); 
 
   const handleAction = () => {
     if (isPlaying) {
@@ -110,7 +164,6 @@ export default function ClientPage({ openSettings, currentPack }) {
       return;
     }
 
-    // Если нужна установка ИЛИ обновление - запускаем скачивание
     if (needsInstall || needsUpdate) {
       setIsUpdating(true);
       setStatus(needsInstall ? 'Начинаем установку...' : 'Начинаем обновление...');
@@ -169,8 +222,13 @@ export default function ClientPage({ openSettings, currentPack }) {
           {currentPack.name}
         </motion.h1>
 
-        <motion.div variants={itemVariants} style={{ minHeight: '30px', marginBottom: '40px', position: 'relative' }}>
-          <p style={{ fontSize: '16px', color: (isLaunching || isUpdating) ? '#34d399' : (isPlaying ? '#60a5fa' : ((needsInstall || needsUpdate) ? '#f59e0b' : '#e4e4e7')), fontWeight: 600, margin: 0, textShadow: '0 2px 6px rgba(0,0,0,1)', transition: 'color 0.3s' }}>
+        {/* БЛОК СТАТУСА И СЧЕТЧИКА ВРЕМЕНИ */}
+        <motion.div variants={itemVariants} style={{ display: 'flex', alignItems: 'center', gap: '15px', minHeight: '30px', marginBottom: '35px', position: 'relative' }}>
+          <div style={{ background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.05)', padding: '6px 12px', borderRadius: '10px', fontSize: '13px', color: '#a1a1aa', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px', boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.3)' }}>
+            <i className="fa-regular fa-clock" style={{ color: '#3b82f6' }}></i>
+            В игре: <span style={{ color: '#fff' }}>{formatPlaytime(playtime)}</span>
+          </div>
+          <p style={{ fontSize: '15px', color: (isLaunching || isUpdating) ? '#34d399' : (isPlaying ? '#60a5fa' : ((needsInstall || needsUpdate) ? '#f59e0b' : '#e4e4e7')), fontWeight: 600, margin: 0, textShadow: '0 2px 6px rgba(0,0,0,1)', transition: 'color 0.3s' }}>
             {status}
           </p>
         </motion.div>
