@@ -70,6 +70,20 @@
             top: 0;
             left: 0;
         }
+        
+        /* Scroll Animations */
+        .fade-in-up {
+            opacity: 0;
+            transform: translateY(30px);
+            transition: opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1), transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .fade-in-up.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+        .delay-100 { transition-delay: 100ms; }
+        .delay-200 { transition-delay: 200ms; }
+        .delay-300 { transition-delay: 300ms; }
     </style>
 </head>
 <body class="antialiased selection:bg-primary-container selection:text-surface-container-lowest">
@@ -79,7 +93,7 @@
         <!-- Hero Section -->
         <section class="min-h-[90vh] flex items-center justify-center relative overflow-hidden px-5 md:px-16 pt-10">
             <div class="max-w-[1440px] mx-auto grid grid-cols-1 lg:grid-cols-2 gap-8 items-center relative z-10">
-                <div class="text-center lg:text-left space-y-8">
+                <div class="text-center lg:text-left space-y-8 fade-in-up">
                     <h1 class="text-5xl md:text-7xl font-bold text-primary-fixed leading-tight">
                         DivLauncher
                     </h1>
@@ -87,18 +101,18 @@
                         Быстрый, легкий и современный лаунчер для комфортной игры на сервере. Оптимизированные сборки и автоматические обновления в один клик.
                     </p>
                     <div class="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4">
-                        <a href="https://github.com/Diverlin/DivLauncher/releases/latest" target="_blank" class="w-full sm:w-auto bg-primary-container text-on-primary-fixed px-8 py-4 rounded-xl font-semibold uppercase tracking-wider hover:bg-primary-fixed transition-colors flex items-center justify-center gap-2">
+                        <a href="https://github.com/Diverlin/DivLauncher/releases/latest" target="_blank" class="auto-download-link w-full sm:w-auto bg-primary-container text-on-primary-fixed px-8 py-4 rounded-xl font-semibold uppercase tracking-wider hover:bg-primary-fixed hover:-translate-y-1 transition-all flex items-center justify-center gap-2">
                             <span class="material-symbols-outlined">download</span>
                             Скачать лаунчер
                         </a>
-                        <a href="#features" class="w-full sm:w-auto glass-card px-8 py-4 font-semibold uppercase tracking-wider text-primary-container hover:bg-white/5 transition-colors border border-primary-container/30 flex items-center justify-center gap-2">
+                        <a href="#features" class="w-full sm:w-auto glass-card px-8 py-4 font-semibold uppercase tracking-wider text-primary-container hover:bg-white/5 hover:-translate-y-1 transition-all border border-primary-container/30 flex items-center justify-center gap-2">
                             Узнать больше
                             <span class="material-symbols-outlined">arrow_downward</span>
                         </a>
                     </div>
                 </div>
-                <div class="relative hidden lg:block perspective-1000">
-                    <div class="relative transform transition-transform duration-700 ease-out">
+                <div class="relative hidden lg:block perspective-1000 fade-in-up delay-200">
+                    <div class="relative transform transition-transform duration-700 ease-out hover:scale-105">
                         <img alt="Интерфейс DivLauncher" class="relative rounded-2xl border border-white/10" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDqQVHrDSUrrfEZP4A22tcF0BL5Nvc3uEpLaDDB6B-7Cj2cBPq2c8Mh3EnWp0PwRTzE4VIr7R0fj4nXunLujGnPoKMQCnYlnbpdshw3g_I6HKrh5Zwfes0Rhw9bv3l03GbMDvzR6Icjh0fOMF1FlEXgC1eLn7c11C34ig7__0Pj-a8UGLK9TaC501bVM9KUgdNGXiz17BrXoR_2JVpybyfGuVuGM7AkqLTyNS6wfTxdoHceEMhQC5-hlEgL-_3JnWMVCTVGVyphjkg"/>
                     </div>
                 </div>
@@ -110,14 +124,14 @@
         <!-- Features Section -->
         <section class="py-24 px-5 md:px-16 relative" id="features">
             <div class="max-w-[1440px] mx-auto">
-                <div class="text-center mb-16 space-y-4">
+                <div class="text-center mb-16 space-y-4 fade-in-up">
                     <span class="text-sm font-semibold uppercase tracking-widest text-primary-container bg-primary-container/10 px-4 py-2 rounded-full inline-block">Преимущества</span>
                     <h2 class="text-3xl md:text-4xl font-semibold text-on-surface">Создан для удобства</h2>
                 </div>
                 
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
                     <!-- Feature 1 -->
-                    <div class="glass-card p-8 hover:bg-white/5 transition-colors group">
+                    <div class="glass-card p-8 hover:bg-white/5 hover:-translate-y-2 transition-all group fade-in-up">
                         <div class="w-14 h-14 rounded-full bg-surface-container-high flex items-center justify-center mb-6 border border-white/5 group-hover:border-primary-container/50 transition-colors">
                             <span class="material-symbols-outlined text-2xl text-secondary-fixed">rocket_launch</span>
                         </div>
@@ -126,7 +140,7 @@
                     </div>
 
                     <!-- Feature 2 -->
-                    <div class="glass-card p-8 hover:bg-white/5 transition-colors group">
+                    <div class="glass-card p-8 hover:bg-white/5 hover:-translate-y-2 transition-all group fade-in-up delay-100">
                         <div class="w-14 h-14 rounded-full bg-surface-container-high flex items-center justify-center mb-6 border border-white/5 group-hover:border-primary-container/50 transition-colors">
                             <span class="material-symbols-outlined text-2xl text-primary-fixed">cloud_sync</span>
                         </div>
@@ -135,7 +149,7 @@
                     </div>
 
                     <!-- Feature 3 -->
-                    <div class="glass-card p-8 hover:bg-white/5 transition-colors group">
+                    <div class="glass-card p-8 hover:bg-white/5 hover:-translate-y-2 transition-all group fade-in-up delay-200">
                         <div class="w-14 h-14 rounded-full bg-surface-container-high flex items-center justify-center mb-6 border border-white/5 group-hover:border-primary-container/50 transition-colors">
                             <span class="material-symbols-outlined text-2xl text-secondary">verified</span>
                         </div>
@@ -144,7 +158,7 @@
                     </div>
 
                     <!-- Feature 4 -->
-                    <div class="glass-card p-8 hover:bg-white/5 transition-colors group">
+                    <div class="glass-card p-8 hover:bg-white/5 hover:-translate-y-2 transition-all group fade-in-up delay-300">
                         <div class="w-14 h-14 rounded-full bg-surface-container-high flex items-center justify-center mb-6 border border-white/5 group-hover:border-primary-container/50 transition-colors">
                             <span class="material-symbols-outlined text-2xl text-primary-container">forum</span>
                         </div>
@@ -158,7 +172,7 @@
         <hr class="gradient-separator"/>
 
         <!-- Download Section -->
-        <section class="py-32 px-5 md:px-16 relative" id="download">
+        <section class="py-32 px-5 md:px-16 relative fade-in-up" id="download">
             <div class="absolute inset-0 bg-gradient-to-b from-transparent via-primary-container/5 to-transparent pointer-events-none"></div>
             <div class="max-w-4xl mx-auto glass-card rounded-[24px] p-12 text-center relative z-10 border-t-2 border-primary-container/50">
                 <span class="material-symbols-outlined text-6xl text-primary-container mb-6 animate-bounce">download_for_offline</span>
@@ -167,7 +181,7 @@
                     Присоединяйся к нашему серверу. Скачай лаунчер и погрузись в игру.
                 </p>
                 <div class="inline-flex flex-col items-center">
-                    <a href="https://github.com/Diverlin/DivLauncher/releases/latest" target="_blank" class="bg-primary-container text-on-primary-fixed px-12 py-5 rounded-xl text-lg font-semibold uppercase tracking-wider hover:bg-primary-fixed transition-colors flex items-center gap-3 mb-4">
+                    <a href="https://github.com/Diverlin/DivLauncher/releases/latest" target="_blank" class="auto-download-link bg-primary-container text-on-primary-fixed px-12 py-5 rounded-xl text-lg font-semibold uppercase tracking-wider hover:bg-primary-fixed hover:scale-105 transition-all flex items-center gap-3 mb-4">
                         <span class="material-symbols-outlined text-3xl">download</span>
                         Скачать для Windows
                     </a>
@@ -192,33 +206,24 @@
         </div>
     </footer>
 
-    <!-- Lightweight Particle Script (Vanilla JS) -->
+    <!-- Logic Script -->
     <script>
         document.addEventListener('DOMContentLoaded', () => {
+            // 1. Particle System
             const container = document.getElementById('particles-js');
             const particleCount = 40;
-
             for (let i = 0; i < particleCount; i++) {
                 const particle = document.createElement('div');
-                
                 const size = Math.random() * 4 + 1;
-                const xPos = Math.random() * 100;
-                const yPos = Math.random() * 100;
-                const opacity = Math.random() * 0.4 + 0.1;
-                const animDuration = Math.random() * 20 + 10;
-                const animDelay = Math.random() * 5;
-
                 particle.style.position = 'absolute';
                 particle.style.width = `${size}px`;
                 particle.style.height = `${size}px`;
-                particle.style.left = `${xPos}%`;
-                particle.style.top = `${yPos}%`;
+                particle.style.left = `${Math.random() * 100}%`;
+                particle.style.top = `${Math.random() * 100}%`;
                 particle.style.backgroundColor = i % 3 === 0 ? '#00ff88' : '#4fc3f7';
-                particle.style.opacity = opacity;
+                particle.style.opacity = Math.random() * 0.4 + 0.1;
                 particle.style.borderRadius = i % 2 === 0 ? '50%' : '0';
-                
-                particle.style.animation = `float-up ${animDuration}s linear ${animDelay}s infinite`;
-                
+                particle.style.animation = `float-up ${Math.random() * 20 + 10}s linear ${Math.random() * 5}s infinite`;
                 container.appendChild(particle);
             }
 
@@ -232,6 +237,39 @@
                 }
             `;
             document.head.appendChild(style);
+
+            // 2. Intersection Observer (Scroll Animations)
+            const observer = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        entry.target.classList.add('visible');
+                    }
+                });
+            }, { threshold: 0.1, rootMargin: "0px 0px -50px 0px" });
+
+            document.querySelectorAll('.fade-in-up').forEach((el) => observer.observe(el));
+
+            // 3. Auto-updating Download Link
+            async function updateDownloadLink() {
+                try {
+                    const res = await fetch('https://mc.diverlin.ru/DivLauncher/updates/latest.yml');
+                    if (!res.ok) return;
+                    const yamlText = await res.text();
+                    
+                    const pathMatch = yamlText.match(/path:\s*(.+)/);
+                    if (pathMatch && pathMatch[1]) {
+                        const fileName = pathMatch[1].trim();
+                        const downloadUrl = `https://mc.diverlin.ru/DivLauncher/updates/${fileName}`;
+                        
+                        document.querySelectorAll('.auto-download-link').forEach(btn => {
+                            btn.href = downloadUrl;
+                        });
+                    }
+                } catch (error) {
+                    console.log('Failed to fetch latest.yml for auto-download setup', error);
+                }
+            }
+            updateDownloadLink();
         });
     </script>
 </body>
