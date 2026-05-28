@@ -1,103 +1,38 @@
 <!DOCTYPE html>
-
-<html class="dark" lang="ru"><head>
-<meta charset="utf-8"/>
-<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-<title>DivLauncher - Твой лаунчер. Твои правила.</title>
-<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
-<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700&amp;family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
-<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
-<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@100..900&amp;display=swap" rel="stylesheet"/>
-<script id="tailwind-config">
+<html class="dark" lang="ru">
+<head>
+    <meta charset="utf-8"/>
+    <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+    <title>DivLauncher - Современный лаунчер для Minecraft</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+    <script id="tailwind-config">
         tailwind.config = {
             darkMode: "class",
             theme: {
                 extend: {
-                    "colors": {
-                        "surface-tint": "#00e479",
-                        "outline-variant": "#3b4b3d",
-                        "tertiary": "#fcfaff",
-                        "on-background": "#d9e3f7",
-                        "on-tertiary": "#2f3035",
-                        "surface-bright": "#303a49",
-                        "on-secondary-container": "#002e3f",
+                    colors: {
                         "primary-container": "#00ff88",
-                        "on-primary-fixed-variant": "#005228",
-                        "on-secondary": "#003548",
-                        "primary-fixed-dim": "#00e479",
                         "on-primary-fixed": "#00210c",
-                        "surface-container-lowest": "#050f1c",
-                        "on-primary-container": "#007139",
-                        "surface": "#091421",
-                        "surface-container-high": "#212a39",
-                        "inverse-primary": "#006d37",
-                        "inverse-on-surface": "#273140",
-                        "surface-container-low": "#121c2a",
-                        "on-surface": "#d9e3f7",
-                        "error-container": "#93000a",
-                        "on-tertiary-fixed": "#1a1c20",
-                        "surface-variant": "#2b3544",
-                        "error": "#ffb4ab",
-                        "surface-dim": "#091421",
-                        "tertiary-container": "#dedee4",
-                        "on-surface-variant": "#b9cbb9",
-                        "on-error-container": "#ffdad6",
-                        "primary": "#f1ffef",
-                        "secondary": "#75d1ff",
-                        "background": "#091421",
-                        "secondary-container": "#009cce",
-                        "secondary-fixed": "#c2e8ff",
-                        "on-tertiary-fixed-variant": "#45474b",
-                        "secondary-fixed-dim": "#75d1ff",
-                        "surface-container-highest": "#2b3544",
-                        "outline": "#849585",
-                        "inverse-surface": "#d9e3f7",
-                        "on-tertiary-container": "#606267",
                         "primary-fixed": "#60ff99",
-                        "tertiary-fixed-dim": "#c6c6cc",
-                        "on-primary": "#003919",
-                        "on-error": "#690005",
-                        "on-secondary-fixed-variant": "#004d67",
-                        "surface-container": "#16202e",
-                        "on-secondary-fixed": "#001e2b",
-                        "tertiary-fixed": "#e2e2e8"
+                        "surface": "#091421",
+                        "on-surface": "#d9e3f7",
+                        "on-surface-variant": "#b9cbb9",
+                        "surface-container-high": "#212a39",
+                        "surface-container-lowest": "#050f1c",
+                        "outline-variant": "#3b4b3d",
+                        "secondary-fixed": "#c2e8ff",
+                        "secondary": "#75d1ff"
                     },
-                    "borderRadius": {
-                        "DEFAULT": "0.25rem",
-                        "lg": "0.5rem",
-                        "xl": "0.75rem",
-                        "full": "9999px"
-                    },
-                    "spacing": {
-                        "margin-mobile": "20px",
-                        "unit": "8px",
-                        "container-max": "1440px",
-                        "margin-desktop": "64px",
-                        "gutter": "24px"
-                    },
-                    "fontFamily": {
-                        "body-lg": ["Outfit"],
-                        "display-lg": ["Outfit"],
-                        "headline-md": ["Outfit"],
-                        "label-sm": ["Outfit"],
-                        "headline-lg": ["Outfit"],
-                        "body-md": ["Outfit"],
-                        "display-lg-mobile": ["Outfit"]
-                    },
-                    "fontSize": {
-                        "body-lg": ["18px", { "lineHeight": "28px", "fontWeight": "400" }],
-                        "display-lg": ["64px", { "lineHeight": "72px", "letterSpacing": "-0.02em", "fontWeight": "700" }],
-                        "headline-md": ["24px", { "lineHeight": "32px", "fontWeight": "600" }],
-                        "label-sm": ["12px", { "lineHeight": "16px", "letterSpacing": "0.1em", "fontWeight": "600" }],
-                        "headline-lg": ["32px", { "lineHeight": "40px", "fontWeight": "600" }],
-                        "body-md": ["16px", { "lineHeight": "24px", "fontWeight": "400" }],
-                        "display-lg-mobile": ["40px", { "lineHeight": "48px", "fontWeight": "700" }]
+                    fontFamily: {
+                        "sans": ["Inter", "sans-serif"],
                     }
                 }
             }
         }
     </script>
-<style>
+    <style>
         body {
             background-color: #0a0c10;
             background-image: 
@@ -107,37 +42,21 @@
             background-attachment: fixed;
             color: #d9e3f7;
             overflow-x: hidden;
+            font-family: 'Inter', sans-serif;
         }
 
-        /* Glassmorphism Utilities */
+        /* Glassmorphism Utilities without shadows */
         .glass-card {
-            background: rgba(43, 53, 68, 0.1);
+            background: rgba(43, 53, 68, 0.2);
             backdrop-filter: blur(12px);
             -webkit-backdrop-filter: blur(12px);
-            border: 1px solid transparent;
-            border-image: linear-gradient(to bottom right, rgba(255,255,255,0.2), rgba(255,255,255,0.05)) 1;
-            box-shadow: inset 0 1px 0 0 rgba(255,255,255,0.1);
-        }
-
-        .neon-glow-primary {
-            box-shadow: 0 0 20px rgba(0, 255, 136, 0.4);
-        }
-        
-        .neon-glow-primary:hover {
-            box-shadow: 0 0 30px rgba(0, 255, 136, 0.6);
-        }
-
-        .neon-glow-secondary {
-            box-shadow: 0 0 20px rgba(79, 195, 247, 0.3);
-        }
-
-        .text-glow {
-            text-shadow: 0 0 10px rgba(0, 255, 136, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 16px;
         }
 
         .gradient-separator {
             height: 1px;
-            background: linear-gradient(90deg, transparent, rgba(136, 146, 164, 0.3), transparent);
+            background: linear-gradient(90deg, transparent, rgba(136, 146, 164, 0.2), transparent);
             margin: 0;
             border: none;
         }
@@ -153,212 +72,156 @@
         }
     </style>
 </head>
-<body class="font-body-md text-body-md antialiased selection:bg-surface-tint selection:text-surface-container-lowest">
-<div id="particles-js"></div>
-<!-- TopNavBar (Shared Component) -->
-<nav class="fixed top-0 left-0 w-full z-50 bg-surface/10 backdrop-blur-md border-b border-white/10 shadow-[0_4px_30px_rgba(0,0,0,0.1)]">
-<div class="flex justify-between items-center h-20 px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto">
-<a class="flex items-center gap-2 group" href="#">
-<span class="material-symbols-outlined text-3xl text-primary-container group-hover:text-primary-fixed transition-colors">sports_esports</span>
-<span class="text-headline-md font-display-lg tracking-tighter text-primary-fixed shadow-[0_0_20px_rgba(0,228,121,0.3)]">DivLauncher</span>
-</a>
-<!-- Desktop Nav -->
-<ul class="hidden md:flex items-center gap-8">
-<li><a class="text-on-surface-variant hover:text-primary transition-colors duration-300 font-label-sm text-label-sm uppercase tracking-wider" href="#features">Возможности</a></li>
-<li><a class="text-on-surface-variant hover:text-primary transition-colors duration-300 font-label-sm text-label-sm uppercase tracking-wider" href="#reviews">Отзывы</a></li>
-<li><a class="text-on-surface-variant hover:text-primary transition-colors duration-300 font-label-sm text-label-sm uppercase tracking-wider" href="#faq">FAQ</a></li>
-</ul>
-<div class="hidden md:flex items-center gap-4">
-<a class="bg-primary-container text-on-primary-fixed px-6 py-2 rounded-lg font-label-sm text-label-sm uppercase tracking-wider neon-glow-primary active:scale-95 transition-all duration-200 ease-out hover:bg-primary-fixed" href="#download">Скачать</a>
-</div>
-<!-- Mobile Menu Toggle -->
-<button class="md:hidden text-primary-fixed p-2">
-<span class="material-symbols-outlined">menu</span>
-</button>
-</div>
-</nav>
-<main class="relative z-10 pt-20">
-<!-- Hero Section -->
-<section class="min-h-[90vh] flex items-center justify-center relative overflow-hidden px-margin-mobile md:px-margin-desktop">
-<div class="max-w-container-max mx-auto grid grid-cols-1 lg:grid-cols-2 gap-gutter items-center relative z-10">
-<div class="text-center lg:text-left space-y-8">
-<h1 class="font-display-lg-mobile lg:font-display-lg text-primary-fixed text-glow leading-tight">
-                        Твой лаунчер.<br/>
-<span class="text-on-surface">Твои правила.</span>
-</h1>
-<p class="font-body-lg text-body-lg text-on-surface-variant max-w-xl mx-auto lg:mx-0">
-                        Погрузись в мир AAA-гейминга с лаунчером, созданным для максимальной производительности. Настраивай, запускай и побеждай без компромиссов.
+<body class="antialiased selection:bg-primary-container selection:text-surface-container-lowest">
+    <div id="particles-js"></div>
+
+    <main class="relative z-10">
+        <!-- Hero Section -->
+        <section class="min-h-[90vh] flex items-center justify-center relative overflow-hidden px-5 md:px-16 pt-10">
+            <div class="max-w-[1440px] mx-auto grid grid-cols-1 lg:grid-cols-2 gap-8 items-center relative z-10">
+                <div class="text-center lg:text-left space-y-8">
+                    <h1 class="text-5xl md:text-7xl font-bold text-primary-fixed leading-tight">
+                        DivLauncher
+                    </h1>
+                    <p class="text-lg md:text-xl text-on-surface-variant max-w-xl mx-auto lg:mx-0">
+                        Быстрый, легкий и современный лаунчер для комфортной игры на сервере. Оптимизированные сборки и автоматические обновления в один клик.
                     </p>
-<div class="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4">
-<a class="w-full sm:w-auto bg-primary-container text-on-primary-fixed px-8 py-4 rounded-xl font-label-sm text-label-sm uppercase tracking-wider neon-glow-primary hover:bg-primary-fixed transition-all flex items-center justify-center gap-2" href="#download">
-<span class="material-symbols-outlined">download</span>
-                            Скачать бесплатно
+                    <div class="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4">
+                        <a href="https://github.com/Diverlin/DivLauncher/releases/latest" target="_blank" class="w-full sm:w-auto bg-primary-container text-on-primary-fixed px-8 py-4 rounded-xl font-semibold uppercase tracking-wider hover:bg-primary-fixed transition-colors flex items-center justify-center gap-2">
+                            <span class="material-symbols-outlined">download</span>
+                            Скачать лаунчер
                         </a>
-<a class="w-full sm:w-auto glass-card px-8 py-4 rounded-xl font-label-sm text-label-sm uppercase tracking-wider text-primary-container hover:bg-white/5 transition-all border border-primary-container/30 flex items-center justify-center gap-2" href="#features">
-                            Смотреть возможности
+                        <a href="#features" class="w-full sm:w-auto glass-card px-8 py-4 font-semibold uppercase tracking-wider text-primary-container hover:bg-white/5 transition-colors border border-primary-container/30 flex items-center justify-center gap-2">
+                            Узнать больше
                             <span class="material-symbols-outlined">arrow_downward</span>
-</a>
-</div>
-</div>
-<div class="relative hidden lg:block perspective-1000">
-<div class="relative transform rotate-y-[-15deg] rotate-x-[5deg] hover:rotate-y-0 hover:rotate-x-0 transition-transform duration-700 ease-out">
-<div class="absolute -inset-4 bg-primary-container/20 blur-3xl rounded-full"></div>
-<img alt="Интерфейс DivLauncher" class="relative rounded-[16px] glass-card border border-white/10 shadow-2xl neon-glow-secondary" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDqQVHrDSUrrfEZP4A22tcF0BL5Nvc3uEpLaDDB6B-7Cj2cBPq2c8Mh3EnWp0PwRTzE4VIr7R0fj4nXunLujGnPoKMQCnYlnbpdshw3g_I6HKrh5Zwfes0Rhw9bv3l03GbMDvzR6Icjh0fOMF1FlEXgC1eLn7c11C34ig7__0Pj-a8UGLK9TaC501bVM9KUgdNGXiz17BrXoR_2JVpybyfGuVuGM7AkqLTyNS6wfTxdoHceEMhQC5-hlEgL-_3JnWMVCTVGVyphjkg"/>
-</div>
-</div>
-</div>
-<!-- Ambient Glow -->
-<div class="absolute top-1/4 -left-1/4 w-[500px] h-[500px] bg-secondary/10 rounded-full blur-[120px] pointer-events-none"></div>
-<div class="absolute bottom-1/4 -right-1/4 w-[600px] h-[600px] bg-primary-fixed/10 rounded-full blur-[150px] pointer-events-none"></div>
-</section>
-<hr class="gradient-separator"/>
-<!-- Features Section -->
-<section class="py-24 px-margin-mobile md:px-margin-desktop relative" id="features">
-<div class="max-w-container-max mx-auto">
-<div class="text-center mb-16 space-y-4">
-<span class="font-label-sm text-label-sm uppercase tracking-widest text-primary-container bg-primary-container/10 px-4 py-2 rounded-full inline-block">Технологии</span>
-<h2 class="font-headline-lg text-headline-lg text-on-surface">Создан для скорости</h2>
-</div>
-<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-<!-- Feature 1 -->
-<div class="glass-card p-8 rounded-[16px] hover:bg-white/5 transition-colors group">
-<div class="w-14 h-14 rounded-full bg-surface-container-high flex items-center justify-center mb-6 border border-white/5 group-hover:border-primary-container/50 transition-colors">
-<span class="material-symbols-outlined text-2xl text-secondary-fixed">update</span>
-</div>
-<h3 class="font-headline-md text-headline-md text-on-surface mb-3">Авто-обновления</h3>
-<p class="font-body-md text-body-md text-on-surface-variant">Всегда актуальные версии игр и модов без лишних действий в фоновом режиме.</p>
-</div>
-<!-- Feature 2 -->
-<div class="glass-card p-8 rounded-[16px] hover:bg-white/5 transition-colors group">
-<div class="w-14 h-14 rounded-full bg-surface-container-high flex items-center justify-center mb-6 border border-white/5 group-hover:border-primary-container/50 transition-colors">
-<span class="material-symbols-outlined text-2xl text-primary-fixed">extension</span>
-</div>
-<h3 class="font-headline-md text-headline-md text-on-surface mb-3">Выбор сборок</h3>
-<p class="font-body-md text-body-md text-on-surface-variant">Огромная библиотека проверенных модпаков с установкой в один клик.</p>
-</div>
-<!-- Feature 3 -->
-<div class="glass-card p-8 rounded-[16px] hover:bg-white/5 transition-colors group">
-<div class="w-14 h-14 rounded-full bg-surface-container-high flex items-center justify-center mb-6 border border-white/5 group-hover:border-primary-container/50 transition-colors">
-<span class="material-symbols-outlined text-2xl text-secondary">share</span>
-</div>
-<h3 class="font-headline-md text-headline-md text-on-surface mb-3">Discord RPC</h3>
-<p class="font-body-md text-body-md text-on-surface-variant">Покажи друзьям, во что играешь, с детальной интеграцией статуса в Discord.</p>
-</div>
-<!-- Feature 4 -->
-<div class="glass-card p-8 rounded-[16px] hover:bg-white/5 transition-colors group">
-<div class="w-14 h-14 rounded-full bg-surface-container-high flex items-center justify-center mb-6 border border-white/5 group-hover:border-primary-container/50 transition-colors">
-<span class="material-symbols-outlined text-2xl text-primary-container">rocket_launch</span>
-</div>
-<h3 class="font-headline-md text-headline-md text-on-surface mb-3">Быстрый запуск</h3>
-<p class="font-body-md text-body-md text-on-surface-variant">Оптимизированный движок лаунчера минимизирует время от клика до игры.</p>
-</div>
-</div>
-</div>
-</section>
-<hr class="gradient-separator"/>
-<!-- Download Section -->
-<section class="py-32 px-margin-mobile md:px-margin-desktop relative" id="download">
-<div class="absolute inset-0 bg-gradient-to-b from-transparent via-primary-container/5 to-transparent pointer-events-none"></div>
-<div class="max-w-4xl mx-auto glass-card rounded-[24px] p-12 text-center relative z-10 border-t-2 border-primary-container/50 neon-glow-primary">
-<span class="material-symbols-outlined text-6xl text-primary-container mb-6 animate-pulse">laptop_windows</span>
-<h2 class="font-display-lg-mobile md:font-display-lg text-on-surface mb-4">Готов к запуску?</h2>
-<p class="font-body-lg text-body-lg text-on-surface-variant mb-8 max-w-2xl mx-auto">
-                    Скачайте последнюю версию DivLauncher и получите полный контроль над своим игровым опытом. Установка займет меньше минуты.
+                        </a>
+                    </div>
+                </div>
+                <div class="relative hidden lg:block perspective-1000">
+                    <div class="relative transform transition-transform duration-700 ease-out">
+                        <img alt="Интерфейс DivLauncher" class="relative rounded-2xl border border-white/10" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDqQVHrDSUrrfEZP4A22tcF0BL5Nvc3uEpLaDDB6B-7Cj2cBPq2c8Mh3EnWp0PwRTzE4VIr7R0fj4nXunLujGnPoKMQCnYlnbpdshw3g_I6HKrh5Zwfes0Rhw9bv3l03GbMDvzR6Icjh0fOMF1FlEXgC1eLn7c11C34ig7__0Pj-a8UGLK9TaC501bVM9KUgdNGXiz17BrXoR_2JVpybyfGuVuGM7AkqLTyNS6wfTxdoHceEMhQC5-hlEgL-_3JnWMVCTVGVyphjkg"/>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <hr class="gradient-separator"/>
+
+        <!-- Features Section -->
+        <section class="py-24 px-5 md:px-16 relative" id="features">
+            <div class="max-w-[1440px] mx-auto">
+                <div class="text-center mb-16 space-y-4">
+                    <span class="text-sm font-semibold uppercase tracking-widest text-primary-container bg-primary-container/10 px-4 py-2 rounded-full inline-block">Преимущества</span>
+                    <h2 class="text-3xl md:text-4xl font-semibold text-on-surface">Создан для удобства</h2>
+                </div>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+                    <!-- Feature 1 -->
+                    <div class="glass-card p-8 hover:bg-white/5 transition-colors group">
+                        <div class="w-14 h-14 rounded-full bg-surface-container-high flex items-center justify-center mb-6 border border-white/5 group-hover:border-primary-container/50 transition-colors">
+                            <span class="material-symbols-outlined text-2xl text-secondary-fixed">rocket_launch</span>
+                        </div>
+                        <h3 class="text-xl font-semibold text-on-surface mb-3">Мгновенный старт</h3>
+                        <p class="text-base text-on-surface-variant">Никаких долгих загрузок. Легковесный движок позволяет запускать игру за считанные секунды.</p>
+                    </div>
+
+                    <!-- Feature 2 -->
+                    <div class="glass-card p-8 hover:bg-white/5 transition-colors group">
+                        <div class="w-14 h-14 rounded-full bg-surface-container-high flex items-center justify-center mb-6 border border-white/5 group-hover:border-primary-container/50 transition-colors">
+                            <span class="material-symbols-outlined text-2xl text-primary-fixed">cloud_sync</span>
+                        </div>
+                        <h3 class="text-xl font-semibold text-on-surface mb-3">Синхронизация</h3>
+                        <p class="text-base text-on-surface-variant">Все нужные моды и ресурсы скачиваются и обновляются автоматически прямо с нашего сервера.</p>
+                    </div>
+
+                    <!-- Feature 3 -->
+                    <div class="glass-card p-8 hover:bg-white/5 transition-colors group">
+                        <div class="w-14 h-14 rounded-full bg-surface-container-high flex items-center justify-center mb-6 border border-white/5 group-hover:border-primary-container/50 transition-colors">
+                            <span class="material-symbols-outlined text-2xl text-secondary">verified</span>
+                        </div>
+                        <h3 class="text-xl font-semibold text-on-surface mb-3">Оптимизация</h3>
+                        <p class="text-base text-on-surface-variant">Сборки уже настроены на максимальный FPS. Просто выбирай клиент и наслаждайся игрой.</p>
+                    </div>
+
+                    <!-- Feature 4 -->
+                    <div class="glass-card p-8 hover:bg-white/5 transition-colors group">
+                        <div class="w-14 h-14 rounded-full bg-surface-container-high flex items-center justify-center mb-6 border border-white/5 group-hover:border-primary-container/50 transition-colors">
+                            <span class="material-symbols-outlined text-2xl text-primary-container">forum</span>
+                        </div>
+                        <h3 class="text-xl font-semibold text-on-surface mb-3">Discord RPC</h3>
+                        <p class="text-base text-on-surface-variant">Твой статус в Discord автоматически показывает, на каком сервере ты сейчас играешь.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <hr class="gradient-separator"/>
+
+        <!-- Download Section -->
+        <section class="py-32 px-5 md:px-16 relative" id="download">
+            <div class="absolute inset-0 bg-gradient-to-b from-transparent via-primary-container/5 to-transparent pointer-events-none"></div>
+            <div class="max-w-4xl mx-auto glass-card rounded-[24px] p-12 text-center relative z-10 border-t-2 border-primary-container/50">
+                <span class="material-symbols-outlined text-6xl text-primary-container mb-6 animate-bounce">download_for_offline</span>
+                <h2 class="text-3xl md:text-5xl font-bold text-on-surface mb-4">Начни играть прямо сейчас</h2>
+                <p class="text-lg text-on-surface-variant mb-8 max-w-2xl mx-auto">
+                    Присоединяйся к нашему серверу. Скачай лаунчер и погрузись в игру.
                 </p>
-<div class="inline-flex flex-col items-center">
-<a class="bg-primary-container text-on-primary-fixed px-12 py-5 rounded-xl font-headline-md text-headline-md uppercase tracking-wider neon-glow-primary hover:bg-primary-fixed hover:scale-105 active:scale-95 transition-all duration-300 flex items-center gap-3 mb-4" href="https://github.com/Diverlin/DivLauncher/releases/latest" target="_blank">
-<span class="material-symbols-outlined text-3xl">download</span>
+                <div class="inline-flex flex-col items-center">
+                    <a href="https://github.com/Diverlin/DivLauncher/releases/latest" target="_blank" class="bg-primary-container text-on-primary-fixed px-12 py-5 rounded-xl text-lg font-semibold uppercase tracking-wider hover:bg-primary-fixed transition-colors flex items-center gap-3 mb-4">
+                        <span class="material-symbols-outlined text-3xl">download</span>
                         Скачать для Windows
                     </a>
-<div class="flex items-center gap-4 text-on-surface-variant font-label-sm text-label-sm uppercase tracking-widest bg-surface-container-high/50 px-6 py-2 rounded-full border border-white/5">
-<span class="flex items-center gap-1"><span class="material-symbols-outlined text-sm">info</span> Версия: v1.0.5</span>
-<span class="w-1 h-1 rounded-full bg-outline-variant"></span>
-<span class="flex items-center gap-1"><span class="material-symbols-outlined text-sm">sd_storage</span> Размер: ~45 MB</span>
-</div>
-</div>
-<div class="mt-8 text-sm text-on-surface-variant/50">
-                    Доступно для Windows 10/11 (64-bit).
-</div>
-</div>
-</section>
-</main>
-<!-- Footer (Shared Component) -->
-<footer class="bg-surface-container-lowest py-12 border-t border-outline-variant/30 relative z-20">
-<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-gutter px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto">
-<!-- Brand Column -->
-<div class="space-y-4">
-<a class="flex items-center gap-2 opacity-80 hover:opacity-100 transition-opacity" href="#">
-<span class="material-symbols-outlined text-2xl text-primary-fixed">sports_esports</span>
-<span class="font-display-lg text-primary-fixed text-2xl tracking-tighter">DivLauncher</span>
-</a>
-<p class="font-body-md text-body-md text-on-surface-variant max-w-xs">
-                    © 2025 Diverlin. Все права защищены. Minecraft является торговой маркой Mojang AB.
-                </p>
-</div>
-<!-- Links Column 1 -->
-<div class="space-y-4">
-<h4 class="font-label-sm text-label-sm uppercase tracking-widest text-on-surface">Навигация</h4>
-<ul class="space-y-2">
-<li><a class="font-body-md text-body-md text-on-surface-variant hover:text-secondary-fixed transition-colors" href="#">Главная</a></li>
-<li><a class="font-body-md text-body-md text-on-surface-variant hover:text-secondary-fixed transition-colors" href="#features">Возможности</a></li>
-<li><a class="font-body-md text-body-md text-on-surface-variant hover:text-secondary-fixed transition-colors" href="#download">Скачать</a></li>
-</ul>
-</div>
-<!-- Links Column 2 -->
-<div class="space-y-4">
-<h4 class="font-label-sm text-label-sm uppercase tracking-widest text-on-surface">Документация</h4>
-<ul class="space-y-2">
-<li><a class="font-body-md text-body-md text-on-surface-variant hover:text-secondary-fixed transition-colors" href="#">Политика конфиденциальности</a></li>
-<li><a class="font-body-md text-body-md text-on-surface-variant hover:text-secondary-fixed transition-colors" href="#">Условия использования</a></li>
-<li><a class="font-body-md text-body-md text-on-surface-variant hover:text-secondary-fixed transition-colors" href="#">FAQ</a></li>
-</ul>
-</div>
-<!-- Social Column -->
-<div class="space-y-4">
-<h4 class="font-label-sm text-label-sm uppercase tracking-widest text-on-surface">Сообщество</h4>
-<ul class="space-y-2">
-<li><a class="font-body-md text-body-md text-on-surface-variant hover:text-secondary-fixed transition-colors flex items-center gap-2" href="#"><span class="material-symbols-outlined text-sm">forum</span> Discord</a></li>
-<li><a class="font-body-md text-body-md text-on-surface-variant hover:text-secondary-fixed transition-colors flex items-center gap-2" href="#"><span class="material-symbols-outlined text-sm">code</span> GitHub</a></li>
-<li><a class="font-body-md text-body-md text-on-surface-variant hover:text-secondary-fixed transition-colors flex items-center gap-2" href="#"><span class="material-symbols-outlined text-sm">mail</span> Контакты</a></li>
-</ul>
-</div>
-</div>
-</footer>
-<!-- Lightweight Particle Script (Vanilla JS) -->
-<script>
+                </div>
+                <div class="mt-8 text-sm text-on-surface-variant/50">
+                    Поддерживаются Windows 10 и 11 (64-bit).
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-surface-container-lowest py-8 border-t border-outline-variant/30 relative z-20">
+        <div class="max-w-[1440px] mx-auto px-5 md:px-16 flex flex-col items-center justify-center text-center">
+            <div class="flex items-center gap-2 mb-4">
+                <span class="material-symbols-outlined text-2xl text-primary-fixed">sports_esports</span>
+                <span class="font-bold text-primary-fixed text-2xl tracking-tighter">DivLauncher</span>
+            </div>
+            <p class="text-base text-on-surface-variant">
+                © 2025 Diverlin. Все права защищены. Minecraft является торговой маркой Mojang AB.
+            </p>
+        </div>
+    </footer>
+
+    <!-- Lightweight Particle Script (Vanilla JS) -->
+    <script>
         document.addEventListener('DOMContentLoaded', () => {
             const container = document.getElementById('particles-js');
-            const particleCount = 50;
+            const particleCount = 40;
 
             for (let i = 0; i < particleCount; i++) {
                 const particle = document.createElement('div');
                 
-                // Randomize properties
                 const size = Math.random() * 4 + 1;
                 const xPos = Math.random() * 100;
                 const yPos = Math.random() * 100;
-                const opacity = Math.random() * 0.5 + 0.1;
+                const opacity = Math.random() * 0.4 + 0.1;
                 const animDuration = Math.random() * 20 + 10;
                 const animDelay = Math.random() * 5;
 
-                // Styling
                 particle.style.position = 'absolute';
                 particle.style.width = `${size}px`;
                 particle.style.height = `${size}px`;
                 particle.style.left = `${xPos}%`;
                 particle.style.top = `${yPos}%`;
-                particle.style.backgroundColor = i % 3 === 0 ? '#00ff88' : '#4fc3f7'; // Mix green and blue
+                particle.style.backgroundColor = i % 3 === 0 ? '#00ff88' : '#4fc3f7';
                 particle.style.opacity = opacity;
-                particle.style.borderRadius = i % 2 === 0 ? '50%' : '0'; // Mix circles and squares(cubes)
-                particle.style.boxShadow = `0 0 ${size * 2}px ${particle.style.backgroundColor}`;
+                particle.style.borderRadius = i % 2 === 0 ? '50%' : '0';
                 
-                // Animation setup
                 particle.style.animation = `float-up ${animDuration}s linear ${animDelay}s infinite`;
                 
                 container.appendChild(particle);
             }
 
-            // Define animation in style tag to apply to injected particles
             const style = document.createElement('style');
             style.textContent = `
                 @keyframes float-up {
@@ -371,4 +234,5 @@
             document.head.appendChild(style);
         });
     </script>
-</body></html>
+</body>
+</html>
