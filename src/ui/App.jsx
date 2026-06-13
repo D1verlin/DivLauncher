@@ -111,6 +111,16 @@ function UpdateNotification() {
   );
 }
 
+// ВЕРХНЯЯ ПАНЕЛЬ С КНОПКАМИ (Отображается везде)
+const TopBar = () => (
+  <div style={{ height: '40px', WebkitAppRegion: 'drag', display: 'flex', justifyContent: 'flex-end', alignItems: 'center', padding: '0 15px', position: 'absolute', top: 0, right: 0, left: 0, zIndex: 100 }}>
+    <div style={{ WebkitAppRegion: 'no-drag', display: 'flex', gap: '15px' }}>
+      <button onClick={() => window.electronAPI.minimizeWindow()} style={{ background: 'transparent', border: 'none', color: '#a0a0a0', cursor: 'pointer', fontSize: '18px' }}><i className="fa-solid fa-minus h-minimize"></i></button>
+      <button onClick={() => window.electronAPI.closeWindow()} style={{ background: 'transparent', border: 'none', color: '#a0a0a0', cursor: 'pointer', fontSize: '18px' }}><i className="fa-solid fa-xmark h-close"></i></button>
+    </div>
+  </div>
+);
+
 // --- ОСНОВНОЕ ПРИЛОЖЕНИЕ ---
 export default function App() {
   const [currentPage, setCurrentPage] = useState('client');
@@ -118,7 +128,6 @@ export default function App() {
   const [currentPack, setCurrentPack] = useState(null);
   const [loadingError, setLoadingError] = useState(null); 
   
-  // Новые состояния для версии и обновлений
   const [appVersion, setAppVersion] = useState('0.0.0');
   const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
 
@@ -139,7 +148,6 @@ export default function App() {
 
   const fetchModpacks = () => {
     setLoadingError(null);
-    // Добавляем защиту от кэширования!
     fetch(`${MODPACKS_URL}?t=${new Date().getTime()}`, { cache: 'no-store' })
       .then(res => {
         if (!res.ok) throw new Error(`Ошибка HTTP: ${res.status}`);
@@ -148,8 +156,13 @@ export default function App() {
       .then(data => {
         setModpacks(data);
         if (data.length > 0) {
-          setCurrentPack(data[0]);
-          setServerLogs(`Выбрана сборка: ${data[0].name}. Сервер готов к запуску...\n`);
+          // --- УМНЫЙ ВЫБОР СБОРКИ ---
+          const savedPackId = localStorage.getItem('launcher_last_pack');
+          const lastPack = data.find(p => p.id === savedPackId);
+          const packToSelect = lastPack || data[0];
+
+          setCurrentPack(packToSelect);
+          setServerLogs(`Выбрана сборка: ${packToSelect.name}. Сервер готов к запуску...\n`);
         } else {
           setLoadingError("Список сборок на сервере пуст.");
         }
@@ -162,7 +175,6 @@ export default function App() {
   useEffect(() => {
     fetchModpacks();
     
-    // Получаем версию из системы автоматически
     if (window.electronAPI?.getAppVersion) {
       window.electronAPI.getAppVersion().then(v => setAppVersion(v));
     }
@@ -170,6 +182,14 @@ export default function App() {
     window.electronAPI.onServerLog((e, data) => setServerLogs(p => p + data));
     window.electronAPI.onServerStatus((e, status) => setIsServerRunning(status === 'starting'));
     window.electronAPI.onServerPlayers((e, playerList) => setServerPlayers(playerList));
+
+    const checkVideoSetting = () => {
+      setEnableVideoBg(localStorage.getItem('launcher_video_bg') !== 'false');
+    };
+    
+    const interval = setInterval(checkVideoSetting, 500);
+    return () => clearInterval(interval);
+
   }, []);
 
   const handleManualUpdate = () => {
@@ -177,20 +197,10 @@ export default function App() {
     if (window.electronAPI?.checkForUpdates) {
       window.electronAPI.checkForUpdates();
     }
-    setTimeout(() => setIsCheckingUpdate(false), 2000); // Анимация на 2 сек
+    setTimeout(() => setIsCheckingUpdate(false), 2000); 
   };
 
-  // ВЕРХНЯЯ ПАНЕЛЬ С КНОПКАМИ (Отображается везде)
-  const TopBar = () => (
-    <div style={{ height: '40px', WebkitAppRegion: 'drag', display: 'flex', justifyContent: 'flex-end', alignItems: 'center', padding: '0 15px', position: 'absolute', top: 0, right: 0, left: 0, zIndex: 100 }}>
-      <div style={{ WebkitAppRegion: 'no-drag', display: 'flex', gap: '15px' }}>
-        <button onClick={() => window.electronAPI.minimizeWindow()} style={{ background: 'transparent', border: 'none', color: '#a0a0a0', cursor: 'pointer', fontSize: '18px' }}><i className="fa-solid fa-minus h-minimize"></i></button>
-        <button onClick={() => window.electronAPI.closeWindow()} style={{ background: 'transparent', border: 'none', color: '#a0a0a0', cursor: 'pointer', fontSize: '18px' }}><i className="fa-solid fa-xmark h-close"></i></button>
-      </div>
-    </div>
-  );
 
-  // ЭКРАН ЗАГРУЗКИ / ОШИБКИ
   if (!currentPack) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', width: '100%', height: '100%', background: '#0a0a0c', color: '#fff', position: 'relative' }}>
@@ -242,43 +252,47 @@ export default function App() {
       <TopBar />
       <UpdateNotification />
 
-      <div style={{ display: 'flex', flexGrow: 1, padding: '40px 20px 20px 20px', gap: '40px', overflow: 'hidden' }}>
-        <div style={{ width: '60px', minWidth: '60px', background: '#11111157', backdropFilter: 'blur(20px)', borderRadius: '30px', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '20px 0', border: '1px solid rgba(255,255,255,0.05)', overflowY: 'auto', zIndex: 10 }}>
+        <div style={{ display: 'flex', flexGrow: 1, padding: '40px 20px 20px 20px', gap: '40px', overflow: 'hidden' }}>
           
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '20px', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '20px' }}>
-            {modpacks.map(pack => (
-              <motion.img 
-                key={pack.id} src={pack.icon} alt={pack.name} title={pack.name}
-                whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}
-                onClick={() => { setCurrentPack(pack); setServerLogs(`Выбрана сборка: ${pack.name}...\n`); }}
-                style={{ width: '40px', height: '40px', cursor: 'pointer', opacity: currentPack.id === pack.id ? 1 : 0.4, borderRadius: '8px', objectFit: 'contain' }}
-              />
-            ))}
-          </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-            <NavButton icon="fa-gamepad" active={currentPage === 'client'} onClick={() => setCurrentPage('client')} color="#10b981" />
-            <NavButton icon="fa-server" active={currentPage === 'server'} onClick={() => setCurrentPage('server')} color="#3b82f6" />
-          </div>
-
-          {/* НИЖНЯЯ ЧАСТЬ SIDEBAR С ВЕРСИЕЙ */}
-          <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '15px' }}>
-            <NavButton icon="fa-gear" active={currentPage === 'settings'} onClick={() => setCurrentPage('settings')} color="#f59e0b" />
+          <div style={{ width: '60px', minWidth: '60px', background: '#11111157', backdropFilter: 'blur(20px)', borderRadius: '30px', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '20px 0', border: '1px solid rgba(255,255,255,0.05)', overflowY: 'auto' }}>
             
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', paddingBottom: '10px' }}>
-              <motion.button
-                onClick={handleManualUpdate}
-                title="Проверить обновления"
-                animate={isCheckingUpdate ? { rotate: 360 } : {}}
-                transition={isCheckingUpdate ? { repeat: Infinity, duration: 1, ease: "linear" } : {}}
-                style={{ background: 'transparent', border: 'none', color: isCheckingUpdate ? '#10b981' : '#52525b', cursor: 'pointer', fontSize: '14px' }}
-              >
-                <i className="fa-solid fa-arrows-rotate"></i>
-              </motion.button>
-              <span style={{ fontSize: '9px', fontWeight: 800, color: '#ffffff33', letterSpacing: '0.5px' }}>v{appVersion}</span>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '20px', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '20px' }}>
+              {modpacks.map(pack => (
+                <motion.img 
+                  key={pack.id} src={pack.icon} alt={pack.name} title={pack.name}
+                  whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}
+                  onClick={() => { 
+                    setCurrentPack(pack); 
+                    localStorage.setItem('launcher_last_pack', pack.id); // Запоминаем выбор!
+                    setServerLogs(`Выбрана сборка: ${pack.name}...\n`); 
+                  }}
+                  style={{ width: '40px', height: '40px', cursor: 'pointer', opacity: currentPack.id === pack.id ? 1 : 0.4, borderRadius: '8px', objectFit: 'contain' }}
+                />
+              ))}
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+              <NavButton icon="fa-gamepad" active={currentPage === 'client'} onClick={() => setCurrentPage('client')} color="#10b981" />
+              <NavButton icon="fa-server" active={currentPage === 'server'} onClick={() => setCurrentPage('server')} color="#3b82f6" />
+            </div>
+
+            <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '15px' }}>
+              <NavButton icon="fa-gear" active={currentPage === 'settings'} onClick={() => setCurrentPage('settings')} color="#f59e0b" />
+              
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', paddingBottom: '10px' }}>
+                <motion.button
+                  onClick={handleManualUpdate}
+                  title="Проверить обновления"
+                  animate={isCheckingUpdate ? { rotate: 360 } : {}}
+                  transition={isCheckingUpdate ? { repeat: Infinity, duration: 1, ease: "linear" } : {}}
+                  style={{ background: 'transparent', border: 'none', color: isCheckingUpdate ? '#10b981' : '#52525b', cursor: 'pointer', fontSize: '14px' }}
+                >
+                  <i className="fa-solid fa-arrows-rotate"></i>
+                </motion.button>
+                <span style={{ fontSize: '9px', fontWeight: 800, color: '#ffffff33', letterSpacing: '0.5px' }}>v{appVersion}</span>
+              </div>
             </div>
           </div>
-        </div>
 
         <div style={{ flexGrow: 1, overflow: 'hidden', position: 'relative', zIndex: 10 }}>
           {currentPack ? (

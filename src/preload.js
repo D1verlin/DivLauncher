@@ -48,4 +48,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   saveSkinFile:       (skinDataUrl, username, packClientDir) => ipcRenderer.invoke('save-skin-file', skinDataUrl, username, packClientDir),
   uploadMojangSkin:   (skinDataUrl, accessToken, variant) => ipcRenderer.invoke('upload-mojang-skin', skinDataUrl, accessToken, variant),
   uploadCloudflareSkin: (skinDataUrl, username) => ipcRenderer.invoke('upload-cloudflare-skin', skinDataUrl, username),
+  // --- DISCORD RPC ---
+  setDiscordIdle: () => ipcRenderer.send('discord-status-idle'),
+  setDiscordPlaying: (packName) => ipcRenderer.send('discord-status-playing', packName),
 });

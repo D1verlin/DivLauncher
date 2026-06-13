@@ -27,15 +27,43 @@ const glassInputStyle = {
   transition: 'border 0.3s'
 };
 
+// Стили для кнопок в контекстном меню
+const contextBtnStyle = {
+  background: 'transparent',
+  border: 'none',
+  color: '#e4e4e7',
+  padding: '8px 12px',
+  textAlign: 'left',
+  fontSize: '12px',
+  fontWeight: 600,
+  cursor: 'pointer',
+  display: 'flex',
+  alignItems: 'center',
+  gap: '8px',
+  width: '100%',
+  transition: 'background 0.2s, color 0.2s'
+};
+
 export default function ServerPage({ logs, isRunning, players, currentPack }) {
   const [command, setCommand] = useState('');
   const [showProps, setShowProps] = useState(false);
   const [propsData, setPropsData] = useState({});
   const consoleEndRef = useRef(null);
 
+  // СОСТОЯНИЯ ДЛЯ УПРАВЛЕНИЯ ИГРОКАМИ (КОНТЕКСТНОЕ МЕНЮ)
+  const [selectedPlayer, setSelectedPlayer] = useState(null);
+  const [menuPosition, setMenuPosition] = useState({ x: 0, y: 0 });
+
   useEffect(() => { 
     consoleEndRef.current?.scrollIntoView({ behavior: "smooth" }); 
   }, [logs]);
+
+  // Закрываем меню при клике в любое место
+  useEffect(() => {
+    const handleClickOutside = () => setSelectedPlayer(null);
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, []);
 
   const toggleServer = () => {
     if (isRunning) window.electronAPI.sendServerCommand('stop');
@@ -59,6 +87,40 @@ export default function ServerPage({ logs, isRunning, players, currentPack }) {
     if (isRunning) window.electronAPI.sendServerCommand('say Настройки изменены (требуется рестарт)');
   };
 
+  // --- ЛОГИКА КОНТЕКСТНОГО МЕНЮ ИГРОКА ---
+  const handlePlayerClick = (e, player) => {
+    e.stopPropagation(); // Не даем клику уйти на документ (чтобы меню не закрылось сразу)
+    
+    // Получаем координаты клика относительно окна
+    const rect = e.currentTarget.getBoundingClientRect();
+    
+    // Если меню уже открыто для этого игрока - закрываем
+    if (selectedPlayer === player) {
+      setSelectedPlayer(null);
+    } else {
+      setSelectedPlayer(player);
+      // Смещаем меню чуть правее и ниже карточки игрока
+      setMenuPosition({ x: rect.left - 130, y: rect.top });
+    }
+  };
+
+  const handlePlayerAction = (action, player) => {
+    if (!isRunning) return;
+    
+    let cmd = '';
+    switch (action) {
+      case 'kick': cmd = `kick ${player}`; break;
+      case 'ban': cmd = `ban ${player}`; break;
+      case 'op': cmd = `op ${player}`; break;
+      case 'deop': cmd = `deop ${player}`; break;
+      case 'kill': cmd = `kill ${player}`; break;
+      default: return;
+    }
+    
+    window.electronAPI.sendServerCommand(cmd);
+    setSelectedPlayer(null); // Закрываем меню
+  };
+
   const containerVariants = {
     hidden: { opacity: 0 },
     visible: { opacity: 1, transition: { staggerChildren: 0.1 } }
@@ -77,7 +139,7 @@ export default function ServerPage({ logs, isRunning, players, currentPack }) {
       style={{ display: 'flex', height: '100%', width: '100%', gap: '15px', position: 'relative', paddingBottom: '15px' }}
     >
       
-      {/* МОДАЛЬНОЕ ОКНО: НАСТРОЙКИ */}
+      {/* ... (Модальное окно настроек остается без изменений) ... */}
       <AnimatePresence>
         {showProps && (
           <motion.div 
@@ -213,7 +275,7 @@ export default function ServerPage({ logs, isRunning, players, currentPack }) {
           </motion.button>
         </div>
 
-        <div style={{ ...glassPanelStyle, flexGrow: 1, padding: '15px' }}>
+        <div style={{ ...glassPanelStyle, flexGrow: 1, padding: '15px', position: 'relative' }}>
           <div style={{ fontSize: '11px', color: '#a1a1aa', textTransform: 'uppercase', fontWeight: 800, marginBottom: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span>Онлайн</span>
             <span style={{ background: 'rgba(16, 185, 129, 0.2)', color: '#10b981', padding: '2px 6px', borderRadius: '8px' }}>{players.length}</span>
@@ -226,7 +288,21 @@ export default function ServerPage({ logs, isRunning, players, currentPack }) {
               players.map(player => (
                 <div 
                   key={player} 
-                  style={{ background: 'rgba(0,0,0,0.3)', padding: '6px 10px', borderRadius: '10px', fontSize: '13px', fontWeight: 700, color: '#fff', display: 'flex', alignItems: 'center', gap: '10px', border: '1px solid rgba(255,255,255,0.05)' }}
+                  onClick={(e) => handlePlayerClick(e, player)}
+                  style={{ 
+                    background: selectedPlayer === player ? 'rgba(59, 130, 246, 0.2)' : 'rgba(0,0,0,0.3)', 
+                    padding: '6px 10px', 
+                    borderRadius: '10px', 
+                    fontSize: '13px', 
+                    fontWeight: 700, 
+                    color: '#fff', 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: '10px', 
+                    border: selectedPlayer === player ? '1px solid rgba(59, 130, 246, 0.4)' : '1px solid rgba(255,255,255,0.05)',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s'
+                  }}
                 >
                   <img src={`https://minotar.net/helm/${player}/20.png`} alt={player} style={{ borderRadius: '4px', width: '20px', height: '20px', boxShadow: '0 2px 4px rgba(0,0,0,0.5)' }} onError={(e) => e.target.style.display='none'} />
                   {player}
@@ -234,6 +310,57 @@ export default function ServerPage({ logs, isRunning, players, currentPack }) {
               ))
             )}
           </div>
+
+          {/* ВСПЛЫВАЮЩЕЕ МЕНЮ ИГРОКА */}
+          <AnimatePresence>
+            {selectedPlayer && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9, x: 10 }}
+                animate={{ opacity: 1, scale: 1, x: 0 }}
+                exit={{ opacity: 0, scale: 0.9, x: 10 }}
+                transition={{ duration: 0.15 }}
+                onClick={(e) => e.stopPropagation()} // Чтобы клики внутри меню не закрывали его
+                style={{
+                  position: 'fixed',
+                  top: menuPosition.y,
+                  left: menuPosition.x,
+                  background: 'rgba(20, 20, 25, 0.9)',
+                  backdropFilter: 'blur(10px)',
+                  border: '1px solid rgba(255,255,255,0.1)',
+                  borderRadius: '12px',
+                  padding: '5px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '2px',
+                  zIndex: 999,
+                  boxShadow: '0 10px 25px rgba(0,0,0,0.5)',
+                  minWidth: '120px'
+                }}
+              >
+                <div style={{ padding: '6px 10px', fontSize: '10px', color: '#a1a1aa', borderBottom: '1px solid rgba(255,255,255,0.05)', marginBottom: '4px', textAlign: 'center' }}>
+                  {selectedPlayer}
+                </div>
+                
+                <button onClick={() => handlePlayerAction('kick', selectedPlayer)} style={contextBtnStyle} onMouseOver={e => e.currentTarget.style.color = '#f59e0b'} onMouseOut={e => e.currentTarget.style.color = '#e4e4e7'}>
+                  <i className="fa-solid fa-user-minus" style={{ width: '15px' }}></i> Кикнуть
+                </button>
+                <button onClick={() => handlePlayerAction('kill', selectedPlayer)} style={contextBtnStyle} onMouseOver={e => e.currentTarget.style.color = '#ef4444'} onMouseOut={e => e.currentTarget.style.color = '#e4e4e7'}>
+                  <i className="fa-solid fa-skull" style={{ width: '15px' }}></i> Убить
+                </button>
+                <button onClick={() => handlePlayerAction('op', selectedPlayer)} style={contextBtnStyle} onMouseOver={e => e.currentTarget.style.color = '#10b981'} onMouseOut={e => e.currentTarget.style.color = '#e4e4e7'}>
+                  <i className="fa-solid fa-crown" style={{ width: '15px' }}></i> Дать OP
+                </button>
+                <button onClick={() => handlePlayerAction('deop', selectedPlayer)} style={contextBtnStyle} onMouseOver={e => e.currentTarget.style.color = '#6366f1'} onMouseOut={e => e.currentTarget.style.color = '#e4e4e7'}>
+                  <i className="fa-solid fa-user-shield" style={{ width: '15px' }}></i> Забрать OP
+                </button>
+                <div style={{ height: '1px', background: 'rgba(255,255,255,0.05)', margin: '2px 0' }}></div>
+                <button onClick={() => handlePlayerAction('ban', selectedPlayer)} style={{ ...contextBtnStyle, color: '#ef4444' }} onMouseOver={e => e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)'} onMouseOut={e => e.currentTarget.style.background = 'transparent'}>
+                  <i className="fa-solid fa-gavel" style={{ width: '15px' }}></i> Забанить
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
         </div>
       </motion.div>
       
