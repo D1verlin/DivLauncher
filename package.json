@@ -1,6 +1,6 @@
 {
   "name": "div-launcher",
-  "version": "1.0.3",
+  "version": "1.0.5",
   "description": "Custom Minecraft Launcher",
   "author": "Diverlin",
   "main": "src/main.js",
@@ -49,7 +49,8 @@
     "minecraft-launcher-core": "^3.18.2",
     "msmc": "^5.0.5",
     "react": "^19.2.4",
-    "react-dom": "^19.2.4"
+    "react-dom": "^19.2.4",
+    "skinview3d": "^3.4.2"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^6.0.1",

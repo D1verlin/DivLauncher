@@ -2,6 +2,7 @@ const path = require('path');
 const fs = require('fs');
 const http = require('http');
 const https = require('https');
+const axios = require('axios');
 const extract = require('extract-zip');
 const { app, shell, dialog, Notification } = require('electron'); 
 const { execSync } = require('child_process');
@@ -93,9 +94,8 @@ async function syncModpack(event, rootDir, pack) {
     event.reply('launch-progress', 'Проверка целостности модов...');
     let modsUrls = [];
     try {
-      const res = await fetch(pack.modsJsonUrl);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      modsUrls = await res.json();
+      const res = await axios.get(`${pack.modsJsonUrl}?t=${Date.now()}`);
+      modsUrls = res.data;
     } catch (e) { throw new Error(`Не удалось получить список: ${e.message}`); }
 
     const expectedModsMap = new Map();
@@ -117,9 +117,9 @@ async function syncModpack(event, rootDir, pack) {
         const filename = missingFilenames[i];
         event.reply('launch-progress', `Скачивание: ${filename} (${i + 1}/${missingFilenames.length})`);
         try {
-          const buffer = Buffer.from(await (await fetch(expectedModsMap.get(filename))).arrayBuffer());
-          fs.writeFileSync(path.join(modsDir, filename), buffer);
-        } catch (e) { throw new Error(`Сбой сети при скачивании ${filename}`); }
+          const res = await axios.get(expectedModsMap.get(filename), { responseType: 'arraybuffer' });
+          fs.writeFileSync(path.join(modsDir, filename), res.data);
+        } catch (e) { throw new Error(`Сбой сети при скачивании ${filename}: ${e.message}`); }
       }
     }
   }
@@ -206,7 +206,12 @@ module.exports = function(ipcMain) {
 
       let opts = {
         clientPackage: null, authorization: auth, root: gameRoot, 
-        memory: { max: options.ram, min: "2G" }, javaPath: activeJavaPath, overrides: { detached: false }
+        memory: { max: options.ram, min: "2G" }, javaPath: activeJavaPath, overrides: { detached: false },
+        window: {
+          width: options.width || "1280",
+          height: options.height || "720",
+          fullscreen: options.fullscreen || false
+        }
       };
 
       if (pack.loaderType === 'fabric') {
@@ -240,6 +245,31 @@ launcher.on('download-status', (e) => event.reply('launch-progress', `Библи
         console.log('[MC DATA]:', e);
         event.reply('launch-progress', '[LOG]' + e);
       });
+      // Автонастройка CustomSkinLoader
+      try {
+        const cslDir = path.join(gameRoot, 'CustomSkinLoader');
+        if (!fs.existsSync(cslDir)) fs.mkdirSync(cslDir, { recursive: true });
+        const cslConfigPath = path.join(cslDir, 'CustomSkinLoader.json');
+        
+        const cslConfig = {
+          version: "14.12",
+          enable: true,
+          loadlist: [
+            {
+              name: "Cloudflare",
+              type: "Legacy",
+              skin: "https://skin-api.dodobrest006.workers.dev/{USERNAME}.png"
+            },
+            {
+              name: "Mojang",
+              type: "MojangAPI"
+            }
+          ]
+        };
+        fs.writeFileSync(cslConfigPath, JSON.stringify(cslConfig, null, 2));
+      } catch (e) {
+        console.error('CustomSkinLoader auto-config error:', e);
+      }
 
       event.reply('launch-progress', 'Запуск Minecraft...');
       
@@ -256,6 +286,200 @@ ipcMain.on('kill-game', () => {
         gameProcess.kill('SIGKILL'); // Жестко закрываем процесс игры
         gameProcess = null;
       } catch (e) { console.error('Ошибка при закрытии игры:', e); }
+    }
+  });
+
+  // ─── Microsoft auth для страницы настроек ────────────────────────────────
+
+  const getMsCacheFile = () => path.join(app.getPath('userData'), 'msmc_cache.json');
+
+  // Полный вход / обновление токена
+  ipcMain.handle('ms-login', async () => {
+    try {
+      const cacheFile = getMsCacheFile();
+      const authManager = new Auth('select_account');
+      let xboxManager;
+
+      if (fs.existsSync(cacheFile)) {
+        try {
+          const cached = JSON.parse(fs.readFileSync(cacheFile, 'utf8'));
+          xboxManager = await authManager.refresh(cached);
+        } catch {
+          xboxManager = await authManager.launch('electron');
+        }
+      } else {
+        xboxManager = await authManager.launch('electron');
+      }
+
+      fs.writeFileSync(cacheFile, JSON.stringify(xboxManager.save()));
+      const token = await xboxManager.getMinecraft();
+      const profile = token.mclc();
+
+      return { success: true, name: profile.name, uuid: profile.uuid, accessToken: profile.access_token };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+
+  // Тихая проверка токена (без открытия окна)
+  ipcMain.handle('ms-check', async () => {
+    try {
+      const cacheFile = getMsCacheFile();
+      if (!fs.existsSync(cacheFile)) return null;
+      const authManager = new Auth('select_account');
+      const cached = JSON.parse(fs.readFileSync(cacheFile, 'utf8'));
+      const xboxManager = await authManager.refresh(cached);
+      fs.writeFileSync(cacheFile, JSON.stringify(xboxManager.save()));
+      const token = await xboxManager.getMinecraft();
+      const profile = token.mclc();
+      return { name: profile.name, uuid: profile.uuid, accessToken: profile.access_token };
+    } catch {
+      return null;
+    }
+  });
+
+  // Выход из аккаунта
+  ipcMain.handle('ms-logout', () => {
+    const cacheFile = getMsCacheFile();
+    if (fs.existsSync(cacheFile)) fs.unlinkSync(cacheFile);
+    return { success: true };
+  });
+
+  // Загрузка скина лицензии через Node.js (обход SSL Chromium)
+  ipcMain.handle('get-skin-data', async (event, uuid) => {
+    try {
+      const cleanUuid = uuid.replace(/-/g, '');
+      const profileRes = await axios.get(
+        `https://sessionserver.mojang.com/session/minecraft/profile/${cleanUuid}`,
+        { timeout: 15000 }
+      );
+      const texturesProp = profileRes.data.properties?.find(p => p.name === 'textures');
+      if (!texturesProp) throw new Error('No textures property');
+
+      const texturesData = JSON.parse(Buffer.from(texturesProp.value, 'base64').toString('utf8'));
+      const skinUrl = texturesData.textures?.SKIN?.url;
+      if (!skinUrl) throw new Error('No skin URL');
+
+      const skinRes = await axios.get(skinUrl, { responseType: 'arraybuffer', timeout: 15000 });
+      const base64 = Buffer.from(skinRes.data).toString('base64');
+      return { success: true, skinDataUrl: `data:image/png;base64,${base64}` };
+    } catch (err) {
+      console.error('get-skin-data error:', err.message);
+      return { success: false, error: err.message };
+    }
+  });
+
+  // Дефолтный скин Стива (кэшируется локально)
+  const STEVE_URL = 'https://minotar.net/skin/Steve';
+  ipcMain.handle('get-default-skin', async () => {
+    try {
+      const cacheFile = path.join(app.getPath('userData'), 'steve_skin_cache.png');
+      if (fs.existsSync(cacheFile)) {
+        const data = fs.readFileSync(cacheFile);
+        return { success: true, skinDataUrl: `data:image/png;base64,${data.toString('base64')}` };
+      }
+      const res = await axios.get(STEVE_URL, { responseType: 'arraybuffer', timeout: 15000 });
+      fs.writeFileSync(cacheFile, Buffer.from(res.data));
+      const base64 = Buffer.from(res.data).toString('base64');
+      return { success: true, skinDataUrl: `data:image/png;base64,${base64}` };
+    } catch (err) {
+      console.error('get-default-skin error:', err.message);
+      return { success: false };
+    }
+  });
+
+  ipcMain.handle('check-offline-skin', async (event, username) => {
+    try {
+      const url = `https://skin-api.dodobrest006.workers.dev/${username}.png`;
+      const res = await axios.get(url, { responseType: 'arraybuffer', timeout: 10000 });
+      if (res.status === 200) {
+        const base64 = Buffer.from(res.data).toString('base64');
+        return { success: true, skinDataUrl: `data:image/png;base64,${base64}`, url };
+      }
+      return { success: false };
+    } catch (err) {
+      return { success: false };
+    }
+  });
+
+  // Сохранение скина в папку сборки (для CustomSkinLoader мода)
+  ipcMain.handle('save-skin-file', async (event, skinDataUrl, username, packClientDir) => {
+    try {
+      const base64Data = skinDataUrl.replace(/^data:image\/png;base64,/, '');
+      const buffer = Buffer.from(base64Data, 'base64');
+
+      // Папка в userData сборки: skins/{username}.png
+      const gameRoot = path.join(app.getPath('userData'), packClientDir || 'div-launcher');
+      const skinsDir = path.join(gameRoot, 'resourcepacks', 'skins');
+      if (!fs.existsSync(skinsDir)) fs.mkdirSync(skinsDir, { recursive: true });
+
+      const skinPath = path.join(skinsDir, `${username}.png`);
+      fs.writeFileSync(skinPath, buffer);
+
+      return { success: true, skinPath };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+
+  // Загрузка скина на сервер Mojang (для лицензии — меняет скин на сайте Microsoft)
+  ipcMain.handle('upload-mojang-skin', async (event, skinDataUrl, accessToken, variant) => {
+    try {
+      const base64Data = skinDataUrl.replace(/^data:image\/png;base64,/, '');
+      const buffer = Buffer.from(base64Data, 'base64');
+
+      const form = new FormData();
+      form.append('variant', variant || 'classic');
+      const file = new File([buffer], 'skin.png', { type: 'image/png' });
+      form.append('file', file);
+
+      const response = await fetch(
+        'https://api.minecraftservices.com/minecraft/profile/skins',
+        {
+          method: 'PUT',
+          headers: { Authorization: `Bearer ${accessToken}` },
+          body: form,
+        }
+      );
+
+      if (!response.ok) {
+        const text = await response.text().catch(() => '');
+        throw new Error(`HTTP ${response.status}: ${text.slice(0, 120)}`);
+      }
+
+      return { success: true };
+    } catch (err) {
+      console.error('upload-mojang-skin error:', err.message);
+      return { success: false, error: err.message };
+    }
+  });
+
+  // Загрузка скина на свой Cloudflare Worker
+  ipcMain.handle('upload-cloudflare-skin', async (event, skinDataUrl, username) => {
+    try {
+      const base64Data = skinDataUrl.replace(/^data:image\/png;base64,/, '');
+      const buffer = Buffer.from(base64Data, 'base64');
+      
+      // ХАРДКОД ПАРАМЕТРОВ CLOUDFLARE (по просьбе пользователя)
+      let CF_API_URL = 'https://skin-api.dodobrest006.workers.dev'; // Вы можете вписать сюда свой URL
+      if (!CF_API_URL.startsWith('http')) {
+        CF_API_URL = 'https://' + CF_API_URL;
+      }
+      const CF_API_KEY = 'ZALUPA';
+
+      const response = await axios.put(`${CF_API_URL}/${username}.png`, buffer, {
+        headers: {
+          'Authorization': `Bearer ${CF_API_KEY}`,
+          'Content-Type': 'image/png'
+        }
+      });
+      return { success: true };
+    } catch (err) {
+      console.error('upload-cloudflare-skin error:', err.message);
+      if (err.response) {
+        return { success: false, error: `Cloudflare HTTP ${err.response.status}: ${JSON.stringify(err.response.data)}` };
+      }
+      return { success: false, error: err.message === 'fetch failed' || err.message.includes('Network Error') ? 'Ошибка сети (блокировка или сбой DNS). Попробуйте с VPN или без.' : err.message };
     }
   });
 };

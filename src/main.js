@@ -27,6 +27,7 @@ function createWindow() {
   });
   
   mainWindow.setMenu(null); 
+  // mainWindow.webContents.openDevTools();
   
   // Настраиваем автоапдейтер
   autoUpdater.autoDownload = true;

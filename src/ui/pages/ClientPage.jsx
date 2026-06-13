@@ -5,10 +5,30 @@ export default function ClientPage({ openSettings, currentPack }) {
   const [status, setStatus] = useState(`Готово к запуску`);
   const [isLaunching, setIsLaunching] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
   const [consoleLogs, setConsoleLogs] = useState([]);
   
-  const [isUpdating, setIsUpdating] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState(0);
+
+  const [authMode, setAuthMode] = useState(localStorage.getItem('launcher_auth_mode') || 'offline');
+  const [activeUsername, setActiveUsername] = useState(authMode === 'offline' 
+    ? (localStorage.getItem('launcher_offline_username') || '') 
+    : (localStorage.getItem('launcher_username') || '')
+  );
+
+  useEffect(() => {
+    const handleSettingsUpdate = () => {
+      const mode = localStorage.getItem('launcher_auth_mode') || 'offline';
+      setAuthMode(mode);
+      setActiveUsername(mode === 'offline' 
+        ? (localStorage.getItem('launcher_offline_username') || '') 
+        : (localStorage.getItem('launcher_username') || '')
+      );
+    };
+    window.addEventListener('settings-changed', handleSettingsUpdate);
+    handleSettingsUpdate();
+    return () => window.removeEventListener('settings-changed', handleSettingsUpdate);
+  }, []);
   
   const isLaunchingRef = useRef(false);
   const currentPackRef = useRef(currentPack); 
@@ -120,10 +140,7 @@ export default function ClientPage({ openSettings, currentPack }) {
       return;
     }
 
-    const authMode = localStorage.getItem('launcher_auth_mode') || 'offline';
-    const username = localStorage.getItem('launcher_username') || '';
-    
-    if (authMode === 'offline' && username.length < 3) { 
+    if (authMode === 'offline' && activeUsername.length < 3) { 
       setStatus('⚠️ Укажите никнейм в настройках!'); 
       return; 
     }
@@ -134,13 +151,16 @@ export default function ClientPage({ openSettings, currentPack }) {
     setConsoleLogs(['Проверка файлов сборки...']);
 
     window.electronAPI.launchGame({
+      pack: currentPack,
       authMode,
-      username,
+      username: activeUsername,
       ram: (localStorage.getItem('launcher_ram') || '4') + 'G',
       playMode: localStorage.getItem('launcher_mode') || 'host',
       serverIp: localStorage.getItem('launcher_server_ip') || '',
       javaPath: localStorage.getItem('launcher_client_java') || '',
-      pack: currentPack
+      width: localStorage.getItem('launcher_win_width') || '1280',
+      height: localStorage.getItem('launcher_win_height') || '720',
+      fullscreen: localStorage.getItem('launcher_fullscreen') === 'true'
     });
   };
 

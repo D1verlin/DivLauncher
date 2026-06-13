@@ -5,15 +5,31 @@ const https = require('https');
 const extract = require('extract-zip');
 const { app, dialog, shell } = require('electron');
 const { execSync, spawn } = require('child_process');
+const axios = require('axios');
 
 let serverProcess = null;
 
-function downloadFile(url, destPath, onProgress) {
+function downloadFile(urlStr, destPath, onProgress) {
   return new Promise((resolve, reject) => {
-    const client = url.startsWith('https') ? https : http;
-    client.get(url, (response) => {
+    const options = { headers: { 'User-Agent': 'DivLauncher/1.0.5' } };
+    const client = urlStr.startsWith('https') ? https : http;
+    client.get(urlStr, options, (response) => {
       if ([301, 302, 307, 308].includes(response.statusCode)) return resolve(downloadFile(response.headers.location, destPath, onProgress));
       if (response.statusCode !== 200) return reject(new Error(`HTTP ${response.statusCode}`));
+
+      const contentType = response.headers['content-type'] || '';
+      if (contentType.includes('application/json')) {
+        let data = '';
+        response.on('data', chunk => data += chunk);
+        response.on('end', () => {
+          try {
+            const json = JSON.parse(data);
+            if (json.url) return resolve(downloadFile(json.url, destPath, onProgress));
+            reject(new Error('JSON response does not contain a url field'));
+          } catch (e) { reject(e); }
+        });
+        return;
+      }
 
       const file = fs.createWriteStream(destPath);
       file.on('error', (err) => { file.close(); fs.unlink(destPath, () => reject(err)); });
@@ -61,10 +77,14 @@ async function ensureJava17(event, exeName = 'java.exe') {
 async function ensureLoader(event, pack) {
   const cacheDir = path.join(app.getPath('userData'), 'loader-cache');
   if (!fs.existsSync(cacheDir)) fs.mkdirSync(cacheDir, { recursive: true });
-  const installerPath = path.join(cacheDir, pack.installerName || pack.forgeInstallerName);
+
+  const name = pack.serverLoaderName || pack.installerName || pack.forgeInstallerName;
+  const url = pack.serverLoaderUrl || pack.installerUrl || pack.forgeUrl;
+
+  const installerPath = path.join(cacheDir, name);
   if (!fs.existsSync(installerPath)) {
-    event.reply('server-log', `Скачивание ядра...\n`);
-    await downloadFile(pack.installerUrl || pack.forgeUrl, installerPath, (p) => { if (p % 25 === 0) event.reply('server-log', `Ядро: ${p}%\n`); });
+    event.reply('server-log', `Скачивание ядра сервера...\n`);
+    await downloadFile(url, installerPath, (p) => { if (p % 25 === 0) event.reply('server-log', `Ядро: ${p}%\n`); });
   }
   return installerPath;
 }
@@ -93,10 +113,9 @@ async function syncServerModpack(event, rootDir, pack) {
     const clientOnly = ['embeddium', 'rubidium', 'entity_texture_features', 'echo_compass', 'crashassistant', 'crash_assistant', 'jei-', 'journeymap', 'oculus', 'client'];
     let modsUrls = [];
     try {
-      const res = await fetch(pack.modsJsonUrl);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      modsUrls = await res.json();
-    } catch (e) { event.reply('server-log', `Ошибка JSON: ${e.message}\n`); return; }
+      const res = await axios.get(`${pack.modsJsonUrl}?t=${Date.now()}`);
+      modsUrls = res.data;
+    } catch (e) { throw new Error(`Не удалось получить список: ${e.message}`); }
 
     const expectedModsMap = new Map();
     for (const url of modsUrls) {
@@ -116,9 +135,9 @@ async function syncServerModpack(event, rootDir, pack) {
         const filename = missingFilenames[i];
         if (i % 5 === 0) event.reply('server-log', `Скачивание: ${i + 1}/${missingFilenames.length}\n`);
         try {
-          const buffer = Buffer.from(await (await fetch(expectedModsMap.get(filename))).arrayBuffer());
-          fs.writeFileSync(path.join(modsDir, filename), buffer);
-        } catch (e) { event.reply('server-log', `Сбой при скачивании ${filename}\n`); }
+          const res = await axios.get(expectedModsMap.get(filename), { responseType: 'arraybuffer' });
+          fs.writeFileSync(path.join(modsDir, filename), res.data);
+        } catch (e) { throw new Error(`Сбой сети при скачивании ${filename}: ${e.message}`); }
       }
     }
     event.reply('server-log', 'Синхронизация завершена!\n');
@@ -186,14 +205,22 @@ module.exports = function(ipcMain, mainWindow) {
       await syncServerModpack(event, serverRoot, pack);
       
       const runBatPath = path.join(serverRoot, 'run.bat');
+      const sLoaderType = pack.serverLoaderType || pack.loaderType;
 
-      if (pack.loaderType === 'fabric') {
+      if (sLoaderType === 'fabric') {
         const fabricJarPath = path.join(serverRoot, 'fabric-server-launch.jar');
         if (!fs.existsSync(fabricJarPath)) {
           event.reply('server-log', 'Установка ядра Fabric (скачивание сервера)...\n');
           execSync(`java -jar "${installerPath}" server -dir "${serverRoot}" -mcversion ${pack.mcVersion} -loader ${pack.loaderVersion} -downloadMinecraft`);
         }
-        if (!fs.existsSync(runBatPath)) fs.writeFileSync(runBatPath, `java -Xmx4G -jar fabric-server-launch.jar nogui\npause`);
+        fs.writeFileSync(runBatPath, `java -Xmx4G -jar fabric-server-launch.jar nogui\npause`);
+      } else if (sLoaderType === 'paper' || sLoaderType === 'spigot' || sLoaderType === 'hybrid') {
+        const serverJarName = path.basename(installerPath);
+        const serverJarDest = path.join(serverRoot, serverJarName);
+        if (!fs.existsSync(serverJarDest)) {
+          fs.copyFileSync(installerPath, serverJarDest);
+        }
+        fs.writeFileSync(runBatPath, `java -Xmx4G -jar "${serverJarName}" nogui\npause`);
       } else {
         if (!fs.existsSync(runBatPath)) {
           event.reply('server-log', 'Установка библиотек ядра Forge...\n');
@@ -201,10 +228,54 @@ module.exports = function(ipcMain, mainWindow) {
         }
       }
 
+      // Всегда скачиваем SkinsRestorer для гибридов/Spigot/Paper, или если запрошено
+      if ((sLoaderType !== 'forge' && sLoaderType !== 'fabric') || sLoaderType === 'hybrid' || pack.autoInstallSkinsRestorer) {
+        const pluginsDir = path.join(serverRoot, 'plugins');
+        if (!fs.existsSync(pluginsDir)) fs.mkdirSync(pluginsDir, { recursive: true });
+        const srPath = path.join(pluginsDir, 'SkinsRestorer.jar');
+        if (!fs.existsSync(srPath)) {
+          event.reply('server-log', 'Скачивание SkinsRestorer...\n');
+          try {
+            await downloadFile('https://github.com/SkinsRestorer/SkinsRestorer/releases/latest/download/SkinsRestorer.jar', srPath, (p) => {
+              if (p % 50 === 0) event.reply('server-log', `SkinsRestorer: ${p}%\n`);
+            });
+          } catch (e) {
+            event.reply('server-log', `[ОШИБКА] Не удалось скачать SkinsRestorer: ${e.message}\n`);
+          }
+        }
+      }
+
       // Внедрение пути к Java (либо из настроек, либо автоскачанная)
       let activeJavaPath = pack.javaPath && pack.javaPath.trim() !== '' 
         ? pack.javaPath 
         : await ensureJava17(event, 'java.exe');
+        
+      // Настройка SkinsRestorer
+      const srConfigPath = path.join(serverRoot, 'plugins', 'SkinsRestorer', 'config.yml');
+      if (fs.existsSync(srConfigPath)) {
+        let srConfig = fs.readFileSync(srConfigPath, 'utf8');
+        let modified = false;
+        
+        if (srConfig.includes('restrictSkinUrls:\n        enabled: false')) {
+          srConfig = srConfig.replace('restrictSkinUrls:\n        enabled: false', 'restrictSkinUrls:\n        enabled: true');
+          modified = true;
+        }
+        
+        if (!srConfig.includes('- https://skin-api.dodobrest006.workers.dev')) {
+          srConfig = srConfig.replace('list: \n        - https://i.imgur.com', 'list: \n        - https://skin-api.dodobrest006.workers.dev\n        - https://i.imgur.com');
+          modified = true;
+        }
+        
+        if (sLoaderType === 'hybrid' && srConfig.includes('teleportRefresh: false')) {
+          srConfig = srConfig.replace('teleportRefresh: false', 'teleportRefresh: true');
+          modified = true;
+        }
+        
+        if (modified) {
+          fs.writeFileSync(srConfigPath, srConfig);
+          event.reply('server-log', 'Автонастройка SkinsRestorer выполнена под ваш хост.\n');
+        }
+      }
         
       let batContent = fs.readFileSync(runBatPath, 'utf8');
       batContent = batContent.replace(/^java /gm, `"${activeJavaPath}" `);

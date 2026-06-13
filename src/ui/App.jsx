@@ -126,7 +126,18 @@ export default function App() {
   const [isServerRunning, setIsServerRunning] = useState(false);
   const [serverPlayers, setServerPlayers] = useState([]);
 
-const fetchModpacks = () => {
+  // Animated background toggle
+  const [animatedBg, setAnimatedBg] = useState(localStorage.getItem('launcher_animated_bg') !== 'false');
+
+  useEffect(() => {
+    const handleSettingsUpdate = () => {
+      setAnimatedBg(localStorage.getItem('launcher_animated_bg') !== 'false');
+    };
+    window.addEventListener('settings-changed', handleSettingsUpdate);
+    return () => window.removeEventListener('settings-changed', handleSettingsUpdate);
+  }, []);
+
+  const fetchModpacks = () => {
     setLoadingError(null);
     // Добавляем защиту от кэширования!
     fetch(`${MODPACKS_URL}?t=${new Date().getTime()}`, { cache: 'no-store' })
@@ -212,12 +223,22 @@ const fetchModpacks = () => {
   // ОСНОВНОЙ ЭКРАН ЛАУНЧЕРА
   const appStyle = {
     display: 'flex', flexDirection: 'column', width: '100%', height: '100%', position: 'relative',
-    background: `linear-gradient(rgba(20, 20, 20, 0.7), rgba(20, 20, 20, 0.9)), url('${currentPack.bgImage}') center/cover`,
+    background: (animatedBg && currentPack.bgVideo) 
+      ? 'transparent' 
+      : `linear-gradient(rgba(20, 20, 20, 0.7), rgba(20, 20, 20, 0.9)), url('${currentPack.bgImage}') center/cover`,
     transition: 'background 0.5s ease-in-out'
   };
 
   return (
     <div style={appStyle}>
+      {animatedBg && currentPack.bgVideo && (
+        <video 
+          key={currentPack.id}
+          src={currentPack.bgVideo} 
+          autoPlay loop muted playsInline
+          style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover', zIndex: -1 }}
+        />
+      )}
       <TopBar />
       <UpdateNotification />
 
@@ -260,9 +281,23 @@ const fetchModpacks = () => {
         </div>
 
         <div style={{ flexGrow: 1, overflow: 'hidden', position: 'relative', zIndex: 10 }}>
-          {currentPage === 'client' && <ClientPage openSettings={() => setCurrentPage('settings')} currentPack={currentPack} />}
-          {currentPage === 'server' && <ServerPage logs={serverLogs} isRunning={isServerRunning} players={serverPlayers} currentPack={currentPack} />}
-          {currentPage === 'settings' && <SettingsPage />}
+          {currentPack ? (
+            <>
+              <div style={{ display: currentPage === 'client' ? 'block' : 'none', height: '100%' }}>
+                <ClientPage openSettings={() => setCurrentPage('settings')} currentPack={currentPack} />
+              </div>
+              <div style={{ display: currentPage === 'server' ? 'block' : 'none', height: '100%' }}>
+                <ServerPage logs={serverLogs} isRunning={isServerRunning} players={serverPlayers} currentPack={currentPack} />
+              </div>
+              <div style={{ display: currentPage === 'settings' ? 'block' : 'none', height: '100%' }}>
+                <SettingsPage currentPack={currentPack} />
+              </div>
+            </>
+          ) : (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#a1a1aa' }}>
+              {loadingError ? <span style={{color:'#ef4444'}}>{loadingError}</span> : 'Загрузка сборок...'}
+            </div>
+          )}
         </div>
       </div>
     </div>

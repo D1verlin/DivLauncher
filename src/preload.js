@@ -37,4 +37,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
   updatePack: (pack) => ipcRenderer.send('update-pack', pack),
   onDownloadProgress: (callback) => ipcRenderer.on('download-progress', callback),
   onUpdateDone: (callback) => ipcRenderer.on('update-done', callback),
+
+  // --- MICROSOFT AUTH (для страницы настроек) ---
+  loginMicrosoft:     () => ipcRenderer.invoke('ms-login'),
+  checkMicrosoftAuth: () => ipcRenderer.invoke('ms-check'),
+  logoutMicrosoft:    () => ipcRenderer.invoke('ms-logout'),
+  getSkinData:        (uuid) => ipcRenderer.invoke('get-skin-data', uuid),
+  getDefaultSkin:     () => ipcRenderer.invoke('get-default-skin'),
+  checkOfflineSkin: (username) => ipcRenderer.invoke('check-offline-skin', username),
+  saveSkinFile:       (skinDataUrl, username, packClientDir) => ipcRenderer.invoke('save-skin-file', skinDataUrl, username, packClientDir),
+  uploadMojangSkin:   (skinDataUrl, accessToken, variant) => ipcRenderer.invoke('upload-mojang-skin', skinDataUrl, accessToken, variant),
+  uploadCloudflareSkin: (skinDataUrl, username) => ipcRenderer.invoke('upload-cloudflare-skin', skinDataUrl, username),
 });
