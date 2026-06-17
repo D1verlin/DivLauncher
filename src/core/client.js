@@ -4,13 +4,64 @@ const http = require('http');
 const https = require('https');
 const axios = require('axios');
 const extract = require('extract-zip');
+
+// Устанавливаем стандартный User-Agent браузера для обхода защиты Cloudflare от ботов
+axios.defaults.headers.common['User-Agent'] = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36';
 const { app, shell, dialog, Notification } = require('electron'); 
 const { execSync } = require('child_process');
 const { Client, Authenticator } = require('minecraft-launcher-core');
-const { Auth } = require('msmc');
 
 const launcher = new Client();
 let gameProcess = null;
+
+const AUTH_SERVER = process.env.AUTH_SERVER || 'https://mcauth.diverlin.ru';
+
+function uploadFileNative(targetUrl, webToken, boundary, payload) {
+  return new Promise((resolve, reject) => {
+    const parsedUrl = new URL(targetUrl);
+    const client = parsedUrl.protocol === 'https:' ? https : http;
+
+    const options = {
+      hostname: parsedUrl.hostname,
+      port: parsedUrl.port || (parsedUrl.protocol === 'https:' ? 443 : 80),
+      path: parsedUrl.pathname + parsedUrl.search,
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${webToken}`,
+        'Content-Type': `multipart/form-data; boundary=${boundary}`,
+        'Content-Length': payload.length,
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
+      },
+      timeout: 45000,
+      rejectUnauthorized: false
+    };
+
+    const req = client.request(options, (res) => {
+      let data = '';
+      res.on('data', (chunk) => { data += chunk; });
+      res.on('end', () => {
+        if (res.statusCode >= 200 && res.statusCode < 300) {
+          try {
+            resolve(JSON.parse(data));
+          } catch (e) {
+            resolve({ message: 'Success but non-JSON response', raw: data });
+          }
+        } else {
+          reject(new Error(`HTTP error ${res.statusCode}: ${data}`));
+        }
+      });
+    });
+
+    req.on('error', (err) => reject(err));
+    req.on('timeout', () => {
+      req.destroy();
+      reject(new Error('Connection timed out'));
+    });
+
+    req.write(payload);
+    req.end();
+  });
+}
 
 function downloadFile(url, destPath, onProgress) {
   return new Promise((resolve, reject) => {
@@ -139,6 +190,19 @@ async function ensureLoader(event, pack) {
   return installerPath;
 }
 
+async function ensureAuthlibInjector(event) {
+  const cacheDir = path.join(app.getPath('userData'), 'loader-cache');
+  if (!fs.existsSync(cacheDir)) fs.mkdirSync(cacheDir, { recursive: true });
+
+  const injectorPath = path.join(cacheDir, 'authlib-injector.jar');
+  const injectorUrl = 'https://github.com/yushijinhun/authlib-injector/releases/download/v1.2.5/authlib-injector-1.2.5.jar';
+  
+  if (!fs.existsSync(injectorPath)) {
+    await downloadFile(injectorUrl, injectorPath, (p) => event.reply('launch-progress', `Загрузка authlib-injector: ${p}%`));
+  }
+  return injectorPath;
+}
+
 module.exports = function(ipcMain) {
   ipcMain.on('open-client-folder', (event, pack) => {
     if (!pack) return;
@@ -165,48 +229,42 @@ module.exports = function(ipcMain) {
       launcher.removeAllListeners();
       if (!fs.existsSync(gameRoot)) fs.mkdirSync(gameRoot, { recursive: true });
 
-      // === УМНАЯ АВТОРИЗАЦИЯ MICROSOFT С КЭШЕМ ===
+      // === CUSTOM YGGDRASIL AUTH ===
       let auth;
-      if (options.authMode === 'microsoft') {
-        const cacheFile = path.join(app.getPath('userData'), 'msmc_cache.json');
-        const authManager = new Auth("select_account");
-        let xboxManager;
-
+      const cacheFile = path.join(app.getPath('userData'), 'custom_auth_cache.json');
+      if (fs.existsSync(cacheFile)) {
         try {
-          // Пробуем войти тихо через кэш
-          if (fs.existsSync(cacheFile)) {
-            event.reply('launch-progress', 'Проверка сессии Microsoft...');
-            const cacheData = JSON.parse(fs.readFileSync(cacheFile, 'utf8'));
-            xboxManager = await authManager.refresh(cacheData);
-            event.reply('launch-progress', 'Успешный вход по токену!');
-          } else {
-            throw new Error("Нет кэша");
-          }
-        } catch (err) {
-          // Если кэша нет или он устарел - открываем окно Xbox
-          event.reply('launch-progress', 'Ожидание входа в Microsoft...');
-          xboxManager = await authManager.launch("electron");
+          const cached = JSON.parse(fs.readFileSync(cacheFile, 'utf8'));
+          auth = {
+            access_token: cached.accessToken,
+            client_token: cached.clientToken || "divlauncher",
+            uuid: cached.selectedProfile.id,
+            name: cached.selectedProfile.name,
+            user_properties: "{}"
+          };
+          options.username = cached.selectedProfile.name; // Use auth username
+        } catch (e) {
+          auth = Authenticator.getAuth(options.username);
         }
-        
-        // Сохраняем свежий токен для следующего раза
-        fs.writeFileSync(cacheFile, JSON.stringify(xboxManager.save()));
-        const token = await xboxManager.getMinecraft();
-        auth = token.mclc();
-
       } else {
+        // Fallback for offline mode if token not provided
         auth = Authenticator.getAuth(options.username);
       }
 
       const installerPath = await ensureLoader(event, pack);
+      const authlibPath = await ensureAuthlibInjector(event);
       await syncModpack(event, gameRoot, pack);
 
       let activeJavaPath = options.javaPath && options.javaPath.trim() !== '' 
         ? options.javaPath 
         : await ensureJava17(event, 'javaw.exe');
 
+      let customArgs = [`-javaagent:${authlibPath}=${AUTH_SERVER}/api/yggdrasil`];
+
       let opts = {
         clientPackage: null, authorization: auth, root: gameRoot, 
         memory: { max: options.ram, min: "2G" }, javaPath: activeJavaPath, overrides: { detached: false },
+        customArgs: customArgs,
         window: {
           width: options.width || "1280",
           height: options.height || "720",
@@ -227,7 +285,7 @@ module.exports = function(ipcMain) {
       } else {
         opts.version = { number: pack.mcVersion, type: "release" };
         opts.forge = installerPath;
-        opts.customArgs = ['-Dforge.forceNoIgui=true'];
+        opts.customArgs.push('-Dforge.forceNoIgui=true');
       }
 
       if (options.playMode === 'connect' && options.serverIp) opts.quickPlay = { type: "multiplayer", identifier: options.serverIp };
@@ -256,9 +314,21 @@ launcher.on('download-status', (e) => event.reply('launch-progress', `Библи
           enable: true,
           loadlist: [
             {
-              name: "Cloudflare",
+              name: "LocalSkins",
               type: "Legacy",
-              skin: "https://skin-api.dodobrest006.workers.dev/{USERNAME}.png"
+              skin: "resourcepacks/skins/{USERNAME}.png",
+              cape: "resourcepacks/skins/{USERNAME}_cape.png"
+            },
+            {
+              name: "DivLauncherLegacy",
+              type: "Legacy",
+              skin: `${AUTH_SERVER.replace(/\/$/, '')}/api/skins/{USERNAME}.png`,
+              cape: `${AUTH_SERVER.replace(/\/$/, '')}/api/capes/{USERNAME}.png`
+            },
+            {
+              name: "DivLauncher",
+              type: "Yggdrasil",
+              apiRoot: `${AUTH_SERVER}/api/yggdrasil/`
             },
             {
               name: "Mojang",
@@ -289,87 +359,274 @@ ipcMain.on('kill-game', () => {
     }
   });
 
-  // ─── Microsoft auth для страницы настроек ────────────────────────────────
+  // ─── CUSTOM AUTH для страницы настроек ────────────────────────────────
 
-  const getMsCacheFile = () => path.join(app.getPath('userData'), 'msmc_cache.json');
+  const getCustomCacheFile = () => path.join(app.getPath('userData'), 'custom_auth_cache.json');
+  const debugLogPath = 'C:\\Users\\Lenovo\\Desktop\\Projects\\DivLauncher\\div_launcher_debug.log';
+  const userDataLogPath = path.join(app.getPath('userData'), 'debug.log');
 
-  // Полный вход / обновление токена
-  ipcMain.handle('ms-login', async () => {
+  // Initialize the log files on start
+  try {
+    fs.writeFileSync(debugLogPath, `=== DIVLAUNCHER DEBUG LOG STARTED ${new Date().toISOString()} ===\n`);
+  } catch(e) {}
+  try {
+    fs.writeFileSync(userDataLogPath, `=== DIVLAUNCHER DEBUG LOG STARTED ${new Date().toISOString()} ===\n`);
+  } catch(e) {}
+
+  function createLogger() {
+    const logs = [];
+    return {
+      log: (...args) => {
+        const msg = args.map(arg => typeof arg === 'object' ? JSON.stringify(arg) : String(arg)).join(' ');
+        const timestamp = new Date().toISOString();
+        const formatted = `[${timestamp}] ${msg}`;
+        logs.push(formatted);
+        console.log(formatted);
+        try { fs.appendFileSync(userDataLogPath, formatted + '\n'); } catch (e) {}
+        try { fs.appendFileSync(debugLogPath, formatted + '\n'); } catch (e) {}
+      },
+      getLogs: () => logs
+    };
+  }
+
+  ipcMain.handle('custom-login', async (event, username, password) => {
+    const logger = createLogger();
+    logger.log("=== [custom-login] START ===");
+    logger.log(`Username: "${username}"`);
     try {
-      const cacheFile = getMsCacheFile();
-      const authManager = new Auth('select_account');
-      let xboxManager;
-
-      if (fs.existsSync(cacheFile)) {
+      logger.log(`Sending authentication request to Yggdrasil: ${AUTH_SERVER}/authserver/authenticate`);
+      const response = await axios.post(`${AUTH_SERVER}/authserver/authenticate`, {
+        agent: { name: 'Minecraft', version: 1 },
+        username: username,
+        password: password,
+        clientToken: 'divlauncher'
+      });
+      
+      const data = response.data;
+      logger.log("Yggdrasil authenticate response status:", response.status);
+      if (data.accessToken && data.selectedProfile) {
+        logger.log("Yggdrasil authenticate success. UUID:", data.selectedProfile.id);
+        
+        // Also call Web login to get the JWT token for skin uploads
+        let webToken = null;
+        let webResponse = null;
         try {
-          const cached = JSON.parse(fs.readFileSync(cacheFile, 'utf8'));
-          xboxManager = await authManager.refresh(cached);
-        } catch {
-          xboxManager = await authManager.launch('electron');
+          logger.log(`Sending login request to Web API: ${AUTH_SERVER}/api/login`);
+          webResponse = await axios.post(`${AUTH_SERVER}/api/login`, {
+            username: username,
+            password: password
+          });
+          logger.log("Web login response status:", webResponse.status);
+          webToken = webResponse.data.token;
+          logger.log("Web token received:", webToken ? (webToken.slice(0, 15) + "...") : "null");
+        } catch (webErr) {
+          logger.log("Web login failed! Error:", webErr.message);
+          if (webErr.response) {
+            logger.log("Web login error response status:", webErr.response.status, "data:", webErr.response.data);
+          }
+          const errMsg = webErr.response?.data?.error || webErr.response?.data?.errorMessage || webErr.message;
+          return { success: false, error: 'Ошибка веб-авторизации: ' + errMsg, logs: logger.getLogs() };
         }
-      } else {
-        xboxManager = await authManager.launch('electron');
+
+        const cacheData = {
+          ...data,
+          webToken: webToken
+        };
+        fs.writeFileSync(getCustomCacheFile(), JSON.stringify(cacheData));
+        logger.log("Auth credentials written to cache file successfully.");
+        return { 
+          success: true, 
+          id: webResponse.data.user.id,
+          name: data.selectedProfile.name, 
+          uuid: data.selectedProfile.id, 
+          accessToken: data.accessToken,
+          webToken: webToken,
+          is_admin: webResponse.data.user.is_admin,
+          badge: webResponse.data.user.badge,
+          logs: logger.getLogs()
+        };
       }
-
-      fs.writeFileSync(cacheFile, JSON.stringify(xboxManager.save()));
-      const token = await xboxManager.getMinecraft();
-      const profile = token.mclc();
-
-      return { success: true, name: profile.name, uuid: profile.uuid, accessToken: profile.access_token };
+      logger.log("Invalid credentials returned from authenticate API.");
+      return { success: false, error: 'Неверные данные авторизации', logs: logger.getLogs() };
     } catch (err) {
-      return { success: false, error: err.message };
+      logger.log("Yggdrasil authenticate failed! Error:", err.message);
+      if (err.response) {
+        logger.log("Yggdrasil authenticate error response status:", err.response.status, "data:", err.response.data);
+      }
+      const msg = err.response?.data?.errorMessage || err.message;
+      return { success: false, error: msg, logs: logger.getLogs() };
     }
   });
 
-  // Тихая проверка токена (без открытия окна)
-  ipcMain.handle('ms-check', async () => {
+  ipcMain.handle('custom-register', async (event, username, password) => {
+    const logger = createLogger();
+    logger.log("=== [custom-register] START ===");
+    logger.log(`Username: "${username}"`);
     try {
-      const cacheFile = getMsCacheFile();
-      if (!fs.existsSync(cacheFile)) return null;
-      const authManager = new Auth('select_account');
+      logger.log(`Sending register request to Web API: ${AUTH_SERVER}/api/register`);
+      const response = await axios.post(`${AUTH_SERVER}/api/register`, {
+        username: username,
+        password: password
+      });
+      logger.log("Register response status:", response.status, "data:", response.data);
+      return { success: true, logs: logger.getLogs() };
+    } catch (err) {
+      logger.log("Register failed! Error:", err.message);
+      if (err.response) {
+        logger.log("Register error response status:", err.response.status, "data:", err.response.data);
+      }
+      const msg = err.response?.data?.error || err.response?.data?.errorMessage || err.message;
+      return { success: false, error: msg, logs: logger.getLogs() };
+    }
+  });
+
+  ipcMain.handle('custom-check-auth', async () => {
+    const logger = createLogger();
+    logger.log("=== [custom-check-auth] START ===");
+    try {
+      const cacheFile = getCustomCacheFile();
+      if (!fs.existsSync(cacheFile)) {
+        logger.log("No cache file found at path:", cacheFile);
+        return null;
+      }
+      
+      logger.log("Reading cache file...");
       const cached = JSON.parse(fs.readFileSync(cacheFile, 'utf8'));
-      const xboxManager = await authManager.refresh(cached);
-      fs.writeFileSync(cacheFile, JSON.stringify(xboxManager.save()));
-      const token = await xboxManager.getMinecraft();
-      const profile = token.mclc();
-      return { name: profile.name, uuid: profile.uuid, accessToken: profile.access_token };
-    } catch {
+      logger.log("Cached access token prefix:", cached.accessToken ? cached.accessToken.slice(0, 8) + "..." : "undefined");
+      logger.log("Cached web token prefix:", cached.webToken ? cached.webToken.slice(0, 15) + "..." : "undefined");
+      logger.log("Cached username:", cached.selectedProfile?.name, "UUID:", cached.selectedProfile?.id);
+      
+      // Refresh token
+      logger.log(`Sending token refresh request: ${AUTH_SERVER}/authserver/refresh`);
+      const response = await axios.post(`${AUTH_SERVER}/authserver/refresh`, {
+        accessToken: cached.accessToken,
+        clientToken: cached.clientToken || 'divlauncher'
+      });
+
+      const data = response.data;
+      logger.log("Refresh response status:", response.status);
+      if (data.accessToken && data.selectedProfile) {
+        logger.log("Yggdrasil refresh success. New access token prefix:", data.accessToken.slice(0, 8) + "...");
+        
+        // Verify webToken is still valid
+        let webToken = cached.webToken;
+        logger.log("Verifying web token with /api/profile...");
+        let profileDetails = null;
+        try {
+          const webRes = await axios.get(`${AUTH_SERVER}/api/profile`, {
+            headers: { 'Authorization': `Bearer ${webToken}` }
+          });
+          logger.log("Web token verification success. Profile data:", webRes.data);
+          profileDetails = webRes.data;
+        } catch (webErr) {
+          logger.log("Web token verification failed! Error:", webErr.message);
+          if (webErr.response) {
+            logger.log("Web token verification error response status:", webErr.response.status, "data:", webErr.response.data);
+          }
+          // If webToken is expired, force re-login
+          logger.log("Forcing re-login due to invalid web token.");
+          return null;
+        }
+
+        const updatedCache = {
+          ...data,
+          webToken: webToken
+        };
+        fs.writeFileSync(cacheFile, JSON.stringify(updatedCache));
+        logger.log("Updated auth cache written back to file.");
+        return { 
+          id: profileDetails ? profileDetails.id : null,
+          name: data.selectedProfile.name, 
+          uuid: data.selectedProfile.id, 
+          accessToken: data.accessToken,
+          webToken: webToken,
+          is_admin: profileDetails ? profileDetails.is_admin : 0,
+          badge: profileDetails ? profileDetails.badge : null,
+          logs: logger.getLogs()
+        };
+      }
+      logger.log("Invalid response from refresh API.");
+      return null;
+    } catch (err) {
+      logger.log("custom-check-auth exception! Error:", err.message);
+      if (err.response) {
+        logger.log("Error response status:", err.response.status, "data:", err.response.data);
+      }
       return null;
     }
   });
 
-  // Выход из аккаунта
-  ipcMain.handle('ms-logout', () => {
-    const cacheFile = getMsCacheFile();
+  ipcMain.handle('custom-logout', () => {
+    const cacheFile = getCustomCacheFile();
     if (fs.existsSync(cacheFile)) fs.unlinkSync(cacheFile);
     return { success: true };
   });
 
-  // Загрузка скина лицензии через Node.js (обход SSL Chromium)
   ipcMain.handle('get-skin-data', async (event, uuid) => {
+    const logger = createLogger();
+    logger.log("=== [get-skin-data] START ===");
+    logger.log("Requested UUID:", uuid);
+
+    const getAbsoluteUrl = (url) => {
+      if (!url) return null;
+      if (url.startsWith('http://') || url.startsWith('https://')) return url;
+      if (url.startsWith('/')) return `${AUTH_SERVER}${url}`;
+      return `${AUTH_SERVER}/${url}`;
+    };
+
     try {
       const cleanUuid = uuid.replace(/-/g, '');
-      const profileRes = await axios.get(
-        `https://sessionserver.mojang.com/session/minecraft/profile/${cleanUuid}`,
-        { timeout: 15000 }
-      );
-      const texturesProp = profileRes.data.properties?.find(p => p.name === 'textures');
-      if (!texturesProp) throw new Error('No textures property');
+      logger.log(`Requesting sessionserver profile: ${AUTH_SERVER}/sessionserver/session/minecraft/profile/${cleanUuid}`);
+      const sessionRes = await axios.get(`${AUTH_SERVER}/sessionserver/session/minecraft/profile/${cleanUuid}?t=${Date.now()}`);
+      logger.log("Sessionserver status:", sessionRes.status);
+      
+      const texturesProp = sessionRes.data.properties?.find(p => p.name === 'textures');
+      if (!texturesProp) {
+        logger.log("No textures property found in sessionserver response.");
+        return { success: false, error: 'Скин не найден', logs: logger.getLogs() };
+      }
 
       const texturesData = JSON.parse(Buffer.from(texturesProp.value, 'base64').toString('utf8'));
       const skinUrl = texturesData.textures?.SKIN?.url;
-      if (!skinUrl) throw new Error('No skin URL');
+      const capeUrl = texturesData.textures?.CAPE?.url;
+      const model = texturesData.textures?.SKIN?.metadata?.model || 'classic';
+      logger.log("Parsed skinUrl:", skinUrl, "capeUrl:", capeUrl, "model:", model);
+      
+      let skinDataUrl = null;
+      let capeDataUrl = null;
 
-      const skinRes = await axios.get(skinUrl, { responseType: 'arraybuffer', timeout: 15000 });
-      const base64 = Buffer.from(skinRes.data).toString('base64');
-      return { success: true, skinDataUrl: `data:image/png;base64,${base64}` };
+      const appendQueryParam = (url, key, value) => {
+        if (!url) return null;
+        const separator = url.includes('?') ? '&' : '?';
+        return `${url}${separator}${key}=${value}`;
+      };
+
+      if (skinUrl) {
+        const absoluteSkinUrl = getAbsoluteUrl(skinUrl);
+        const downloadUrl = appendQueryParam(absoluteSkinUrl, 't', Date.now());
+        logger.log("Downloading skin image from:", downloadUrl);
+        const skinRes = await axios.get(downloadUrl, { responseType: 'arraybuffer', timeout: 15000 });
+        const base64 = Buffer.from(skinRes.data).toString('base64');
+        skinDataUrl = `data:image/png;base64,${base64}`;
+      }
+      
+      if (capeUrl) {
+        const absoluteCapeUrl = getAbsoluteUrl(capeUrl);
+        const downloadUrl = appendQueryParam(absoluteCapeUrl, 't', Date.now());
+        logger.log("Downloading cape image from:", downloadUrl);
+        const capeRes = await axios.get(downloadUrl, { responseType: 'arraybuffer', timeout: 15000 });
+        const base64 = Buffer.from(capeRes.data).toString('base64');
+        capeDataUrl = `data:image/png;base64,${base64}`;
+      }
+
+      logger.log("=== [get-skin-data] FINISH SUCCESS ===");
+      return { success: true, skinDataUrl, capeDataUrl, model, logs: logger.getLogs() };
     } catch (err) {
-      console.error('get-skin-data error:', err.message);
-      return { success: false, error: err.message };
+      logger.log("get-skin-data failed. Error:", err.message);
+      return { success: false, error: err.message, logs: logger.getLogs() };
     }
   });
 
-  // Дефолтный скин Стива (кэшируется локально)
   const STEVE_URL = 'https://minotar.net/skin/Steve';
   ipcMain.handle('get-default-skin', async () => {
     try {
@@ -383,32 +640,15 @@ ipcMain.on('kill-game', () => {
       const base64 = Buffer.from(res.data).toString('base64');
       return { success: true, skinDataUrl: `data:image/png;base64,${base64}` };
     } catch (err) {
-      console.error('get-default-skin error:', err.message);
       return { success: false };
     }
   });
 
-  ipcMain.handle('check-offline-skin', async (event, username) => {
-    try {
-      const url = `https://skin-api.dodobrest006.workers.dev/${username}.png`;
-      const res = await axios.get(url, { responseType: 'arraybuffer', timeout: 10000 });
-      if (res.status === 200) {
-        const base64 = Buffer.from(res.data).toString('base64');
-        return { success: true, skinDataUrl: `data:image/png;base64,${base64}`, url };
-      }
-      return { success: false };
-    } catch (err) {
-      return { success: false };
-    }
-  });
-
-  // Сохранение скина в папку сборки (для CustomSkinLoader мода)
   ipcMain.handle('save-skin-file', async (event, skinDataUrl, username, packClientDir) => {
     try {
       const base64Data = skinDataUrl.replace(/^data:image\/png;base64,/, '');
       const buffer = Buffer.from(base64Data, 'base64');
 
-      // Папка в userData сборки: skins/{username}.png
       const gameRoot = path.join(app.getPath('userData'), packClientDir || 'div-launcher');
       const skinsDir = path.join(gameRoot, 'resourcepacks', 'skins');
       if (!fs.existsSync(skinsDir)) fs.mkdirSync(skinsDir, { recursive: true });
@@ -422,64 +662,350 @@ ipcMain.on('kill-game', () => {
     }
   });
 
-  // Загрузка скина на сервер Mojang (для лицензии — меняет скин на сайте Microsoft)
-  ipcMain.handle('upload-mojang-skin', async (event, skinDataUrl, accessToken, variant) => {
+  ipcMain.handle('upload-skin', async (event, clientDir, username) => {
+    const logger = createLogger();
+    logger.log("=== [upload-skin] START ===");
+    logger.log(`clientDir: "${clientDir}", username: "${username}"`);
     try {
-      const base64Data = skinDataUrl.replace(/^data:image\/png;base64,/, '');
-      const buffer = Buffer.from(base64Data, 'base64');
-
-      const form = new FormData();
-      form.append('variant', variant || 'classic');
-      const file = new File([buffer], 'skin.png', { type: 'image/png' });
-      form.append('file', file);
-
-      const response = await fetch(
-        'https://api.minecraftservices.com/minecraft/profile/skins',
-        {
-          method: 'PUT',
-          headers: { Authorization: `Bearer ${accessToken}` },
-          body: form,
-        }
-      );
-
-      if (!response.ok) {
-        const text = await response.text().catch(() => '');
-        throw new Error(`HTTP ${response.status}: ${text.slice(0, 120)}`);
+      const cacheFile = getCustomCacheFile();
+      if (!fs.existsSync(cacheFile)) {
+        logger.log("Cache file not found!");
+        return { success: false, error: 'Вы не авторизованы', logs: logger.getLogs() };
+      }
+      const cached = JSON.parse(fs.readFileSync(cacheFile, 'utf8'));
+      const webToken = cached.webToken || cached.accessToken;
+      logger.log("Web token prefix:", webToken ? webToken.slice(0, 15) + "..." : "undefined");
+      if (webToken === cached.accessToken) {
+        logger.log("WARNING: webToken was missing in cache! Falling back to Yggdrasil accessToken. This will likely cause a 401!");
       }
 
-      return { success: true };
+      logger.log("Opening file selection dialog...");
+      const { canceled, filePaths } = await dialog.showOpenDialog({
+        title: 'Выберите файл скина (.png)',
+        filters: [{ name: 'Изображения', extensions: ['png'] }],
+        properties: ['openFile']
+      });
+
+      if (canceled || filePaths.length === 0) {
+        logger.log("File selection canceled by user.");
+        return { success: false, error: 'Выбор отменен', logs: logger.getLogs() };
+      }
+      const filePath = filePaths[0];
+      logger.log("Selected file path:", filePath);
+      const fileBuffer = fs.readFileSync(filePath);
+      logger.log("File size read:", fileBuffer.length, "bytes");
+
+      // 1. Upload to server (manually constructing the multipart body to avoid Axios + global Blob/FormData hanging in Node/Electron)
+      const boundary = `----ElectronBoundary${Math.random().toString(36).substring(2)}`;
+      const header = Buffer.from(
+        `--${boundary}\r\n` +
+        `Content-Disposition: form-data; name="skin"; filename="skin.png"\r\n` +
+        `Content-Type: image/png\r\n\r\n`
+      );
+      const footer = Buffer.from(`\r\n--${boundary}--\r\n`);
+      const payload = Buffer.concat([header, fileBuffer, footer]);
+
+      logger.log(`Sending POST upload request to Web API: ${AUTH_SERVER}/api/profile/skin`);
+      const responseData = await uploadFileNative(`${AUTH_SERVER}/api/profile/skin`, webToken, boundary, payload);
+      logger.log("Upload response data:", responseData);
+      
+      const skinUrl = responseData.skin_url;
+
+      // 2. Save locally for CustomSkinLoader
+      if (clientDir && username) {
+        try {
+          const gameRoot = path.join(app.getPath('userData'), clientDir);
+          const skinsDir = path.join(gameRoot, 'resourcepacks', 'skins');
+          if (!fs.existsSync(skinsDir)) fs.mkdirSync(skinsDir, { recursive: true });
+          fs.writeFileSync(path.join(skinsDir, `${username}.png`), fileBuffer);
+          logger.log("Saved skin copy locally to resourcepacks/skins for launcher sync.");
+        } catch (localErr) {
+          logger.log("Failed to save skin locally (non-fatal):", localErr.message);
+        }
+      }
+
+      if (skinUrl) {
+        logger.log("Skin upload completed successfully with skinUrl:", skinUrl);
+        return { success: true, skinUrl, logs: logger.getLogs() };
+      }
+      logger.log("Skin upload completed successfully.");
+      return { success: true, logs: logger.getLogs() };
     } catch (err) {
-      console.error('upload-mojang-skin error:', err.message);
-      return { success: false, error: err.message };
+      let errMsg = err.message;
+      if (err.response && err.response.data) {
+        const resData = err.response.data;
+        errMsg = resData.errorMessage || resData.error || resData.detail || errMsg;
+      }
+      logger.log("upload-skin exception! Error:", errMsg, "Stack:", err.stack);
+      return { success: false, error: errMsg, logs: logger.getLogs() };
     }
   });
 
-  // Загрузка скина на свой Cloudflare Worker
-  ipcMain.handle('upload-cloudflare-skin', async (event, skinDataUrl, username) => {
+  ipcMain.handle('upload-cape', async (event, clientDir, username) => {
+    const logger = createLogger();
+    logger.log("=== [upload-cape] START ===");
+    logger.log(`clientDir: "${clientDir}", username: "${username}"`);
     try {
-      const base64Data = skinDataUrl.replace(/^data:image\/png;base64,/, '');
-      const buffer = Buffer.from(base64Data, 'base64');
-      
-      // ХАРДКОД ПАРАМЕТРОВ CLOUDFLARE (по просьбе пользователя)
-      let CF_API_URL = 'https://skin-api.dodobrest006.workers.dev'; // Вы можете вписать сюда свой URL
-      if (!CF_API_URL.startsWith('http')) {
-        CF_API_URL = 'https://' + CF_API_URL;
+      const cacheFile = getCustomCacheFile();
+      if (!fs.existsSync(cacheFile)) {
+        logger.log("Cache file not found!");
+        return { success: false, error: 'Вы не авторизованы', logs: logger.getLogs() };
       }
-      const CF_API_KEY = 'ZALUPA';
+      const cached = JSON.parse(fs.readFileSync(cacheFile, 'utf8'));
+      const webToken = cached.webToken || cached.accessToken;
+      logger.log("Web token prefix:", webToken ? webToken.slice(0, 15) + "..." : "undefined");
+      if (webToken === cached.accessToken) {
+        logger.log("WARNING: webToken was missing in cache! Falling back to Yggdrasil accessToken. This will likely cause a 401!");
+      }
 
-      const response = await axios.put(`${CF_API_URL}/${username}.png`, buffer, {
-        headers: {
-          'Authorization': `Bearer ${CF_API_KEY}`,
-          'Content-Type': 'image/png'
-        }
+      logger.log("Opening file selection dialog...");
+      const { canceled, filePaths } = await dialog.showOpenDialog({
+        title: 'Выберите файл плаща (.png)',
+        filters: [{ name: 'Изображения', extensions: ['png'] }],
+        properties: ['openFile']
       });
-      return { success: true };
-    } catch (err) {
-      console.error('upload-cloudflare-skin error:', err.message);
-      if (err.response) {
-        return { success: false, error: `Cloudflare HTTP ${err.response.status}: ${JSON.stringify(err.response.data)}` };
+
+      if (canceled || filePaths.length === 0) {
+        logger.log("File selection canceled by user.");
+        return { success: false, error: 'Выбор отменен', logs: logger.getLogs() };
       }
-      return { success: false, error: err.message === 'fetch failed' || err.message.includes('Network Error') ? 'Ошибка сети (блокировка или сбой DNS). Попробуйте с VPN или без.' : err.message };
+      const filePath = filePaths[0];
+      logger.log("Selected file path:", filePath);
+      const fileBuffer = fs.readFileSync(filePath);
+      logger.log("File size read:", fileBuffer.length, "bytes");
+
+      // 1. Upload to server (manually constructing the multipart body to avoid Axios + global Blob/FormData hanging in Node/Electron)
+      const boundary = `----ElectronBoundary${Math.random().toString(36).substring(2)}`;
+      const header = Buffer.from(
+        `--${boundary}\r\n` +
+        `Content-Disposition: form-data; name="cape"; filename="cape.png"\r\n` +
+        `Content-Type: image/png\r\n\r\n`
+      );
+      const footer = Buffer.from(`\r\n--${boundary}--\r\n`);
+      const payload = Buffer.concat([header, fileBuffer, footer]);
+
+      logger.log(`Sending POST upload request to Web API: ${AUTH_SERVER}/api/profile/cape`);
+      const responseData = await uploadFileNative(`${AUTH_SERVER}/api/profile/cape`, webToken, boundary, payload);
+      logger.log("Upload response data:", responseData);
+
+      const capeUrl = responseData.cape_url;
+
+      // 2. Save locally
+      if (clientDir && username) {
+        try {
+          const gameRoot = path.join(app.getPath('userData'), clientDir);
+          const skinsDir = path.join(gameRoot, 'resourcepacks', 'skins');
+          if (!fs.existsSync(skinsDir)) fs.mkdirSync(skinsDir, { recursive: true });
+          fs.writeFileSync(path.join(skinsDir, `${username}_cape.png`), fileBuffer);
+          logger.log("Saved cape copy locally to resourcepacks/skins for launcher sync.");
+        } catch (localErr) {
+          logger.log("Failed to save cape locally (non-fatal):", localErr.message);
+        }
+      }
+
+      if (capeUrl) {
+        logger.log("Cape upload completed successfully with capeUrl:", capeUrl);
+        return { success: true, capeUrl, logs: logger.getLogs() };
+      }
+      logger.log("Cape upload completed successfully.");
+      return { success: true, logs: logger.getLogs() };
+    } catch (err) {
+      let errMsg = err.message;
+      if (err.response && err.response.data) {
+        const resData = err.response.data;
+        errMsg = resData.errorMessage || resData.error || resData.detail || errMsg;
+      }
+      logger.log("upload-cape exception! Error:", errMsg, "Stack:", err.stack);
+      return { success: false, error: errMsg, logs: logger.getLogs() };
     }
+  });
+
+  ipcMain.handle('get-admin-users', async () => {
+    const logger = createLogger();
+    logger.log("=== [get-admin-users] START ===");
+    try {
+      const cacheFile = getCustomCacheFile();
+      if (!fs.existsSync(cacheFile)) {
+        return { success: false, error: 'Вы не авторизованы', logs: logger.getLogs() };
+      }
+      const cached = JSON.parse(fs.readFileSync(cacheFile, 'utf8'));
+      const webToken = cached.webToken;
+      if (!webToken) {
+        return { success: false, error: 'Токен веб-авторизации не найден', logs: logger.getLogs() };
+      }
+
+      logger.log(`Fetching admin users from Web API: ${AUTH_SERVER}/api/admin/users`);
+      const response = await axios.get(`${AUTH_SERVER}/api/admin/users`, {
+        headers: { 'Authorization': `Bearer ${webToken}` }
+      });
+
+      return { success: true, users: response.data };
+    } catch (err) {
+      let errMsg = err.message;
+      if (err.response && err.response.data) {
+        const resData = err.response.data;
+        errMsg = resData.errorMessage || resData.error || errMsg;
+      }
+      logger.log("get-admin-users failed:", errMsg);
+      return { success: false, error: errMsg };
+    }
+  });
+
+  ipcMain.handle('update-admin-user', async (event, id, updates) => {
+    const logger = createLogger();
+    logger.log(`=== [update-admin-user] START (id: ${id}) ===`);
+    try {
+      const cacheFile = getCustomCacheFile();
+      if (!fs.existsSync(cacheFile)) {
+        return { success: false, error: 'Вы не авторизованы', logs: logger.getLogs() };
+      }
+      const cached = JSON.parse(fs.readFileSync(cacheFile, 'utf8'));
+      const webToken = cached.webToken;
+      if (!webToken) {
+        return { success: false, error: 'Токен веб-авторизации не найден', logs: logger.getLogs() };
+      }
+
+      logger.log(`Updating user ${id} via Web API: ${AUTH_SERVER}/api/admin/users/${id}`);
+      const response = await axios.put(`${AUTH_SERVER}/api/admin/users/${id}`, updates, {
+        headers: { 'Authorization': `Bearer ${webToken}` }
+      });
+
+      return { success: true, message: response.data.message };
+    } catch (err) {
+      let errMsg = err.message;
+      if (err.response && err.response.data) {
+        const resData = err.response.data;
+        errMsg = resData.errorMessage || resData.error || errMsg;
+      }
+      logger.log("update-admin-user failed:", errMsg);
+      return { success: false, error: errMsg };
+    }
+  });
+
+  ipcMain.handle('delete-admin-user', async (event, id) => {
+    const logger = createLogger();
+    logger.log(`=== [delete-admin-user] START (id: ${id}) ===`);
+    try {
+      const cacheFile = getCustomCacheFile();
+      if (!fs.existsSync(cacheFile)) {
+        return { success: false, error: 'Вы не авторизованы', logs: logger.getLogs() };
+      }
+      const cached = JSON.parse(fs.readFileSync(cacheFile, 'utf8'));
+      const webToken = cached.webToken;
+      if (!webToken) {
+        return { success: false, error: 'Токен веб-авторизации не найден', logs: logger.getLogs() };
+      }
+
+      logger.log(`Deleting user ${id} via Web API: ${AUTH_SERVER}/api/admin/users/${id}`);
+      const response = await axios.delete(`${AUTH_SERVER}/api/admin/users/${id}`, {
+        headers: { 'Authorization': `Bearer ${webToken}` }
+      });
+
+      return { success: true, message: response.data.message };
+    } catch (err) {
+      let errMsg = err.message;
+      if (err.response && err.response.data) {
+        const resData = err.response.data;
+        errMsg = resData.errorMessage || resData.error || errMsg;
+      }
+      logger.log("delete-admin-user failed:", errMsg);
+      return { success: false, error: errMsg };
+    }
+  });
+
+  ipcMain.handle('change-password', async (event, oldPassword, newPassword) => {
+    const logger = createLogger();
+    logger.log("=== [change-password] START ===");
+    try {
+      const cacheFile = getCustomCacheFile();
+      if (!fs.existsSync(cacheFile)) {
+        return { success: false, error: 'Вы не авторизованы', logs: logger.getLogs() };
+      }
+      const cached = JSON.parse(fs.readFileSync(cacheFile, 'utf8'));
+      const webToken = cached.webToken;
+      if (!webToken) {
+        return { success: false, error: 'Токен веб-авторизации не найден', logs: logger.getLogs() };
+      }
+
+      logger.log(`Changing password via Web API: ${AUTH_SERVER}/api/profile/password`);
+      const response = await axios.post(`${AUTH_SERVER}/api/profile/password`, { oldPassword, newPassword }, {
+        headers: { 'Authorization': `Bearer ${webToken}` }
+      });
+
+      return { success: true, message: response.data.message };
+    } catch (err) {
+      let errMsg = err.message;
+      if (err.response && err.response.data) {
+        const resData = err.response.data;
+        errMsg = resData.errorMessage || resData.error || errMsg;
+      }
+      logger.log("change-password failed:", errMsg);
+      return { success: false, error: errMsg };
+    }
+  });
+
+  ipcMain.handle('update-bio', async (event, bio) => {
+    const logger = createLogger();
+    logger.log("=== [update-bio] START ===");
+    try {
+      const cacheFile = getCustomCacheFile();
+      if (!fs.existsSync(cacheFile)) {
+        return { success: false, error: 'Вы не авторизованы', logs: logger.getLogs() };
+      }
+      const cached = JSON.parse(fs.readFileSync(cacheFile, 'utf8'));
+      const webToken = cached.webToken;
+      if (!webToken) {
+        return { success: false, error: 'Токен веб-авторизации не найден', logs: logger.getLogs() };
+      }
+
+      logger.log(`Updating bio via Web API: ${AUTH_SERVER}/api/profile/bio`);
+      const response = await axios.post(`${AUTH_SERVER}/api/profile/bio`, { bio }, {
+        headers: { 'Authorization': `Bearer ${webToken}` }
+      });
+
+      return { success: true, message: response.data.message, bio: response.data.bio };
+    } catch (err) {
+      let errMsg = err.message;
+      if (err.response && err.response.data) {
+        const resData = err.response.data;
+        errMsg = resData.errorMessage || resData.error || errMsg;
+      }
+      logger.log("update-bio failed:", errMsg);
+      return { success: false, error: errMsg };
+    }
+  });
+
+  ipcMain.handle('get-users', async () => {
+    const logger = createLogger();
+    logger.log("=== [get-users] START ===");
+    try {
+      const cacheFile = getCustomCacheFile();
+      if (!fs.existsSync(cacheFile)) {
+        return { success: false, error: 'Вы не авторизованы', logs: logger.getLogs() };
+      }
+      const cached = JSON.parse(fs.readFileSync(cacheFile, 'utf8'));
+      const webToken = cached.webToken;
+      if (!webToken) {
+        return { success: false, error: 'Токен веб-авторизации не найден', logs: logger.getLogs() };
+      }
+
+      logger.log(`Fetching all users from Web API: ${AUTH_SERVER}/api/users`);
+      const response = await axios.get(`${AUTH_SERVER}/api/users`, {
+        headers: { 'Authorization': `Bearer ${webToken}` }
+      });
+
+      return { success: true, users: response.data };
+    } catch (err) {
+      let errMsg = err.message;
+      if (err.response && err.response.data) {
+        const resData = err.response.data;
+        errMsg = resData.errorMessage || resData.error || errMsg;
+      }
+      logger.log("get-users failed:", errMsg);
+      return { success: false, error: errMsg };
+    }
+  });
+  ipcMain.handle('get-auth-server-url', () => {
+    return AUTH_SERVER;
   });
 };

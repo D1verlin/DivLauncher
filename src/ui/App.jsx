@@ -3,6 +3,10 @@ import { motion, AnimatePresence } from 'framer-motion';
 import ClientPage from './pages/ClientPage';
 import ServerPage from './pages/ServerPage';
 import SettingsPage from './pages/SettingsPage';
+import LoginPage from './pages/LoginPage';
+import ProfilePage from './pages/ProfilePage';
+import AdminPage from './pages/AdminPage';
+import UsersPage from './pages/UsersPage';
 
 const MODPACKS_URL = "https://mc.diverlin.ru/DivLauncher/modpacks.json";
 
@@ -124,6 +128,7 @@ const TopBar = () => (
 // --- ОСНОВНОЕ ПРИЛОЖЕНИЕ ---
 export default function App() {
   const [currentPage, setCurrentPage] = useState('client');
+  const [viewedProfile, setViewedProfile] = useState(null);
   const [modpacks, setModpacks] = useState([]);
   const [currentPack, setCurrentPack] = useState(null);
   const [loadingError, setLoadingError] = useState(null); 
@@ -137,6 +142,46 @@ export default function App() {
 
   // Animated background toggle
   const [animatedBg, setAnimatedBg] = useState(localStorage.getItem('launcher_animated_bg') !== 'false');
+
+  // Auth States
+  const [profile, setProfile] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
+
+  const handleLogout = async () => {
+    if (window.electronAPI?.customLogout) {
+      await window.electronAPI.customLogout();
+    }
+    setProfile(null);
+    localStorage.removeItem('launcher_username');
+    setCurrentPage('client');
+  };
+
+  useEffect(() => {
+    if (window.electronAPI?.customCheckAuth) {
+      window.electronAPI.customCheckAuth()
+        .then(prof => {
+          if (prof) {
+            if (prof.logs && Array.isArray(prof.logs)) {
+              prof.logs.forEach(l => console.log("%c[MAIN] " + l, "color: #3b82f6; font-weight: 500;"));
+            }
+            setProfile({
+              id: prof.id,
+              name: prof.name,
+              uuid: prof.uuid,
+              accessToken: prof.accessToken,
+              webToken: prof.webToken,
+              is_admin: prof.is_admin,
+              badge: prof.badge
+            });
+            localStorage.setItem('launcher_username', prof.name);
+          }
+        })
+        .catch(err => console.error("Session check error:", err))
+        .finally(() => setAuthLoading(false));
+    } else {
+      setAuthLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     const handleSettingsUpdate = () => {
@@ -182,14 +227,6 @@ export default function App() {
     window.electronAPI.onServerLog((e, data) => setServerLogs(p => p + data));
     window.electronAPI.onServerStatus((e, status) => setIsServerRunning(status === 'starting'));
     window.electronAPI.onServerPlayers((e, playerList) => setServerPlayers(playerList));
-
-    const checkVideoSetting = () => {
-      setEnableVideoBg(localStorage.getItem('launcher_video_bg') !== 'false');
-    };
-    
-    const interval = setInterval(checkVideoSetting, 500);
-    return () => clearInterval(interval);
-
   }, []);
 
   const handleManualUpdate = () => {
@@ -226,6 +263,37 @@ export default function App() {
             </motion.div>
           )}
         </div>
+      </div>
+    );
+  }
+
+  if (authLoading) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', width: '100%', height: '100%', background: '#0a0a0c', color: '#fff', position: 'relative' }}>
+        <TopBar />
+        <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+          <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1.5, ease: "linear" }} style={{ width: '45px', height: '45px', border: '4px solid rgba(16, 185, 129, 0.1)', borderTopColor: '#10b981', borderRadius: '50%', marginBottom: '25px' }} />
+          <h2 style={{ fontSize: '18px', fontWeight: 800, letterSpacing: '3px', color: '#10b981' }}>ПРОВЕРКА СЕССИИ...</h2>
+        </div>
+      </div>
+    );
+  }
+
+  if (!profile) {
+    return (
+      <div style={{
+        display: 'flex',
+        flexDirection: 'column',
+        width: '100%',
+        height: '100%',
+        position: 'relative',
+        background: `linear-gradient(rgba(20, 20, 20, 0.75), rgba(20, 20, 20, 0.95)), url('${currentPack.bgImage}') center/cover`
+      }}>
+        <TopBar />
+        <LoginPage onLoginSuccess={(prof) => {
+          setProfile(prof);
+          localStorage.setItem('launcher_username', prof.name);
+        }} />
       </div>
     );
   }
@@ -272,12 +340,18 @@ export default function App() {
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-              <NavButton icon="fa-gamepad" active={currentPage === 'client'} onClick={() => setCurrentPage('client')} color="#10b981" />
-              <NavButton icon="fa-server" active={currentPage === 'server'} onClick={() => setCurrentPage('server')} color="#3b82f6" />
+              <NavButton icon="fa-gamepad" active={currentPage === 'client'} onClick={() => { setViewedProfile(null); setCurrentPage('client'); }} color="#10b981" />
+              <NavButton icon="fa-server" active={currentPage === 'server'} onClick={() => { setViewedProfile(null); setCurrentPage('server'); }} color="#3b82f6" />
+              <NavButton icon="fa-users" active={currentPage === 'users'} onClick={() => { setViewedProfile(null); setCurrentPage('users'); }} color="#6366f1" />
+              <NavButton icon="fa-circle-user" active={currentPage === 'profile'} onClick={() => { setViewedProfile(null); setCurrentPage('profile'); }} color="#a78bfa" />
+              {profile && profile.is_admin === 1 && (
+                <NavButton icon="fa-shield-halved" active={currentPage === 'admin'} onClick={() => { setViewedProfile(null); setCurrentPage('admin'); }} color="#ef4444" />
+              )}
             </div>
 
             <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '15px' }}>
-              <NavButton icon="fa-gear" active={currentPage === 'settings'} onClick={() => setCurrentPage('settings')} color="#f59e0b" />
+              <NavButton icon="fa-right-from-bracket" active={false} onClick={handleLogout} color="#ef4444" title="Выйти из аккаунта" />
+              <NavButton icon="fa-gear" active={currentPage === 'settings'} onClick={() => setCurrentPage('settings')} color="#f59e0b" title="Настройки" />
               
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', paddingBottom: '10px' }}>
                 <motion.button
@@ -303,9 +377,52 @@ export default function App() {
               <div style={{ display: currentPage === 'server' ? 'block' : 'none', height: '100%' }}>
                 <ServerPage logs={serverLogs} isRunning={isServerRunning} players={serverPlayers} currentPack={currentPack} />
               </div>
+              <div style={{ display: currentPage === 'users' ? 'block' : 'none', height: '100%' }}>
+                <UsersPage 
+                  active={currentPage === 'users'} 
+                  onViewProfile={(user) => {
+                    setViewedProfile({
+                      id: user.id,
+                      name: user.username,
+                      uuid: user.uuid,
+                      is_admin: user.is_admin,
+                      badge: user.badge,
+                      bio: user.bio,
+                      skin_url: user.skin_url,
+                      cape_url: user.cape_url,
+                      stats: user.stats,
+                    });
+                    setCurrentPage('profile');
+                  }} 
+                />
+              </div>
+              <div style={{ display: currentPage === 'profile' ? 'block' : 'none', height: '100%' }}>
+                <ProfilePage 
+                  profile={viewedProfile || profile} 
+                  isOwnProfile={!viewedProfile || viewedProfile.uuid === profile.uuid}
+                  onBack={() => {
+                    setCurrentPage('users');
+                    setViewedProfile(null);
+                  }}
+                  onLogout={handleLogout} 
+                  currentPack={currentPack} 
+                  modpacks={modpacks} 
+                />
+              </div>
               <div style={{ display: currentPage === 'settings' ? 'block' : 'none', height: '100%' }}>
                 <SettingsPage currentPack={currentPack} />
               </div>
+              {profile && profile.is_admin === 1 && (
+                <div style={{ display: currentPage === 'admin' ? 'block' : 'none', height: '100%' }}>
+                  <AdminPage 
+                    active={currentPage === 'admin'} 
+                    profile={profile} 
+                    onProfileUpdate={(updatedFields) => {
+                      setProfile(prev => ({ ...prev, ...updatedFields }));
+                    }} 
+                  />
+                </div>
+              )}
             </>
           ) : (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#a1a1aa' }}>
@@ -318,9 +435,9 @@ export default function App() {
   );
 }
 
-function NavButton({ icon, active, onClick, color }) {
+function NavButton({ icon, active, onClick, color, title }) {
   return (
-    <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={onClick} style={{ width: '40px', height: '40px', borderRadius: '50%', border: 'none', cursor: 'pointer', background: active ? color : 'transparent', color: active ? '#fff' : '#52525b', fontSize: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+    <motion.button title={title} whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={onClick} style={{ width: '40px', height: '40px', borderRadius: '50%', border: 'none', cursor: 'pointer', background: active ? color : 'transparent', color: active ? '#fff' : '#52525b', fontSize: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <i className={`fa-solid ${icon}`}></i>
     </motion.button>
   );

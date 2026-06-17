@@ -87,6 +87,37 @@ export default function ServerPage({ logs, isRunning, players, currentPack }) {
     if (isRunning) window.electronAPI.sendServerCommand('say Настройки изменены (требуется рестарт)');
   };
 
+  const getPlayerDistancePreset = (data) => {
+    const pct = parseInt(data['entity-broadcast-range-percentage'] || '100', 10);
+    const range = parseInt(data['player-tracking-range'] || '48', 10);
+    if (range <= 32 || pct <= 50) return 'low';
+    if (range <= 64 || pct <= 100) return 'medium';
+    if (range <= 128 || pct <= 200) return 'high';
+    return 'ultra';
+  };
+
+  const applyPlayerDistancePreset = (preset) => {
+    let newProps = { ...propsData };
+    if (preset === 'low') {
+      newProps['simulation-distance'] = '4';
+      newProps['entity-broadcast-range-percentage'] = '50';
+      newProps['player-tracking-range'] = '32';
+    } else if (preset === 'medium') {
+      newProps['simulation-distance'] = '8';
+      newProps['entity-broadcast-range-percentage'] = '100';
+      newProps['player-tracking-range'] = '64';
+    } else if (preset === 'high') {
+      newProps['simulation-distance'] = '16';
+      newProps['entity-broadcast-range-percentage'] = '200';
+      newProps['player-tracking-range'] = '128';
+    } else if (preset === 'ultra') {
+      newProps['simulation-distance'] = '32';
+      newProps['entity-broadcast-range-percentage'] = '500';
+      newProps['player-tracking-range'] = '512';
+    }
+    setPropsData(newProps);
+  };
+
   // --- ЛОГИКА КОНТЕКСТНОГО МЕНЮ ИГРОКА ---
   const handlePlayerClick = (e, player) => {
     e.stopPropagation(); // Не даем клику уйти на документ (чтобы меню не закрылось сразу)
@@ -152,7 +183,7 @@ export default function ServerPage({ logs, isRunning, players, currentPack }) {
           >
             <motion.div 
               initial={{ scale: 0.9, y: 30 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 30 }}
-              style={{ ...glassPanelStyle, padding: '25px', width: '400px', borderRadius: '20px' }}
+              style={{ ...glassPanelStyle, padding: '25px', width: '400px', borderRadius: '20px', maxHeight: '90vh', overflowY: 'auto' }}
             >
               <h3 style={{ margin: '0 0 20px 0', fontSize: '20px', fontWeight: 900, color: '#fff', textTransform: 'uppercase', letterSpacing: '1px' }}>
                 Настройки {currentPack.name}
@@ -162,14 +193,6 @@ export default function ServerPage({ logs, isRunning, players, currentPack }) {
                 <div>
                   <label style={{ fontSize: '11px', color: '#a1a1aa', textTransform: 'uppercase', fontWeight: 800, marginBottom: '6px', display: 'block' }}>Название в списке (MOTD)</label>
                   <input type="text" value={propsData['motd'] || ''} onChange={e => setPropsData({...propsData, 'motd': e.target.value})} style={glassInputStyle} />
-                </div>
-
-                <div>
-                  <label style={{ fontSize: '11px', color: '#a1a1aa', textTransform: 'uppercase', fontWeight: 800, marginBottom: '6px', display: 'block' }}>Пиратский вход</label>
-                  <select value={propsData['online-mode'] || 'false'} onChange={e => setPropsData({...propsData, 'online-mode': e.target.value})} style={{...glassInputStyle, cursor: 'pointer'}}>
-                    <option value="false" style={{background: '#111'}}>Разрешить всем (Пиратка)</option>
-                    <option value="true" style={{background: '#111'}}>Только лицензия (Xbox)</option>
-                  </select>
                 </div>
 
                 <div style={{ display: 'flex', gap: '12px' }}>
@@ -184,6 +207,49 @@ export default function ServerPage({ logs, isRunning, players, currentPack }) {
                       <option value="false" style={{background: '#111'}}>Выкл</option>
                     </select>
                   </div>
+                </div>
+
+                <div style={{ height: '1px', background: 'rgba(255, 255, 255, 0.1)', margin: '4px 0' }} />
+
+                {/* Дальность чанков */}
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                    <label style={{ fontSize: '11px', color: '#a1a1aa', textTransform: 'uppercase', fontWeight: 800 }}>Дальность чанков (Территория)</label>
+                    <span style={{ fontSize: '12px', fontWeight: 800, color: '#3b82f6', fontFamily: 'Montserrat' }}>{propsData['view-distance'] || '10'} чанков</span>
+                  </div>
+                  <input 
+                    type="range" 
+                    min="4" 
+                    max="32" 
+                    step="1" 
+                    value={propsData['view-distance'] || '10'} 
+                    onChange={e => setPropsData({...propsData, 'view-distance': e.target.value})} 
+                    style={{ width: '100%', cursor: 'pointer' }} 
+                  />
+                </div>
+
+                {/* Дальность прорисовки игроков */}
+                <div>
+                  <label style={{ fontSize: '11px', color: '#a1a1aa', textTransform: 'uppercase', fontWeight: 800, marginBottom: '6px', display: 'block' }}>Прорисовка игроков (Пользователи)</label>
+                  <select 
+                    value={getPlayerDistancePreset(propsData)} 
+                    onChange={e => applyPlayerDistancePreset(e.target.value)} 
+                    style={{...glassInputStyle, cursor: 'pointer'}}
+                  >
+                    <option value="low" style={{background: '#111'}}>Низкая (32м / 4 чанка симуляции / 50%)</option>
+                    <option value="medium" style={{background: '#111'}}>Средняя (64м / 8 чанков симуляции / 100%) [Стандарт]</option>
+                    <option value="high" style={{background: '#111'}}>Высокая (128м / 16 чанков симуляции / 200%)</option>
+                    <option value="ultra" style={{background: '#111'}}>Ультра (512м / 32 чанка симуляции / 500%) [Максимум]</option>
+                  </select>
+                  <span style={{ fontSize: '9px', color: '#71717a', marginTop: '4px', display: 'block', lineHeight: '1.35', fontStyle: 'italic' }}>
+                    {(() => {
+                      const core = currentPack.serverLoaderType || currentPack.loaderType || 'vanilla';
+                      if (core === 'spigot' || core === 'paper' || core === 'hybrid') {
+                        return 'Ядро Spigot/Paper/Hybrid: оптимизирует радиус отслеживания игроков и лимит чанков симуляции.';
+                      }
+                      return 'Ядро Forge/Fabric: оптимизирует процент вещания сущностей и дистанцию симуляции.';
+                    })()}
+                  </span>
                 </div>
               </div>
 

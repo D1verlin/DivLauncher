@@ -12,7 +12,7 @@ build/
 out/
 release/
 .parcel-cache/
-
+backend/
 # Скомпилированные установщики и архивы (от electron-builder)
 *.exe
 *.zip

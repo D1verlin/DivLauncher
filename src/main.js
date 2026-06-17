@@ -1,6 +1,11 @@
 require('dotenv').config();
-const { autoUpdater } = require('electron-updater');
 const { app, BrowserWindow, ipcMain } = require('electron');
+
+// Отключаем проверку SSL сертификатов для обхода проблем с рукопожатием (handshake failed)
+app.commandLine.appendSwitch('ignore-certificate-errors');
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+
+const { autoUpdater } = require('electron-updater');
 const path = require('path');
 const fs = require('fs');
 const axios = require('axios');
@@ -27,12 +32,14 @@ function createWindow() {
     }
   });
   
+  mainWindow.webContents.setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36");
+  
   mainWindow.setMenu(null); 
   // mainWindow.webContents.openDevTools();
   
   // Режим разработчика
   
-   // mainWindow.webContents.openDevTools();
+  // mainWindow.webContents.openDevTools();
   
   // Настраиваем автоапдейтер
   autoUpdater.autoDownload = true;

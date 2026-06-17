@@ -1,4 +1,5 @@
 * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
+input, textarea { user-select: text !important; -webkit-user-select: text !important; }
 
 html, body {
     background: transparent !important;
