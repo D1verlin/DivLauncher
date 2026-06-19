@@ -1,5 +1,7 @@
-* { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
-input, textarea { user-select: text !important; -webkit-user-select: text !important; }
+* { margin: 0; padding: 0; box-sizing: border-box; user-select: none; -webkit-user-drag: none; }
+img { -webkit-user-drag: none; }
+input, textarea { user-select: text !important; -webkit-user-select: text !important; -webkit-user-drag: auto; -webkit-app-region: no-drag; }
+button, a, select { -webkit-app-region: no-drag; }
 
 html, body {
     background: transparent !important;

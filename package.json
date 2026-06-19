@@ -1,6 +1,6 @@
 {
   "name": "div-launcher",
-  "version": "1.0.7",
+  "version": "1.0.9",
   "description": "Custom Minecraft Launcher",
   "author": "Diverlin",
   "main": "src/main.js",

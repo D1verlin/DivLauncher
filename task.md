@@ -1,0 +1,26 @@
+# Task List
+
+- `[x]` 1. Backend Core Resolvers
+    - `[x]` Implement Paper server jar URL resolver in `src/core/server.js`.
+    - `[x]` Implement Spigot server jar URL resolver in `src/core/server.js`.
+    - `[x]` Implement Hybrid (Arclight) server jar URL resolver in `src/core/server.js`.
+    - `[x]` Update `ensureLoader` in `src/core/server.js` to automatically fetch and cache multi-core server jars.
+- `[x]` 2. Client launch mapping adjustments
+    - `[x]` Modify client launcher in `src/core/client.js` to map `paper` and `spigot` to Vanilla client settings.
+    - `[x]` Modify client launcher in `src/core/client.js` to map `hybrid` (Arclight) to Forge client settings.
+    - `[x]` Implement Helpers in `src/core/client.js`
+    - `[x]` Write `getJavaMajorVersion(javaPath)` to extract major version of custom java path.
+    - `[x]` Write `resolveNeoForgeVersion(mcVersion)` using map and dynamic metadata fallback.
+    - `[x]` Write `resolveLoaderDetails(pack)` to query Fabric, Quilt, and NeoForge metadata, update `pack` configurations, and save them.
+- `[x]` 3. Integrate in Client Launcher
+    - `[x]` Check and override custom `javaPath` if version is lower than required version in `launch-game`.
+    - `[x]` Invoke `resolveLoaderDetails(pack)` early in `ensureLoader` of `client.js`.
+- `[x]` 4. Update Frontend Mappings
+    - `[x]` Update `neoForgeVersions` in `src/ui/pages/CreatePackPage.jsx` with latest stable builds.
+    - `[x]` Update Fabric and Quilt default installer URL/names to modern releases (`1.1.1` and `0.14.1`).
+    - `[x]` Update NeoForge dynamic fallback version template patch to `.150`.
+    - `[x]` Redesign `src/ui/pages/CreatePackPage.jsx` with a beautiful 60/40 two-column layout.
+    - `[x]` Implement custom frosted select inputs with searchable dropdowns for versions.
+    - `[x]` Implement custom select dropdown for loaders with rich visual icons, color badges, checkmarks, and detailed descriptions.
+    - `[x]` Build interactive `LivePreviewCard` updating real-time card representation (names, icon URLs, custom backgrounds, loader badges, specific description tips).
+    - `[x]` Compile and verify JSX structure via production Vite build.

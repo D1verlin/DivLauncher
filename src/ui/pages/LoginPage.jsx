@@ -57,9 +57,13 @@ export default function LoginPage({ onLoginSuccess }) {
         }
         if (result.success) {
           onLoginSuccess({
+            id: result.id,
             name: result.name,
             uuid: result.uuid,
-            accessToken: result.accessToken
+            accessToken: result.accessToken,
+            webToken: result.webToken,
+            is_admin: result.is_admin,
+            badge: result.badge
           });
         } else {
           setMessage({ type: 'error', text: result.error || 'Неверный логин или пароль' });

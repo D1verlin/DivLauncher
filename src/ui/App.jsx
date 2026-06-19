@@ -7,6 +7,9 @@ import LoginPage from './pages/LoginPage';
 import ProfilePage from './pages/ProfilePage';
 import AdminPage from './pages/AdminPage';
 import UsersPage from './pages/UsersPage';
+import BuildsPage from './pages/BuildsPage';
+import CreatePackPage from './pages/CreatePackPage';
+import ModsPage from './pages/ModsPage';
 
 const MODPACKS_URL = "https://mc.diverlin.ru/DivLauncher/modpacks.json";
 
@@ -127,8 +130,9 @@ const TopBar = () => (
 
 // --- ОСНОВНОЕ ПРИЛОЖЕНИЕ ---
 export default function App() {
-  const [currentPage, setCurrentPage] = useState('client');
+  const [currentPage, setCurrentPage] = useState('builds');
   const [viewedProfile, setViewedProfile] = useState(null);
+  const [editingPack, setEditingPack] = useState(null);
   const [modpacks, setModpacks] = useState([]);
   const [currentPack, setCurrentPack] = useState(null);
   const [loadingError, setLoadingError] = useState(null); 
@@ -198,24 +202,92 @@ export default function App() {
         if (!res.ok) throw new Error(`Ошибка HTTP: ${res.status}`);
         return res.json();
       })
-      .then(data => {
-        setModpacks(data);
-        if (data.length > 0) {
-          // --- УМНЫЙ ВЫБОР СБОРКИ ---
+      .then(async remoteData => {
+        let localData = [];
+        if (window.electronAPI && window.electronAPI.getCustomPacks) {
+          try {
+            localData = await window.electronAPI.getCustomPacks();
+          } catch (e) {
+            console.error("Failed to load local custom packs:", e);
+          }
+        }
+        const combinedData = [...remoteData, ...localData];
+        setModpacks(combinedData);
+        if (combinedData.length > 0) {
           const savedPackId = localStorage.getItem('launcher_last_pack');
-          const lastPack = data.find(p => p.id === savedPackId);
-          const packToSelect = lastPack || data[0];
+          const lastPack = combinedData.find(p => p.id === savedPackId);
+          const packToSelect = lastPack || combinedData[0];
 
           setCurrentPack(packToSelect);
           setServerLogs(`Выбрана сборка: ${packToSelect.name}. Сервер готов к запуску...\n`);
         } else {
-          setLoadingError("Список сборок на сервере пуст.");
+          setCurrentPage('builds');
         }
       })
       .catch(err => {
-        setLoadingError(err.message);
+        if (window.electronAPI && window.electronAPI.getCustomPacks) {
+          window.electronAPI.getCustomPacks()
+            .then(localData => {
+              if (localData.length > 0) {
+                setModpacks(localData);
+                const savedPackId = localStorage.getItem('launcher_last_pack');
+                const lastPack = localData.find(p => p.id === savedPackId);
+                const packToSelect = lastPack || localData[0];
+                setCurrentPack(packToSelect);
+                setServerLogs(`Оффлайн. Выбрана локальная сборка: ${packToSelect.name}.\n`);
+              } else {
+                setCurrentPage('builds');
+              }
+            })
+            .catch(() => {
+              setCurrentPage('builds');
+            });
+        } else {
+          setLoadingError(err.message);
+        }
       });
   };
+
+  const handleCreateCustomPack = async (newPack) => {
+    if (window.electronAPI && window.electronAPI.saveCustomPack) {
+      const result = await window.electronAPI.saveCustomPack(newPack);
+      if (result.success) {
+        fetchModpacks();
+        setCurrentPack(newPack);
+        localStorage.setItem('launcher_last_pack', newPack.id);
+        setServerLogs(`Создана и выбрана сборка: ${newPack.name}...\n`);
+      } else {
+        alert("Не удалось сохранить сборку: " + result.error);
+      }
+    }
+  };
+
+  const handleDeleteCustomPack = async (id) => {
+    if (window.electronAPI && window.electronAPI.deleteCustomPack) {
+      if (confirm("Вы действительно хотите удалить эту сборку? Внимание: все файлы и моды этой сборки будут безвозвратно удалены!")) {
+        const result = await window.electronAPI.deleteCustomPack(id);
+        if (result.success) {
+          const remainingPacks = modpacks.filter(p => p.id !== id);
+          if (remainingPacks.length > 0) {
+            const nextPack = remainingPacks[0];
+            setCurrentPack(nextPack);
+            localStorage.setItem('launcher_last_pack', nextPack.id);
+          } else {
+            setCurrentPack(null);
+          }
+          fetchModpacks();
+        } else {
+          alert("Не удалось удалить сборку: " + result.error);
+        }
+      }
+    }
+  };
+
+  const handlePackUpdate = (updatedPack) => {
+    setCurrentPack(updatedPack);
+    setModpacks(prev => prev.map(p => p.id === updatedPack.id ? updatedPack : p));
+  };
+
 
   useEffect(() => {
     fetchModpacks();
@@ -324,28 +396,14 @@ export default function App() {
           
           <div style={{ width: '60px', minWidth: '60px', background: '#11111157', backdropFilter: 'blur(20px)', borderRadius: '30px', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '20px 0', border: '1px solid rgba(255,255,255,0.05)', overflowY: 'auto' }}>
             
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '20px', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '20px' }}>
-              {modpacks.map(pack => (
-                <motion.img 
-                  key={pack.id} src={pack.icon} alt={pack.name} title={pack.name}
-                  whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}
-                  onClick={() => { 
-                    setCurrentPack(pack); 
-                    localStorage.setItem('launcher_last_pack', pack.id); // Запоминаем выбор!
-                    setServerLogs(`Выбрана сборка: ${pack.name}...\n`); 
-                  }}
-                  style={{ width: '40px', height: '40px', cursor: 'pointer', opacity: currentPack.id === pack.id ? 1 : 0.4, borderRadius: '8px', objectFit: 'contain' }}
-                />
-              ))}
-            </div>
-
             <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-              <NavButton icon="fa-gamepad" active={currentPage === 'client'} onClick={() => { setViewedProfile(null); setCurrentPage('client'); }} color="#10b981" />
-              <NavButton icon="fa-server" active={currentPage === 'server'} onClick={() => { setViewedProfile(null); setCurrentPage('server'); }} color="#3b82f6" />
-              <NavButton icon="fa-users" active={currentPage === 'users'} onClick={() => { setViewedProfile(null); setCurrentPage('users'); }} color="#6366f1" />
-              <NavButton icon="fa-circle-user" active={currentPage === 'profile'} onClick={() => { setViewedProfile(null); setCurrentPage('profile'); }} color="#a78bfa" />
+              <NavButton icon="fa-layer-group" active={currentPage === 'builds' || currentPage === 'create-pack'} onClick={() => { setViewedProfile(null); setCurrentPage('builds'); }} color="#f59e0b" title="Сборки" />
+              <NavButton icon="fa-gamepad" active={currentPage === 'client'} onClick={() => { setViewedProfile(null); setCurrentPage('client'); }} color="#10b981" title="Играть" />
+              <NavButton icon="fa-server" active={currentPage === 'server'} onClick={() => { setViewedProfile(null); setCurrentPage('server'); }} color="#3b82f6" title="Сервер" />
+              <NavButton icon="fa-users" active={currentPage === 'users'} onClick={() => { setViewedProfile(null); setCurrentPage('users'); }} color="#6366f1" title="Игроки" />
+              <NavButton icon="fa-circle-user" active={currentPage === 'profile'} onClick={() => { setViewedProfile(null); setCurrentPage('profile'); }} color="#a78bfa" title="Профиль" />
               {profile && profile.is_admin === 1 && (
-                <NavButton icon="fa-shield-halved" active={currentPage === 'admin'} onClick={() => { setViewedProfile(null); setCurrentPage('admin'); }} color="#ef4444" />
+                <NavButton icon="fa-shield-halved" active={currentPage === 'admin'} onClick={() => { setViewedProfile(null); setCurrentPage('admin'); }} color="#ef4444" title="Админка" />
               )}
             </div>
 
@@ -369,13 +427,79 @@ export default function App() {
           </div>
 
         <div style={{ flexGrow: 1, overflow: 'hidden', position: 'relative', zIndex: 10 }}>
+              <div style={{ display: currentPage === 'builds' ? 'block' : 'none', height: '100%' }}>
+                <BuildsPage 
+                  modpacks={modpacks} 
+                  currentPack={currentPack} 
+                  onSelect={(pack) => {
+                    setCurrentPack(pack);
+                    localStorage.setItem('launcher_last_pack', pack.id);
+                    setServerLogs(`Выбрана сборка: ${pack.name}. Сервер готов...\n`);
+                    setCurrentPage('client');
+                  }} 
+                  onDelete={handleDeleteCustomPack}
+                  onExport={async (packId) => {
+                    if (window.electronAPI?.exportCustomPack) {
+                      const result = await window.electronAPI.exportCustomPack(packId);
+                      if (!result.success) {
+                        alert('Ошибка экспорта: ' + result.error);
+                      }
+                    }
+                  }}
+                  onEdit={(pack) => {
+                    setEditingPack(pack);
+                    setCurrentPage('create-pack');
+                  }}
+                  onCreateClick={() => {
+                    setEditingPack(null);
+                    setCurrentPage('create-pack');
+                  }}
+                  onImportClick={async () => {
+                    if (window.electronAPI?.importCustomPack) {
+                      const result = await window.electronAPI.importCustomPack();
+                      if (result.success) {
+                        fetchModpacks();
+                        if (result.pack) {
+                          setCurrentPack(result.pack);
+                          localStorage.setItem('launcher_last_pack', result.pack.id);
+                        }
+                      } else if (!result.canceled && result.error !== 'Отменено') {
+                        alert("Ошибка импорта: " + result.error);
+                      }
+                    }
+                  }}
+                />
+              </div>
+
+              <div style={{ display: currentPage === 'create-pack' ? 'block' : 'none', height: '100%' }}>
+                <CreatePackPage 
+                  isActive={currentPage === 'create-pack'}
+                  editPack={editingPack}
+                  onCreate={(pack) => {
+                    handleCreateCustomPack(pack);
+                    setEditingPack(null);
+                  }} 
+                  onBack={() => {
+                    setEditingPack(null);
+                    setCurrentPage('builds');
+                  }} 
+                />
+              </div>
+
           {currentPack ? (
             <>
               <div style={{ display: currentPage === 'client' ? 'block' : 'none', height: '100%' }}>
-                <ClientPage openSettings={() => setCurrentPage('settings')} currentPack={currentPack} />
+                <ClientPage 
+                  openSettings={() => setCurrentPage('settings')} 
+                  openMods={() => setCurrentPage('mods')}
+                  currentPack={currentPack} 
+                />
+              </div>
+              <div style={{ display: currentPage === 'mods' ? 'block' : 'none', height: '100%' }}>
+                <ModsPage currentPack={currentPack} onBack={() => setCurrentPage('client')} />
               </div>
               <div style={{ display: currentPage === 'server' ? 'block' : 'none', height: '100%' }}>
-                <ServerPage logs={serverLogs} isRunning={isServerRunning} players={serverPlayers} currentPack={currentPack} />
+                <ServerPage logs={serverLogs} isRunning={isServerRunning} players={serverPlayers} currentPack={currentPack} onPackUpdate={handlePackUpdate} />
               </div>
               <div style={{ display: currentPage === 'users' ? 'block' : 'none', height: '100%' }}>
                 <UsersPage 
@@ -425,8 +549,16 @@ export default function App() {
               )}
             </>
           ) : (
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#a1a1aa' }}>
-              {loadingError ? <span style={{color:'#ef4444'}}>{loadingError}</span> : 'Загрузка сборок...'}
+            <div style={{ display: (currentPage !== 'builds' && currentPage !== 'create-pack') ? 'flex' : 'none', alignItems: 'center', justifyContent: 'center', height: '100%', flexDirection: 'column', gap: '15px' }}>
+              <i className="fa-solid fa-layer-group" style={{ fontSize: '48px', color: 'rgba(255,255,255,0.2)' }} />
+              <div style={{ color: '#a1a1aa', fontSize: '14px', fontWeight: 600 }}>Пожалуйста, выберите сборку на странице сборок</div>
+              <motion.button 
+                whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
+                onClick={() => setCurrentPage('builds')}
+                style={{ background: 'linear-gradient(135deg, #3b82f6, #2563eb)', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: '10px', cursor: 'pointer', fontWeight: 700 }}
+              >
+                Перейти к сборкам
+              </motion.button>
             </div>
           )}
         </div>

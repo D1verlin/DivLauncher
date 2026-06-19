@@ -28,14 +28,15 @@ function createWindow() {
     webPreferences: { 
       preload: path.join(__dirname, 'preload.js'), 
       nodeIntegration: false, 
-      contextIsolation: true 
+      contextIsolation: true,
+      webSecurity: false
     }
   });
   
   mainWindow.webContents.setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36");
   
   mainWindow.setMenu(null); 
-  // mainWindow.webContents.openDevTools();
+  mainWindow.webContents.openDevTools();
   
   // Режим разработчика
   

@@ -11,7 +11,7 @@ const formatPlaytime = (ms) => {
   return `${h} ч. ${m} мин.`;
 };
 
-export default function ClientPage({ openSettings, currentPack }) {
+export default function ClientPage({ openSettings, openMods, currentPack, onDeletePack }) {
   const [status, setStatus] = useState(`Готово к запуску`);
   const [isLaunching, setIsLaunching] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -226,19 +226,85 @@ export default function ClientPage({ openSettings, currentPack }) {
       {(isLaunching || isUpdating) && <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 999, cursor: 'wait' }} />}
 
       <motion.div variants={containerVariants} initial="hidden" animate="visible" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', maxWidth: '600px', zIndex: 1 }}>
-        <motion.img variants={itemVariants} src={currentPack.logo} alt={currentPack.name} style={{ height: '140px', width: 'auto', maxWidth: '100%', objectFit: 'contain', marginBottom: '15px', filter: 'drop-shadow(0px 10px 20px rgba(0,0,0,0.8))' }} /> 
-        
-        <motion.h1 variants={itemVariants} style={{ fontSize: '38px', fontWeight: 900, color: '#fff', margin: '0 0 10px 0', textTransform: 'uppercase', letterSpacing: '1px', textShadow: '0 5px 15px rgba(0,0,0,0.9)' }}>
-          {currentPack.name}
-        </motion.h1>
-
-        {/* БЛОК СТАТУСА И СЧЕТЧИКА ВРЕМЕНИ */}
-        <motion.div variants={itemVariants} style={{ display: 'flex', alignItems: 'center', gap: '15px', minHeight: '30px', marginBottom: '35px', position: 'relative' }}>
-          <div style={{ background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.05)', padding: '6px 12px', borderRadius: '10px', fontSize: '13px', color: '#a1a1aa', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px', boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.3)' }}>
+        <>
+          {currentPack.logo && (
+            <motion.img 
+              variants={itemVariants} 
+              src={currentPack.logo} 
+              alt={currentPack.name} 
+              onError={(e) => { e.target.style.display = 'none'; }}
+              style={{ height: '140px', width: 'auto', maxWidth: '100%', objectFit: 'contain', marginBottom: '15px', filter: 'drop-shadow(0px 10px 20px rgba(0,0,0,0.8))' }} 
+            />
+          )}
+          <motion.div 
+            variants={itemVariants}
+            style={{ display: 'flex', alignItems: 'center', gap: '20px', marginBottom: currentPack.logo ? '10px' : '20px' }}
+          >
+            {!currentPack.logo && currentPack.icon && (
+              currentPack.icon.startsWith('fa-') ? (
+                <i className={currentPack.icon} style={{ fontSize: '44px', color: currentPack.titleColor && !currentPack.titleColor.includes('gradient') ? currentPack.titleColor : '#60a5fa', filter: 'drop-shadow(0 5px 15px rgba(0,0,0,0.5))' }} />
+              ) : (
+                <img src={currentPack.icon} alt={currentPack.name} style={{ width: '56px', height: '56px', objectFit: 'contain', borderRadius: '14px', filter: 'drop-shadow(0 5px 15px rgba(0,0,0,0.5))' }} />
+              )
+            )}
+            <h1 
+              key={currentPack.titleColor || 'default'}
+              style={{ 
+                fontSize: currentPack.logo ? '38px' : '44px', 
+                fontWeight: currentPack.logo ? 900 : 950, 
+                margin: 0, 
+                textTransform: 'uppercase', 
+                letterSpacing: currentPack.logo ? '1px' : '1.5px', 
+                ...(currentPack.titleColor && currentPack.titleColor.includes('gradient') ? {
+                  background: currentPack.titleColor,
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                  color: 'transparent',
+                  filter: 'drop-shadow(0 4px 10px rgba(0,0,0,0.5))',
+                  textShadow: 'none'
+                } : currentPack.titleColor ? {
+                  color: currentPack.titleColor,
+                  textShadow: '0 5px 15px rgba(0,0,0,0.9)',
+                  background: 'none',
+                  WebkitBackgroundClip: 'unset',
+                  WebkitTextFillColor: 'unset'
+                } : !currentPack.logo ? {
+                  background: 'linear-gradient(90deg, #60a5fa, #c084fc)',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                  color: 'transparent',
+                  filter: 'drop-shadow(0 4px 10px rgba(0,0,0,0.5))',
+                  textShadow: 'none'
+                } : {
+                  color: '#fff',
+                  textShadow: '0 5px 15px rgba(0,0,0,0.9)',
+                  background: 'none',
+                  WebkitBackgroundClip: 'unset',
+                  WebkitTextFillColor: 'unset'
+                })
+              }}
+            >
+              {currentPack.name}
+            </h1>
+          </motion.div>
+        </>
+        <motion.div variants={itemVariants} style={{ display: 'flex', alignItems: 'center', gap: '15px', minHeight: '30px', marginBottom: '35px', position: 'relative', width: '100%' }}>
+          <div style={{ background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.05)', padding: '6px 12px', borderRadius: '10px', fontSize: '13px', color: '#a1a1aa', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px', boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.3)', flexShrink: 0 }}>
             <i className="fa-regular fa-clock" style={{ color: '#3b82f6' }}></i>
             В игре: <span style={{ color: '#fff' }}>{formatPlaytime(playtime)}</span>
           </div>
-          <p style={{ fontSize: '15px', color: (isLaunching || isUpdating) ? '#34d399' : (isPlaying ? '#60a5fa' : ((needsInstall || needsUpdate) ? '#f59e0b' : '#e4e4e7')), fontWeight: 600, margin: 0, textShadow: '0 2px 6px rgba(0,0,0,1)', transition: 'color 0.3s' }}>
+          <p style={{ 
+            fontSize: '15px', 
+            color: (isLaunching || isUpdating) ? '#34d399' : (isPlaying ? '#60a5fa' : ((needsInstall || needsUpdate) ? '#f59e0b' : '#e4e4e7')), 
+            fontWeight: 600, 
+            margin: 0, 
+            textShadow: '0 2px 6px rgba(0,0,0,1)', 
+            transition: 'color 0.3s',
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            maxWidth: '350px'
+          }}>
             {status}
           </p>
         </motion.div>
@@ -284,17 +350,30 @@ export default function ClientPage({ openSettings, currentPack }) {
             whileTap={!(isLaunching || isUpdating) && !isPlaying ? { scale: 0.95 } : {}} 
             onClick={!(isLaunching || isUpdating) && !isPlaying ? openSettings : undefined} 
             style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(10px)', color: (isLaunching || isUpdating || isPlaying) ? 'rgba(255,255,255,0.3)' : '#fff', border: '1px solid rgba(255,255,255,0.1)', width: '65px', height: '65px', borderRadius: '20px', fontSize: '22px', cursor: (isLaunching || isUpdating || isPlaying) ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 10px 25px rgba(0,0,0,0.5)', transition: 'color 0.3s' }}
+            title="Настройки"
           >
             <i className="fa-solid fa-sliders"></i>
+          </motion.button>
+
+          <motion.button 
+            whileHover={!(isLaunching || isUpdating) && !isPlaying ? { background: 'rgba(0,0,0,0.8)', scale: 1.05, borderColor: 'rgba(255,255,255,0.3)' } : {}} 
+            whileTap={!(isLaunching || isUpdating) && !isPlaying ? { scale: 0.95 } : {}} 
+            onClick={!(isLaunching || isUpdating) && !isPlaying ? openMods : undefined} 
+            style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(10px)', color: (isLaunching || isUpdating || isPlaying) ? 'rgba(255,255,255,0.3)' : '#fff', border: '1px solid rgba(255,255,255,0.1)', width: '65px', height: '65px', borderRadius: '20px', fontSize: '22px', cursor: (isLaunching || isUpdating || isPlaying) ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 10px 25px rgba(0,0,0,0.5)', transition: 'color 0.3s' }}
+            title="Моды"
+          >
+            <i className="fa-solid fa-puzzle-piece"></i>
           </motion.button>
 
           <motion.button 
             whileHover={!(isLaunching || isUpdating) ? { background: 'rgba(0,0,0,0.8)', scale: 1.05, borderColor: 'rgba(255,255,255,0.3)' } : {}} 
             whileTap={!(isLaunching || isUpdating) ? { scale: 0.95 } : {}} onClick={!(isLaunching || isUpdating) ? () => window.electronAPI.openClientFolder(currentPack) : undefined} 
             style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(10px)', color: (isLaunching || isUpdating) ? 'rgba(255,255,255,0.3)' : '#fff', border: '1px solid rgba(255,255,255,0.1)', width: '65px', height: '65px', borderRadius: '20px', fontSize: '22px', cursor: (isLaunching || isUpdating) ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 10px 25px rgba(0,0,0,0.5)', transition: 'color 0.3s' }}
+            title="Папка сборки"
           >
             <i className="fa-regular fa-folder-open"></i>
           </motion.button>
+
         </motion.div>
 
         <AnimatePresence>

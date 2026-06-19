@@ -56,7 +56,22 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getAdminUsers:    () => ipcRenderer.invoke('get-admin-users'),
   updateAdminUser:  (id, updates) => ipcRenderer.invoke('update-admin-user', id, updates),
   deleteAdminUser:  (id) => ipcRenderer.invoke('delete-admin-user', id),
+  getCustomPacks: () => ipcRenderer.invoke('get-custom-packs'),
+  saveCustomPack: (pack) => ipcRenderer.invoke('save-custom-pack', pack),
+  importCustomPack: () => ipcRenderer.invoke('import-custom-pack'),
+  exportCustomPack: (id) => ipcRenderer.invoke('export-custom-pack', id),
+  deleteCustomPack: (id) => ipcRenderer.invoke('delete-custom-pack', id),
+  syncLocalMods: (pack) => ipcRenderer.invoke('sync-local-mods', pack),
   // --- DISCORD RPC ---
   setDiscordIdle: () => ipcRenderer.send('discord-status-idle'),
   setDiscordPlaying: (packName) => ipcRenderer.send('discord-status-playing', packName),
+  
+  // --- MOD MANAGEMENT ---
+  getInstalledMods: (clientDir) => ipcRenderer.invoke('get-installed-mods', clientDir),
+  downloadMod: (url, clientDir, fileName) => ipcRenderer.invoke('download-mod', url, clientDir, fileName),
+  deleteMod: (clientDir, fileName) => ipcRenderer.invoke('delete-mod', clientDir, fileName),
+  searchModrinth: (query, facets, limit, offset) => ipcRenderer.invoke('search-modrinth', query, facets, limit, offset),
+  getModrinthVersions: (slug, loaders, gameVersions) => ipcRenderer.invoke('get-modrinth-versions', slug, loaders, gameVersions),
+  getModrinthProject: (slug) => ipcRenderer.invoke('get-modrinth-project', slug),
+  openExternalLink: (url) => ipcRenderer.send('open-external-link', url)
 });

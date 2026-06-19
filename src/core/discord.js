@@ -25,28 +25,36 @@ async function initDiscord() {
 
 // Статус: Игрок просто сидит в лаунчере
 function setIdleStatus() {
-  if (!rpc) return;
-  rpc.setActivity({
-    details: 'Выбирает сборку',
-    state: 'В главном меню',
-    startTimestamp,
-    largeImageKey: 'launcher_logo', // Имя картинки из Art Assets (если загрузил)
-    largeImageText: 'DivLauncher',
-    instance: false,
-  }).catch(console.error);
+  if (!rpc || !rpc.transport || !rpc.transport.socket) return;
+  try {
+    rpc.setActivity({
+      details: 'Выбирает сборку',
+      state: 'В главном меню',
+      startTimestamp,
+      largeImageKey: 'launcher_logo', // Имя картинки из Art Assets (если загрузил)
+      largeImageText: 'DivLauncher',
+      instance: false,
+    }).catch(err => console.error("Discord RPC setActivity error (async):", err.message));
+  } catch (err) {
+    console.error("Discord RPC setActivity error (sync):", err.message);
+  }
 }
 
 // Статус: Игрок запустил Minecraft
 function setPlayingStatus(packName) {
-  if (!rpc) return;
-  rpc.setActivity({
-    details: `Играет в ${packName}`,
-    state: '',
-    startTimestamp: new Date(), // Сбрасываем таймер для новой игровой сессии
-    largeImageKey: 'launcher_logo',
-    largeImageText: packName,
-    instance: false,
-  }).catch(console.error);
+  if (!rpc || !rpc.transport || !rpc.transport.socket) return;
+  try {
+    rpc.setActivity({
+      details: `Играет в ${packName}`,
+      state: '',
+      startTimestamp: new Date(), // Сбрасываем таймер для новой игровой сессии
+      largeImageKey: 'launcher_logo',
+      largeImageText: packName,
+      instance: false,
+    }).catch(err => console.error("Discord RPC setActivity error (async):", err.message));
+  } catch (err) {
+    console.error("Discord RPC setActivity error (sync):", err.message);
+  }
 }
 
 module.exports = { initDiscord, setIdleStatus, setPlayingStatus };

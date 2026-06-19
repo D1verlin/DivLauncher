@@ -687,7 +687,19 @@ export default function ProfilePage({ profile, isOwnProfile = true, onBack, onLo
                       background: 'rgba(255,255,255,0.02)', padding: '10px', 
                       borderRadius: '12px', border: '1px solid rgba(255,255,255,0.03)' 
                     }}>
-                    <img src={pack.icon} alt={pack.name} style={{ width: '28px', height: '28px', objectFit: 'contain', borderRadius: '4px' }} />
+                    {pack.icon ? (
+                      pack.icon.startsWith('fa-') ? (
+                        <div style={{ width: '28px', height: '28px', borderRadius: '4px', background: 'rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', color: '#fff' }}>
+                          <i className={pack.icon} />
+                        </div>
+                      ) : (
+                        <img src={pack.icon} alt={pack.name} style={{ width: '28px', height: '28px', objectFit: 'contain', borderRadius: '4px' }} />
+                      )
+                    ) : (
+                      <div style={{ width: '28px', height: '28px', borderRadius: '4px', background: 'rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', color: '#fff', fontWeight: 800 }}>
+                        {pack.name.charAt(0).toUpperCase()}
+                      </div>
+                    )}
                     <div style={{ minWidth: 0 }}>
                       <div style={{ fontSize: '11px', fontWeight: 800, color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {pack.name}
