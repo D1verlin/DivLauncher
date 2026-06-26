@@ -13,7 +13,7 @@
   <img src="https://img.shields.io/badge/React-19.2.4-blue?style=for-the-badge&logo=react" alt="React"/>
   <img src="https://img.shields.io/badge/Vite-8.0.0-646CFF?style=for-the-badge&logo=vite" alt="Vite"/>
   <img src="https://img.shields.io/badge/Node.js-%3E%3D16.x-green?style=for-the-badge&logo=node.js" alt="Node.js"/>
-  <img src="https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge" alt="License"/>
+  <img src="https://img.shields.io/badge/License-Proprietary-red?style=for-the-badge" alt="License"/>
 </p>
 
 ---
@@ -187,4 +187,4 @@
 
 ## 🛡️ Лицензия
 
-Проект распространяется под лицензией **MIT**. Подробности в файле [LICENSE](LICENSE).
+Проект распространяется под индивидуальным лицензионным соглашением (Custom EULA), которое строго запрещает коммерческое использование без явного письменного разрешения автора (Diverlin). Подробности в файле [LICENSE](LICENSE).
