@@ -17,10 +17,35 @@ export default function ClientPage({ openSettings, openMods, currentPack, onDele
   const [isPlaying, setIsPlaying] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const [consoleLogs, setConsoleLogs] = useState([]);
+  const fullLogsRef = useRef([]);
   
   const [downloadProgress, setDownloadProgress] = useState(0);
 
   const [activeUsername, setActiveUsername] = useState(localStorage.getItem('launcher_username') || '');
+
+  const getLogColor = (log) => {
+    if (log.includes('[ERROR]') || log.includes('[FATAL]') || log.includes('Exception') || log.toLowerCase().includes('error')) {
+      return '#ef4444'; // Red
+    }
+    if (log.includes('[WARN]') || log.includes('[WARNING]') || log.toLowerCase().includes('warn')) {
+      return '#f59e0b'; // Amber
+    }
+    if (log.includes('[INFO]') || log.includes('INFO')) {
+      return '#a1a1aa'; // Light Grey
+    }
+    return '#71717a'; // Grey
+  };
+
+  const handleExportLogs = () => {
+    if (fullLogsRef.current.length === 0) return;
+    const blob = new Blob([fullLogsRef.current.join('\n')], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `client_log_${currentPack.id}.txt`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
 
   useEffect(() => {
     const handleSettingsUpdate = () => {
@@ -106,8 +131,9 @@ export default function ClientPage({ openSettings, openMods, currentPack, onDele
       if (msg.startsWith('[LOG]')) {
         const cleanMsg = msg.replace('[LOG]', '').trim();
         if (cleanMsg) {
+          const lines = cleanMsg.split('\n').map(l => l.trim()).filter(l => l);
+          fullLogsRef.current.push(...lines);
           setConsoleLogs(prev => {
-            const lines = cleanMsg.split('\n').map(l => l.trim()).filter(l => l);
             return [...prev, ...lines].slice(-6); 
           });
 
@@ -141,6 +167,7 @@ export default function ClientPage({ openSettings, openMods, currentPack, onDele
 
     window.electronAPI.onError((event, msg) => { 
       setStatus(`Ошибка: ${msg}`); 
+      fullLogsRef.current.push(`[ERROR] Ошибка запуска: ${msg}`);
       setIsLaunching(false); 
       setIsPlaying(false);
       setIsUpdating(false);
@@ -167,6 +194,14 @@ export default function ClientPage({ openSettings, openMods, currentPack, onDele
         window.electronAPI.setDiscordIdle();
       }
     });
+
+    return () => {
+      window.electronAPI.removeAllListeners?.('download-progress');
+      window.electronAPI.removeAllListeners?.('update-done');
+      window.electronAPI.removeAllListeners?.('launch-progress');
+      window.electronAPI.removeAllListeners?.('launch-error');
+      window.electronAPI.removeAllListeners?.('launch-closed');
+    };
   }, [needsInstall]); 
 
   const handleAction = () => {
@@ -192,6 +227,7 @@ export default function ClientPage({ openSettings, openMods, currentPack, onDele
     setIsLaunching(true);
     setIsPlaying(false);
     setStatus('Подготовка к запуску...');
+    fullLogsRef.current = ['Проверка файлов сборки...'];
     setConsoleLogs(['Проверка файлов сборки...']);
 
     window.electronAPI.launchGame({
@@ -374,6 +410,20 @@ export default function ClientPage({ openSettings, openMods, currentPack, onDele
             <i className="fa-regular fa-folder-open"></i>
           </motion.button>
 
+          {(isLaunching || isPlaying || consoleLogs.length > 0) && (
+            <motion.button 
+              initial={{ scale: 0.8, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              whileHover={{ background: 'rgba(0,0,0,0.8)', scale: 1.05, borderColor: 'rgba(255,255,255,0.3)' }} 
+              whileTap={{ scale: 0.95 }}
+              onClick={handleExportLogs} 
+              style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(10px)', color: '#fff', border: '1px solid rgba(255,255,255,0.1)', width: '65px', height: '65px', borderRadius: '20px', fontSize: '22px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 10px 25px rgba(0,0,0,0.5)', transition: 'color 0.3s' }}
+              title="Экспорт логов"
+            >
+              <i className="fa-solid fa-file-arrow-down"></i>
+            </motion.button>
+          )}
+
         </motion.div>
 
         <AnimatePresence>
@@ -385,7 +435,7 @@ export default function ClientPage({ openSettings, openMods, currentPack, onDele
               {consoleLogs.map((log, index) => (
                 <div 
                   key={index}
-                  style={{ fontFamily: 'Consolas, monospace', fontSize: '12px', color: index === consoleLogs.length - 1 ? '#34d399' : '#a1a1aa', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', textShadow: '0 1px 4px rgba(0,0,0,0.8)', transition: 'color 0.2s' }}
+                  style={{ fontFamily: 'Consolas, monospace', fontSize: '12px', color: index === consoleLogs.length - 1 ? '#34d399' : getLogColor(log), whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', textShadow: '0 1px 4px rgba(0,0,0,0.8)', transition: 'color 0.2s' }}
                 >
                   {log}
                 </div>

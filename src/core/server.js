@@ -81,12 +81,17 @@ function downloadFile(urlStr, destPath, onProgress) {
 function getRequiredJavaVersion(mcVersion) {
   if (!mcVersion) return 17;
   const parts = mcVersion.split('.');
+  const major = parseInt(parts[0] || '1', 10);
   const minor = parseInt(parts[1] || '0', 10);
   const patch = parseInt(parts[2] || '0', 10);
-  if (minor > 20 || (minor === 20 && patch >= 5)) {
-    return 21;
+  if (major === 1) {
+    if (minor < 17) return 8;
+    if (minor === 17) return 16;
+    if (minor === 20 && patch >= 5) return 21;
+    if (minor > 20) return 21;
+    return 17;
   }
-  return 17;
+  return 21;
 }
 
 async function ensureJava(event, version = 17, exeName = 'java.exe') {
@@ -113,6 +118,17 @@ async function ensureJava(event, version = 17, exeName = 'java.exe') {
       `https://api.adoptium.net/v3/binary/latest/21/ga/windows/x64/jre/hotspot/normal/eclipse`,
       `https://cdn.azul.com/zulu/bin/zulu21.34.19-ca-jre21.0.3-win_x64.zip`,
       `https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.2%2B13/OpenJDK21U-jre_x64_windows_hotspot_21.0.2_13.zip`
+    ];
+  } else if (version === 16) {
+    urls = [
+      `https://corretto.aws/downloads/latest/amazon-corretto-16-x64-windows-jre.zip`,
+      `https://cdn.azul.com/zulu/bin/zulu16.32.15-ca-jre16.0.2-win_x64.zip`
+    ];
+  } else if (version === 8) {
+    urls = [
+      `https://api.adoptium.net/v3/binary/latest/8/ga/windows/x64/jre/hotspot/normal/eclipse`,
+      `https://cdn.azul.com/zulu/bin/zulu8.78.0.19-ca-jre8.0.412-win_x64.zip`,
+      `https://corretto.aws/downloads/latest/amazon-corretto-8-x64-windows-jre.zip`
     ];
   } else {
     urls = [
@@ -810,6 +826,84 @@ module.exports = function(ipcMain, mainWindow) {
     } catch (e) { event.reply('server-log', `[Бэкап] Ошибка: ${e.message}\n`); }
   });
 
+  ipcMain.handle('list-backups', async (event, pack) => {
+    try {
+      const serverRoot = path.resolve(app.getPath('userData'), pack.serverDir);
+      if (!fs.existsSync(serverRoot)) return [];
+      const files = fs.readdirSync(serverRoot);
+      const backups = [];
+      for (const file of files) {
+        if (file.startsWith('backup_') && file.endsWith('.zip')) {
+          const filePath = path.join(serverRoot, file);
+          const stats = fs.statSync(filePath);
+          backups.push({
+            name: file,
+            size: stats.size,
+            time: stats.mtimeMs
+          });
+        }
+      }
+      backups.sort((a, b) => b.time - a.time);
+      return backups;
+    } catch (e) {
+      console.error('[Backups] Failed to list backups:', e.message);
+      return [];
+    }
+  });
+
+  ipcMain.handle('delete-backup', async (event, pack, fileName) => {
+    try {
+      if (fileName.includes('/') || fileName.includes('\\') || !fileName.startsWith('backup_') || !fileName.endsWith('.zip')) {
+        throw new Error('Некорректное имя файла бэкапа');
+      }
+      const serverRoot = path.resolve(app.getPath('userData'), pack.serverDir);
+      const filePath = path.join(serverRoot, fileName);
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+        return { success: true };
+      }
+      return { success: false, error: 'Файл не найден' };
+    } catch (e) {
+      console.error('[Backups] Failed to delete backup:', e.message);
+      return { success: false, error: e.message };
+    }
+  });
+
+  ipcMain.handle('restore-backup', async (event, pack, fileName) => {
+    try {
+      if (fileName.includes('/') || fileName.includes('\\') || !fileName.startsWith('backup_') || !fileName.endsWith('.zip')) {
+        throw new Error('Некорректное имя файла бэкапа');
+      }
+      if (serverProcess) {
+        throw new Error('Невозможно восстановить бэкап, пока сервер запущен!');
+      }
+      const serverRoot = path.resolve(app.getPath('userData'), pack.serverDir);
+      const filePath = path.join(serverRoot, fileName);
+      if (!fs.existsSync(filePath)) {
+        throw new Error('Файл резервной копии не найден');
+      }
+
+      const worldDir = path.join(serverRoot, 'world');
+      event.reply('server-log', `[Бэкап] Восстановление мира из ${fileName}...\n`);
+      
+      if (fs.existsSync(worldDir)) {
+        event.reply('server-log', '[Бэкап] Удаление старых файлов мира...\n');
+        fs.rmSync(worldDir, { recursive: true, force: true });
+      }
+
+      event.reply('server-log', '[Бэкап] Распаковка архива резервной копии...\n');
+      const zip = new AdmZip(filePath);
+      zip.extractAllTo(serverRoot, true);
+      
+      event.reply('server-log', '[Бэкап] Мир успешно восстановлен!\n');
+      return { success: true };
+    } catch (e) {
+      console.error('[Backups] Failed to restore backup:', e.message);
+      event.reply('server-log', `[Бэкап] Ошибка восстановления: ${e.message}\n`);
+      return { success: false, error: e.message };
+    }
+  });
+
   async function ensureServerAssets(event, serverRoot, sLoaderType, pack) {
     const supportsPlugins = sLoaderType === 'paper' || sLoaderType === 'spigot' || sLoaderType === 'hybrid';
     const supportsMods = sLoaderType === 'forge' || sLoaderType === 'fabric' || sLoaderType === 'quilt' || sLoaderType === 'neoforge' || sLoaderType === 'hybrid';
@@ -855,15 +949,32 @@ module.exports = function(ipcMain, mainWindow) {
       if (sLoaderType === 'fabric' || sLoaderType === 'quilt') {
         event.reply('server-log', 'Загрузчик не поддерживает плагины. Ищем мод-аналоги базовых плагинов...\n');
         const axios = require('axios');
-        const downloadAnalog = async (slug, pluginName, fileName) => {
+        const downloadAnalog = async (modId, pluginName, fileName) => {
           try {
             const destPath = path.join(serverRoot, 'mods', fileName);
             if (fs.existsSync(destPath)) return;
-            const url = `https://api.modrinth.com/v2/project/${slug}/version?loaders=["${sLoaderType}"]&game_versions=["${pack.mcVersion}"]`;
-            const res = await axios.get(url, { timeout: 10000 });
-            if (res.data && res.data.length > 0) {
+            
+            const loaderId = sLoaderType === 'fabric' ? 4 : sLoaderType === 'quilt' ? 5 : null;
+            const params = {
+              gameVersion: pack.mcVersion
+            };
+            if (loaderId !== null) params.modLoaderType = loaderId;
+
+            const baseUrl = process.env.CURSEFORGE_API_KEY ? 'https://api.curseforge.com/v1' : 'https://api.curse.tools/v1/cf';
+            const headers = { 'User-Agent': 'D1verlin/DivLauncher/1.0.0 (contact@diverlin.ru)' };
+            if (process.env.CURSEFORGE_API_KEY) {
+              headers['x-api-key'] = process.env.CURSEFORGE_API_KEY;
+            }
+
+            const res = await axios.get(`${baseUrl}/mods/${modId}/files`, {
+              params,
+              headers,
+              timeout: 10000
+            });
+            const files = res.data?.data || [];
+            if (files.length > 0) {
               event.reply('server-log', `Скачивание аналога: ${pluginName} (мод)...\n`);
-              await downloadFile(res.data[0].files[0].url, destPath, (p) => {
+              await downloadFile(files[0].downloadUrl, destPath, (p) => {
                 if (p % 50 === 0) event.reply('server-log', `${pluginName}: ${p}%\n`);
               });
             } else {
@@ -873,8 +984,8 @@ module.exports = function(ipcMain, mainWindow) {
              event.reply('server-log', `[ОШИБКА] Не удалось скачать аналог ${pluginName}: ${e.message}\n`);
           }
         };
-        await downloadAnalog('luckperms', 'LuckPerms', 'LuckPerms-Fabric.jar');
-        await downloadAnalog('fabrictailor', 'SkinsRestorer', 'FabricTailor.jar');
+        await downloadAnalog(431733, 'LuckPerms', 'LuckPerms-Fabric.jar');
+        await downloadAnalog(390114, 'SkinsRestorer', 'FabricTailor.jar');
       }
       return;
     }

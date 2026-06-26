@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getBadgeStyle } from '../utils/badgeHelper';
+import AdminModpacksSection from './AdminModpacksSection';
 
 // --- Helper to Map User Role to Theme Color ---
 function getUserTheme(user) {
@@ -135,7 +136,8 @@ function QuickCopyButton({ text }) {
   );
 }
 
-export default function AdminPage({ profile, active, onProfileUpdate }) {
+export default function AdminPage({ profile, active, onProfileUpdate, onModpacksUpdate, onManageMods }) {
+  const [adminTab, setAdminTab] = useState('users');
   const [users, setUsers] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [listFilter, setListFilter] = useState('all');
@@ -336,229 +338,274 @@ export default function AdminPage({ profile, active, onProfileUpdate }) {
       
       {/* Header */}
       <div style={{ display: 'flex', justifySelf: 'stretch', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-        <h1 style={{
-          fontSize: '26px', fontWeight: 900, color: '#fff',
-          letterSpacing: '2px', textTransform: 'uppercase', margin: 0,
-          textShadow: '0 4px 14px rgba(0,0,0,0.6)',
-          fontFamily: 'Montserrat'
-        }}>
-          Админ-панель
-        </h1>
-        
-        <div style={{ display: 'flex', gap: '8px' }}>
-          <motion.button 
-            whileHover={{ scale: 1.04, boxShadow: '0 0 15px rgba(16,185,129,0.25)' }}
-            whileTap={{ scale: 0.96 }}
-            onClick={() => { setCreateError(null); setShowCreateModal(true); }}
-            style={{
-              background: 'linear-gradient(135deg, #10b981, #059669)', border: 'none',
-              color: '#fff', padding: '9px 16px', borderRadius: '12px', cursor: 'pointer',
-              fontSize: '12px', fontWeight: 800, fontFamily: 'Montserrat',
-              display: 'flex', alignItems: 'center', gap: '6px',
-              boxShadow: '0 4px 12px rgba(16, 185, 129, 0.15)'
-            }}>
-            <i className="fa-solid fa-user-plus" /> Создать игрока
-          </motion.button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+          <h1 style={{
+            fontSize: '26px', fontWeight: 900, color: '#fff',
+            letterSpacing: '2px', textTransform: 'uppercase', margin: 0,
+            textShadow: '0 4px 14px rgba(0,0,0,0.6)',
+            fontFamily: 'Montserrat'
+          }}>
+            Админ-панель
+          </h1>
 
-          <button onClick={fetchUsers} disabled={loading}
-            style={{
-              background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)',
-              color: '#fff', padding: '9px 15px', borderRadius: '12px', cursor: 'pointer',
-              fontSize: '12px', fontWeight: 800, fontFamily: 'Montserrat',
-              display: 'flex', alignItems: 'center', gap: '6px'
-            }}>
-            <i className={`fa-solid fa-arrows-rotate ${loading ? 'fa-spin' : ''}`} /> Обновить
-          </button>
+          {/* Табы */}
+          <div style={{ display: 'flex', background: 'rgba(255,255,255,0.04)', borderRadius: '12px', padding: '3px', gap: '4px', border: '1px solid rgba(255,255,255,0.05)' }}>
+            <motion.button
+              whileTap={{ scale: 0.95 }}
+              onClick={() => setAdminTab('users')}
+              style={{
+                padding: '6px 14px', borderRadius: '9px', border: 'none', cursor: 'pointer',
+                fontSize: '12px', fontWeight: 800, fontFamily: 'Montserrat',
+                background: adminTab === 'users' ? 'rgba(255,255,255,0.1)' : 'transparent',
+                color: adminTab === 'users' ? '#fff' : '#71717a',
+                transition: 'all 0.2s'
+              }}
+            >
+              <i className="fa-solid fa-users" style={{ marginRight: '6px' }} />
+              Игроки
+            </motion.button>
+            <motion.button
+              whileTap={{ scale: 0.95 }}
+              onClick={() => setAdminTab('packs')}
+              style={{
+                padding: '6px 14px', borderRadius: '9px', border: 'none', cursor: 'pointer',
+                fontSize: '12px', fontWeight: 800, fontFamily: 'Montserrat',
+                background: adminTab === 'packs' ? 'rgba(255,255,255,0.1)' : 'transparent',
+                color: adminTab === 'packs' ? '#fff' : '#71717a',
+                transition: 'all 0.2s'
+              }}
+            >
+              <i className="fa-solid fa-cubes" style={{ marginRight: '6px' }} />
+              Сборки
+            </motion.button>
+          </div>
         </div>
+        
+        {adminTab === 'users' && (
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <motion.button 
+              whileHover={{ scale: 1.04, boxShadow: '0 0 15px rgba(16,185,129,0.25)' }}
+              whileTap={{ scale: 0.96 }}
+              onClick={() => { setCreateError(null); setShowCreateModal(true); }}
+              style={{
+                background: 'linear-gradient(135deg, #10b981, #059669)', border: 'none',
+                color: '#fff', padding: '9px 16px', borderRadius: '12px', cursor: 'pointer',
+                fontSize: '12px', fontWeight: 800, fontFamily: 'Montserrat',
+                display: 'flex', alignItems: 'center', gap: '6px',
+                boxShadow: '0 4px 12px rgba(16, 185, 129, 0.15)'
+              }}>
+              <i className="fa-solid fa-user-plus" /> Создать игрока
+            </motion.button>
+
+            <button onClick={fetchUsers} disabled={loading}
+              style={{
+                background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)',
+                color: '#fff', padding: '9px 15px', borderRadius: '12px', cursor: 'pointer',
+                fontSize: '12px', fontWeight: 800, fontFamily: 'Montserrat',
+                display: 'flex', alignItems: 'center', gap: '6px'
+              }}>
+              <i className={`fa-solid fa-arrows-rotate ${loading ? 'fa-spin' : ''}`} /> Обновить
+            </button>
+          </div>
+        )}
       </div>
 
-      {/* Metrics Summary Row */}
-      {!loading && !error && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', marginBottom: '16px' }}>
-          <SummaryCard title="Всего аккаунтов" value={totalCount} icon="fa-users" color="#3b82f6" />
-          <SummaryCard title="Администрация" value={adminCount} icon="fa-shield-halved" color="#ef4444" />
-          <SummaryCard title="С бэйджами" value={badgedCount} icon="fa-gem" color="#f59e0b" />
-          <SummaryCard title="Обычные игроки" value={regularCount} icon="fa-user" color="#10b981" />
-        </div>
-      )}
+      {adminTab === 'users' ? (
+        <>
+          {/* Metrics Summary Row */}
+          {!loading && !error && (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', marginBottom: '16px' }}>
+              <SummaryCard title="Всего аккаунтов" value={totalCount} icon="fa-users" color="#3b82f6" />
+              <SummaryCard title="Администрация" value={adminCount} icon="fa-shield-halved" color="#ef4444" />
+              <SummaryCard title="С бэйджами" value={badgedCount} icon="fa-gem" color="#f59e0b" />
+              <SummaryCard title="Обычные игроки" value={regularCount} icon="fa-user" color="#10b981" />
+            </div>
+          )}
 
-      {/* Main Container */}
-      <div style={{ ...glassCard, flexGrow: 1, padding: '20px', display: 'flex', flexDirection: 'column', overflow: 'hidden', gap: '15px' }}>
-        
-        {/* Search Bar + Filters */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-          <div style={{ 
-            position: 'relative', 
-            transition: 'all 0.3s ease-in-out',
-            borderRadius: '13px',
-            boxShadow: searchFocused ? '0 0 20px rgba(167, 139, 250, 0.15)' : 'none'
-          }}>
-            <i className="fa-solid fa-magnifying-glass" style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: searchFocused ? '#a78bfa' : '#71717a', fontSize: '14px', transition: 'color 0.2s' }} />
-            <input 
-              type="text" 
-              placeholder="Поиск игрока по нику или UUID..." 
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              onFocus={() => setSearchFocused(true)}
-              onBlur={() => setSearchFocused(false)}
-              style={{ 
-                ...inputStyle, 
-                paddingLeft: '44px',
-                border: searchFocused ? '1px solid rgba(167, 139, 250, 0.5)' : '1px solid rgba(255, 255, 255, 0.08)'
-              }}
-            />
-          </div>
-
-          {/* Quick Filters Row */}
-          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-            {['all', 'admins', 'badged', 'citizens'].map(f => {
-              const labels = { all: 'Все', admins: 'Администрация', badged: 'С бэйджами', citizens: 'Без статуса' };
-              const icons = { all: 'fa-globe', admins: 'fa-shield-halved', badged: 'fa-gem', citizens: 'fa-user' };
-              const colors = { all: '#3b82f6', admins: '#ef4444', badged: '#f59e0b', citizens: '#10b981' };
-              const active = listFilter === f;
-              const activeColor = colors[f];
-              
-              return (
-                <motion.button
-                  key={f}
-                  whileHover={{ scale: 1.03 }}
-                  whileTap={{ scale: 0.97 }}
-                  onClick={() => setListFilter(f)}
-                  style={{
-                    background: active ? `${activeColor}15` : 'rgba(255,255,255,0.02)',
-                    border: `1px solid ${active ? activeColor + '44' : 'rgba(255,255,255,0.06)'}`,
-                    color: active ? activeColor : '#a1a1aa',
-                    padding: '6px 12px',
-                    borderRadius: '10px',
-                    fontSize: '11px',
-                    fontWeight: 800,
-                    fontFamily: 'Montserrat',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    transition: 'all 0.2s'
+          {/* Main Container */}
+          <div style={{ ...glassCard, flexGrow: 1, padding: '20px', display: 'flex', flexDirection: 'column', overflow: 'hidden', gap: '15px' }}>
+            
+            {/* Search Bar + Filters */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div style={{ 
+                position: 'relative', 
+                transition: 'all 0.3s ease-in-out',
+                borderRadius: '13px',
+                boxShadow: searchFocused ? '0 0 20px rgba(167, 139, 250, 0.15)' : 'none'
+              }}>
+                <i className="fa-solid fa-magnifying-glass" style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: searchFocused ? '#a78bfa' : '#71717a', fontSize: '14px', transition: 'color 0.2s' }} />
+                <input 
+                  type="text" 
+                  placeholder="Поиск игрока по нику или UUID..." 
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onFocus={() => setSearchFocused(true)}
+                  onBlur={() => setSearchFocused(false)}
+                  style={{ 
+                    ...inputStyle, 
+                    paddingLeft: '44px',
+                    border: searchFocused ? '1px solid rgba(167, 139, 250, 0.5)' : '1px solid rgba(255, 255, 255, 0.08)'
                   }}
-                >
-                  <i className={`fa-solid ${icons[f]}`} style={{ fontSize: '10px' }} />
-                  <span>{labels[f]}</span>
-                </motion.button>
-              );
-            })}
-          </div>
-        </div>
+                />
+              </div>
 
-        {/* Users List */}
-        <div style={{ flexGrow: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px', paddingRight: '4px' }}>
-          {loading ? (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flexGrow: 1, gap: '15px' }}>
-              <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1.5, ease: "linear" }} 
-                style={{ width: '36px', height: '36px', border: '3px solid rgba(167, 139, 250, 0.1)', borderTopColor: '#a78bfa', borderRadius: '50%' }} />
-              <span style={{ fontSize: '13px', color: '#a1a1aa', fontWeight: 600, fontFamily: 'Montserrat' }}>Загрузка списка пользователей...</span>
-            </div>
-          ) : error ? (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flexGrow: 1, gap: '10px', color: '#ef4444' }}>
-              <i className="fa-solid fa-triangle-exclamation" style={{ fontSize: '36px' }} />
-              <span style={{ fontSize: '13px', fontWeight: 700, fontFamily: 'Montserrat' }}>{error}</span>
-            </div>
-          ) : filteredUsers.length === 0 ? (
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flexGrow: 1, color: '#71717a' }}>
-              <span style={{ fontSize: '13px', fontWeight: 600, fontFamily: 'Montserrat' }}>Пользователи не найдены</span>
-            </div>
-          ) : (
-            <motion.div layout style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              <AnimatePresence mode="popLayout">
-                {filteredUsers.map(user => {
-                  const theme = getUserTheme(user);
+              {/* Quick Filters Row */}
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                {['all', 'admins', 'badged', 'citizens'].map(f => {
+                  const labels = { all: 'Все', admins: 'Администрация', badged: 'С бэйджами', citizens: 'Без статуса' };
+                  const icons = { all: 'fa-globe', admins: 'fa-shield-halved', badged: 'fa-gem', citizens: 'fa-user' };
+                  const colors = { all: '#3b82f6', admins: '#ef4444', badged: '#f59e0b', citizens: '#10b981' };
+                  const active = listFilter === f;
+                  const activeColor = colors[f];
+                  
                   return (
-                    <motion.div 
-                      layout
-                      key={user.id} 
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, scale: 0.95 }}
-                      transition={{ duration: 0.2 }}
+                    <motion.button
+                      key={f}
+                      whileHover={{ scale: 1.03 }}
+                      whileTap={{ scale: 0.97 }}
+                      onClick={() => setListFilter(f)}
                       style={{
-                        display: 'flex', alignItems: 'center', justifySelf: 'stretch',
-                        background: 'rgba(255, 255, 255, 0.015)',
-                        border: '1px solid rgba(255, 255, 255, 0.04)',
-                        padding: '10px 14px', borderRadius: '14px', gap: '14px',
-                        transition: 'background 0.2s, border-color 0.2s',
-                        position: 'relative',
-                        overflow: 'hidden'
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.borderColor = `${theme.color}35`;
-                        e.currentTarget.style.background = 'rgba(255, 255, 255, 0.04)';
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.04)';
-                        e.currentTarget.style.background = 'rgba(255, 255, 255, 0.015)';
+                        background: active ? `${activeColor}15` : 'rgba(255,255,255,0.02)',
+                        border: `1px solid ${active ? activeColor + '44' : 'rgba(255,255,255,0.06)'}`,
+                        color: active ? activeColor : '#a1a1aa',
+                        padding: '6px 12px',
+                        borderRadius: '10px',
+                        fontSize: '11px',
+                        fontWeight: 800,
+                        fontFamily: 'Montserrat',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        transition: 'all 0.2s'
                       }}
                     >
-                      <MinecraftAvatar 
-                        skinDataUrl={user.skin_url} 
-                        size={36} 
-                        authServerUrl={authServerUrl} 
-                        borderColor={`${theme.color}55`}
-                      />
-                      
-                      <div style={{ flexGrow: 1, minWidth: 0 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                          {user.badge && (
-                            <span style={getBadgeStyle(user.badge)}>
-                              {user.badge}
-                            </span>
-                          )}
-                          <span style={{ fontSize: '14px', fontWeight: 800, color: '#fff', fontFamily: 'Montserrat' }}>{user.username}</span>
-                          <span style={{
-                            fontSize: '8px', fontWeight: 800,
-                            color: theme.color,
-                            background: `${theme.color}15`,
-                            border: `1px solid ${theme.color}25`,
-                            padding: '1.5px 7px', borderRadius: '10px', textTransform: 'uppercase',
-                            letterSpacing: '0.5px'
-                          }}>
-                            {theme.label}
-                          </span>
-                        </div>
-                        <div style={{ fontSize: '10px', color: '#52525b', fontFamily: 'monospace', marginTop: '2.5px', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                          UUID: {user.uuid}
-                        </div>
-                      </div>
-
-                      {/* Actions */}
-                      <div style={{ display: 'flex', gap: '6px', zIndex: 1 }}>
-                        <QuickCopyButton text={user.uuid} />
-                        
-                        <button onClick={() => handleOpenEdit(user)}
-                          style={{
-                            background: 'rgba(59, 130, 246, 0.06)', border: '1px solid rgba(59, 130, 246, 0.15)',
-                            color: '#60a5fa', width: '32px', height: '32px', borderRadius: '8px', cursor: 'pointer',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s',
-                            fontSize: '11px'
-                          }} title="Редактировать">
-                          <i className="fa-solid fa-pen" />
-                        </button>
-                        
-                        <button onClick={() => handleDeleteUser(user)}
-                          style={{
-                            background: 'rgba(239, 68, 68, 0.06)', border: '1px solid rgba(239, 68, 68, 0.15)',
-                            color: '#f87171', width: '32px', height: '32px', borderRadius: '8px', cursor: 'pointer',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s',
-                            fontSize: '11px'
-                          }} title="Удалить">
-                          <i className="fa-solid fa-trash-can" />
-                        </button>
-                      </div>
-                    </motion.div>
+                      <i className={`fa-solid ${icons[f]}`} style={{ fontSize: '10px' }} />
+                      <span>{labels[f]}</span>
+                    </motion.button>
                   );
                 })}
-              </AnimatePresence>
-            </motion.div>
-          )}
-        </div>
-      </div>
+              </div>
+            </div>
+
+            {/* Users List */}
+            <div style={{ flexGrow: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px', paddingRight: '4px' }}>
+              {loading ? (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flexGrow: 1, gap: '15px' }}>
+                  <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1.5, ease: "linear" }} 
+                    style={{ width: '36px', height: '36px', border: '3px solid rgba(167, 139, 250, 0.1)', borderTopColor: '#a78bfa', borderRadius: '50%' }} />
+                  <span style={{ fontSize: '13px', color: '#a1a1aa', fontWeight: 600, fontFamily: 'Montserrat' }}>Загрузка списка пользователей...</span>
+                </div>
+              ) : error ? (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flexGrow: 1, gap: '10px', color: '#ef4444' }}>
+                  <i className="fa-solid fa-triangle-exclamation" style={{ fontSize: '36px' }} />
+                  <span style={{ fontSize: '13px', fontWeight: 700, fontFamily: 'Montserrat' }}>{error}</span>
+                </div>
+              ) : filteredUsers.length === 0 ? (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flexGrow: 1, color: '#71717a' }}>
+                  <span style={{ fontSize: '13px', fontWeight: 600, fontFamily: 'Montserrat' }}>Пользователи не найдены</span>
+                </div>
+              ) : (
+                <motion.div layout style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <AnimatePresence mode="popLayout">
+                    {filteredUsers.map(user => {
+                      const theme = getUserTheme(user);
+                      return (
+                        <motion.div 
+                          layout
+                          key={user.id} 
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, scale: 0.95 }}
+                          transition={{ duration: 0.2 }}
+                          style={{
+                            display: 'flex', alignItems: 'center', justifySelf: 'stretch',
+                            background: 'rgba(255, 255, 255, 0.015)',
+                            border: '1px solid rgba(255, 255, 255, 0.04)',
+                            padding: '10px 14px', borderRadius: '14px', gap: '14px',
+                            transition: 'background 0.2s, border-color 0.2s',
+                            position: 'relative',
+                            overflow: 'hidden'
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.borderColor = `${theme.color}35`;
+                            e.currentTarget.style.background = 'rgba(255, 255, 255, 0.04)';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.04)';
+                            e.currentTarget.style.background = 'rgba(255, 255, 255, 0.015)';
+                          }}
+                        >
+                          <MinecraftAvatar 
+                            skinDataUrl={user.skin_url} 
+                            size={36} 
+                            authServerUrl={authServerUrl} 
+                            borderColor={`${theme.color}55`}
+                          />
+                          
+                          <div style={{ flexGrow: 1, minWidth: 0 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                              {user.badge && (
+                                <span style={getBadgeStyle(user.badge)}>
+                                  {user.badge}
+                                </span>
+                              )}
+                              <span style={{ fontSize: '14px', fontWeight: 800, color: '#fff', fontFamily: 'Montserrat' }}>{user.username}</span>
+                              <span style={{
+                                fontSize: '8px', fontWeight: 800,
+                                color: theme.color,
+                                background: `${theme.color}15`,
+                                border: `1px solid ${theme.color}25`,
+                                padding: '1.5px 7px', borderRadius: '10px', textTransform: 'uppercase',
+                                letterSpacing: '0.5px'
+                              }}>
+                                {theme.label}
+                              </span>
+                            </div>
+                            <div style={{ fontSize: '10px', color: '#52525b', fontFamily: 'monospace', marginTop: '2.5px', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              UUID: {user.uuid}
+                            </div>
+                          </div>
+
+                          {/* Actions */}
+                          <div style={{ display: 'flex', gap: '6px', zIndex: 1 }}>
+                            <QuickCopyButton text={user.uuid} />
+                            
+                            <button onClick={() => handleOpenEdit(user)}
+                              style={{
+                                background: 'rgba(59, 130, 246, 0.06)', border: '1px solid rgba(59, 130, 246, 0.15)',
+                                color: '#60a5fa', width: '32px', height: '32px', borderRadius: '8px', cursor: 'pointer',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s',
+                                fontSize: '11px'
+                              }} title="Редактировать">
+                              <i className="fa-solid fa-pen" />
+                            </button>
+                            
+                            <button onClick={() => handleDeleteUser(user)}
+                              style={{
+                                background: 'rgba(239, 68, 68, 0.06)', border: '1px solid rgba(239, 68, 68, 0.15)',
+                                color: '#f87171', width: '32px', height: '32px', borderRadius: '8px', cursor: 'pointer',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s',
+                                fontSize: '11px'
+                              }} title="Удалить">
+                              <i className="fa-solid fa-trash-can" />
+                            </button>
+                          </div>
+                        </motion.div>
+                      );
+                    })}
+                  </AnimatePresence>
+                </motion.div>
+              )}
+            </div>
+          </div>
+        </>
+      ) : (
+        <AdminModpacksSection 
+          onModpacksUpdate={onModpacksUpdate}
+          onManageMods={onManageMods}
+        />
+      )}
 
       {/* Edit User Modal */}
       <AnimatePresence>

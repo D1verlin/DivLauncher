@@ -16,14 +16,12 @@ const launcher = new Client();
 let gameProcess = null;
 
 const AUTH_SERVER = process.env.AUTH_SERVER || 'https://mcauth.diverlin.ru';
-const debugLogPath = 'C:\\Users\\Lenovo\\Desktop\\Projects\\DivLauncher\\div_launcher_debug.log';
 
 function sysLog(...args) {
   const msg = args.map(arg => typeof arg === 'object' ? JSON.stringify(arg) : String(arg)).join(' ');
   const timestamp = new Date().toISOString();
   const formatted = `[${timestamp}] ${msg}`;
   console.log(formatted);
-  try { fs.appendFileSync(debugLogPath, formatted + '\n'); } catch (e) {}
   try {
     const uData = app.getPath('userData');
     if (uData) {
@@ -80,72 +78,68 @@ function uploadFileNative(targetUrl, webToken, boundary, payload) {
   });
 }
 
-function downloadFile(url, destPath, onProgress) {
-  return new Promise((resolve, reject) => {
-    sysLog(`Starting download: ${url} -> ${destPath}`);
-    const client = url.startsWith('https') ? https : http;
-    const options = { headers: { 'User-Agent': 'DivLauncher/1.0.8' } };
-    const req = client.get(url, options, (response) => {
-      sysLog(`Download response for ${url}: status = ${response.statusCode}`);
-      if ([301, 302, 307, 308].includes(response.statusCode)) {
-        const redirectUrl = response.headers.location;
-        sysLog(`Following redirect for ${url} -> ${redirectUrl}`);
-        if (!redirectUrl) {
-          return reject(new Error(`Redirect location missing for ${url}`));
-        }
-        return resolve(downloadFile(redirectUrl, destPath, onProgress));
-      }
-      if (response.statusCode !== 200) {
-        return reject(new Error(`HTTP ${response.statusCode} for ${url}`));
-      }
+async function downloadFile(url, destPath, onProgress) {
+  sysLog(`Starting download (axios): ${url} -> ${destPath}`);
+  const writer = fs.createWriteStream(destPath);
+  
+  try {
+    const response = await axios({
+      method: 'GET',
+      url: url,
+      responseType: 'stream',
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
+      },
+      timeout: 45000
+    });
 
-      const file = fs.createWriteStream(destPath);
-      file.on('error', (err) => {
-        sysLog(`File write stream error for ${destPath}: ${err.message}`);
-        file.close();
+    const totalBytes = parseInt(response.headers['content-length'], 10);
+    let downloadedBytes = 0;
+
+    response.data.on('data', (chunk) => {
+      downloadedBytes += chunk.length;
+      if (totalBytes && onProgress) {
+        onProgress(Math.round((downloadedBytes / totalBytes) * 100));
+      }
+    });
+
+    response.data.pipe(writer);
+
+    await new Promise((resolve, reject) => {
+      writer.on('finish', () => {
+        writer.close();
+        sysLog(`Successfully downloaded: ${url} -> ${destPath}`);
+        resolve();
+      });
+      writer.on('error', (err) => {
+        writer.close();
         fs.unlink(destPath, () => reject(err));
       });
-
-      const totalBytes = parseInt(response.headers['content-length'], 10);
-      let downloadedBytes = 0;
-
-      response.on('data', (chunk) => {
-        downloadedBytes += chunk.length;
-        if (totalBytes && onProgress) {
-          onProgress(Math.round((downloadedBytes / totalBytes) * 100));
-        }
-      });
-
-      response.pipe(file);
-      file.on('finish', () => {
-        sysLog(`Successfully downloaded: ${url} -> ${destPath}`);
-        file.close(resolve);
-      });
     });
-
-    req.on('error', (err) => {
-      sysLog(`Request error for ${url}: ${err.message}`);
-      reject(err);
-    });
-
-    // Set a timeout of 30 seconds for connection/idle time
-    req.setTimeout(30000, () => {
-      sysLog(`Download timeout of 30s exceeded for: ${url}`);
-      req.destroy();
-      reject(new Error(`Download timeout for ${url}`));
-    });
-  });
+  } catch (err) {
+    writer.close();
+    if (fs.existsSync(destPath)) {
+      try { fs.unlinkSync(destPath); } catch {}
+    }
+    sysLog(`Download error for ${url}: ${err.message}`);
+    throw err;
+  }
 }
 
 function getRequiredJavaVersion(mcVersion) {
   if (!mcVersion) return 17;
   const parts = mcVersion.split('.');
+  const major = parseInt(parts[0] || '1', 10);
   const minor = parseInt(parts[1] || '0', 10);
   const patch = parseInt(parts[2] || '0', 10);
-  if (minor > 20 || (minor === 20 && patch >= 5)) {
-    return 21;
+  if (major === 1) {
+    if (minor < 17) return 8;
+    if (minor === 17) return 16;
+    if (minor === 20 && patch >= 5) return 21;
+    if (minor > 20) return 21;
+    return 17;
   }
-  return 17;
+  return 21;
 }
 
 async function ensureJava(event, version = 17, exeName = 'javaw.exe') {
@@ -182,6 +176,17 @@ async function ensureJava(event, version = 17, exeName = 'javaw.exe') {
       `https://api.adoptium.net/v3/binary/latest/21/ga/windows/x64/jre/hotspot/normal/eclipse`,
       `https://cdn.azul.com/zulu/bin/zulu21.34.19-ca-jre21.0.3-win_x64.zip`,
       `https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.2%2B13/OpenJDK21U-jre_x64_windows_hotspot_21.0.2_13.zip`
+    ];
+  } else if (version === 16) {
+    urls = [
+      `https://corretto.aws/downloads/latest/amazon-corretto-16-x64-windows-jre.zip`,
+      `https://cdn.azul.com/zulu/bin/zulu16.32.15-ca-jre16.0.2-win_x64.zip`
+    ];
+  } else if (version === 8) {
+    urls = [
+      `https://api.adoptium.net/v3/binary/latest/8/ga/windows/x64/jre/hotspot/normal/eclipse`,
+      `https://cdn.azul.com/zulu/bin/zulu8.78.0.19-ca-jre8.0.412-win_x64.zip`,
+      `https://corretto.aws/downloads/latest/amazon-corretto-8-x64-windows-jre.zip`
     ];
   } else {
     urls = [
@@ -452,6 +457,18 @@ async function syncModpack(event, rootDir, pack) {
       const zipPath = path.join(rootDir, 'update.zip');
       event.reply('launch-progress', `Подключение к серверу обновлений...`);
       await downloadFile(pack.packZipUrl, zipPath, (p) => event.reply('launch-progress', `Загрузка архива: ${p}%`));
+      
+      // Clean up mods and config directory to prevent old files conflicts
+      const modsPath = path.join(rootDir, 'mods');
+      const configPath = path.join(rootDir, 'config');
+      sysLog(`Clearing mods/ and config/ folders before extraction...`);
+      if (fs.existsSync(modsPath)) {
+        try { fs.rmSync(modsPath, { recursive: true, force: true }); } catch (e) { sysLog(`Error clearing mods directory: ${e.message}`); }
+      }
+      if (fs.existsSync(configPath)) {
+        try { fs.rmSync(configPath, { recursive: true, force: true }); } catch (e) { sysLog(`Error clearing config directory: ${e.message}`); }
+      }
+
       event.reply('launch-progress', 'Распаковка файлов...');
       sysLog(`Extracting pack zip: ${zipPath} -> ${rootDir}`);
       await extract(zipPath, { dir: rootDir });
@@ -1739,7 +1756,7 @@ module.exports = function(ipcMain) {
     }
   });
 
-  // --- MODRINTH INTEGRATION ---
+  // --- CURSEFORGE INTEGRATION ---
   ipcMain.handle('get-installed-mods', async (event, clientDir) => {
     if (!clientDir) return { success: false, error: "No clientDir provided" };
     try {
@@ -1776,60 +1793,192 @@ module.exports = function(ipcMain) {
     }
   });
 
-  ipcMain.handle('search-modrinth', async (event, query, facets, limit, offset) => {
-    sysLog(`[IPC search-modrinth] query: "${query}", facets: ${JSON.stringify(facets)}, limit: ${limit}, offset: ${offset}`);
+  const getCurseBaseUrl = () => {
+    if (process.env.CURSEFORGE_API_KEY) {
+      return 'https://api.curseforge.com/v1';
+    }
+    return 'https://api.curse.tools/v1/cf';
+  };
+
+  const getCurseHeaders = () => {
+    const headers = {
+      'User-Agent': 'D1verlin/DivLauncher/1.0.0 (contact@diverlin.ru)'
+    };
+    if (process.env.CURSEFORGE_API_KEY) {
+      headers['x-api-key'] = process.env.CURSEFORGE_API_KEY;
+    }
+    return headers;
+  };
+
+  const getCurseLoaderId = (loader) => {
+    if (!loader) return null;
+    const l = loader.toLowerCase();
+    if (l === 'forge') return 1;
+    if (l === 'fabric') return 4;
+    if (l === 'quilt') return 5;
+    if (l === 'neoforge') return 6;
+    return null;
+  };
+
+  const getCurseCategoryId = (categorySlug) => {
+    if (!categorySlug) return undefined;
+    const mapping = {
+      'magic': 407,
+      'technology': 406,
+      'adventure': 408,
+      'decoration': 409,
+      'library': 421,
+      'worldgen': 412,
+      'optimization': 4843
+    };
+    return mapping[categorySlug.toLowerCase()] || undefined;
+  };
+
+  ipcMain.handle('search-curse', async (event, query, options) => {
+    const { mcVersion, loader, category, limit, offset, sortField, sortOrder } = options || {};
+    sysLog(`[IPC search-curse] query: "${query}", options: ${JSON.stringify(options)}`);
     try {
-      const response = await axios.get('https://api.modrinth.com/v2/search', {
-        params: {
-          query,
-          facets: JSON.stringify(facets),
-          limit,
-          offset
-        },
-        headers: {
-          'User-Agent': 'D1verlin/DivLauncher/1.0.0 (contact@diverlin.ru)'
-        }
+      const loaderId = getCurseLoaderId(loader);
+      const categoryId = getCurseCategoryId(category);
+      
+      const params = {
+        gameId: 432,
+        classId: 6,
+        index: offset || 0,
+        pageSize: limit || 12
+      };
+      
+      if (query && query.trim()) params.searchFilter = query;
+      if (mcVersion) params.gameVersion = mcVersion;
+      if (loaderId !== null) params.modLoaderType = loaderId;
+      if (categoryId !== undefined) params.categoryId = categoryId;
+      if (sortField !== undefined) params.sortField = sortField;
+      if (sortOrder !== undefined) params.sortOrder = sortOrder;
+
+      const response = await axios.get(`${getCurseBaseUrl()}/mods/search`, {
+        params,
+        headers: getCurseHeaders()
       });
-      sysLog(`[IPC search-modrinth] success. Received ${response.data?.hits?.length || 0} hits.`);
-      return { success: true, data: response.data };
+      
+      const data = response.data || {};
+      const hits = (data.data || []).map(mod => ({
+        project_id: mod.id,
+        id: mod.id,
+        slug: mod.slug,
+        icon_url: mod.logo?.url || mod.logo?.thumbnailUrl || '',
+        title: mod.name,
+        name: mod.name,
+        author: mod.authors?.[0]?.name || 'Неизвестен',
+        downloads: mod.downloadCount || 0,
+        description: mod.summary || '',
+        categories: (mod.categories || []).map(cat => cat.name)
+      }));
+      
+      sysLog(`[IPC search-curse] success. Received ${hits.length} hits.`);
+      return { success: true, data: { hits } };
     } catch (e) {
-      sysLog(`[IPC search-modrinth] error: ${e.message}`);
+      sysLog(`[IPC search-curse] error: ${e.message}`);
       return { success: false, error: e.message };
     }
   });
 
-  ipcMain.handle('get-modrinth-versions', async (event, slug, loaders, gameVersions) => {
-    sysLog(`[IPC get-modrinth-versions] slug: ${slug}, loaders: ${JSON.stringify(loaders)}, gameVersions: ${JSON.stringify(gameVersions)}`);
+  ipcMain.handle('get-curse-versions', async (event, modId, loaders, gameVersions) => {
+    sysLog(`[IPC get-curse-versions] modId: ${modId}, loaders: ${JSON.stringify(loaders)}, gameVersions: ${JSON.stringify(gameVersions)}`);
     try {
-      const response = await axios.get(`https://api.modrinth.com/v2/project/${slug}/version`, {
-        params: {
-          loaders: JSON.stringify(loaders),
-          game_versions: JSON.stringify(gameVersions)
-        },
-        headers: {
-          'User-Agent': 'D1verlin/DivLauncher/1.0.0 (contact@diverlin.ru)'
-        }
+      const loaderName = loaders && loaders[0];
+      const loaderId = getCurseLoaderId(loaderName);
+      const gameVersion = gameVersions && gameVersions[0];
+      
+      const params = {};
+      if (gameVersion) params.gameVersion = gameVersion;
+      if (loaderId !== null) params.modLoaderType = loaderId;
+      
+      const response = await axios.get(`${getCurseBaseUrl()}/mods/${modId}/files`, {
+        params,
+        headers: getCurseHeaders()
       });
-      sysLog(`[IPC get-modrinth-versions] success. Received ${response.data?.length || 0} versions.`);
-      return { success: true, data: response.data };
+      
+      const files = response.data?.data || [];
+      const mappedVersions = files.map(file => ({
+        id: file.id,
+        displayName: file.displayName || file.fileName,
+        fileName: file.fileName,
+        fileDate: file.fileDate,
+        releaseType: file.releaseType, // 1 = Release, 2 = Beta, 3 = Alpha
+        downloadUrl: file.downloadUrl,
+        gameVersions: file.gameVersions,
+        files: [
+          {
+            url: file.downloadUrl,
+            filename: file.fileName,
+            primary: true
+          }
+        ]
+      }));
+      
+      sysLog(`[IPC get-curse-versions] success. Received ${mappedVersions.length} versions.`);
+      return { success: true, data: mappedVersions };
     } catch (e) {
-      sysLog(`[IPC get-modrinth-versions] error: ${e.message}`);
+      sysLog(`[IPC get-curse-versions] error: ${e.message}`);
       return { success: false, error: e.message };
     }
   });
 
-  ipcMain.handle('get-modrinth-project', async (event, slug) => {
-    sysLog(`[IPC get-modrinth-project] slug: ${slug}`);
+  ipcMain.handle('get-curse-project', async (event, modId) => {
+    sysLog(`[IPC get-curse-project] modId: ${modId}`);
     try {
-      const response = await axios.get(`https://api.modrinth.com/v2/project/${slug}`, {
-        headers: {
-          'User-Agent': 'D1verlin/DivLauncher/1.0.0 (contact@diverlin.ru)'
-        }
-      });
-      sysLog(`[IPC get-modrinth-project] success.`);
-      return { success: true, data: response.data };
+      const [modRes, descRes] = await Promise.all([
+        axios.get(`${getCurseBaseUrl()}/mods/${modId}`, { headers: getCurseHeaders() }),
+        axios.get(`${getCurseBaseUrl()}/mods/${modId}/description`, { headers: getCurseHeaders() })
+      ]);
+      
+      const mod = modRes.data?.data || {};
+      const description = descRes.data?.data || '';
+      
+      // Resolve dependencies asynchronously
+      const dependencies = mod.dependencies || [];
+      const relevantDeps = dependencies.filter(dep => dep.relationType === 3 || dep.relationType === 2).slice(0, 5);
+      
+      const resolvedDeps = await Promise.all(
+        relevantDeps.map(async (dep) => {
+          try {
+            const depRes = await axios.get(`${getCurseBaseUrl()}/mods/${dep.modId}`, { headers: getCurseHeaders(), timeout: 5000 });
+            const d = depRes.data?.data;
+            if (d) {
+              return {
+                id: d.id,
+                name: d.name,
+                slug: d.slug,
+                icon_url: d.logo?.url || d.logo?.thumbnailUrl || '',
+                relationType: dep.relationType
+              };
+            }
+          } catch (err) {
+            sysLog(`[IPC get-curse-project] failed to resolve dependency ${dep.modId}: ${err.message}`);
+          }
+          return { id: dep.modId, name: `ID: ${dep.modId}`, relationType: dep.relationType };
+        })
+      );
+      
+      const mapped = {
+        id: mod.id,
+        slug: mod.slug,
+        title: mod.name,
+        name: mod.name,
+        icon_url: mod.logo?.url || mod.logo?.thumbnailUrl || '',
+        downloads: mod.downloadCount || 0,
+        body: description,
+        gallery: (mod.screenshots || []).map(scr => ({ url: scr.url || scr.thumbnailUrl })),
+        client_side: 'optional',
+        server_side: 'optional',
+        license: { name: 'См. на CurseForge' },
+        dependencies: resolvedDeps
+      };
+      
+      sysLog(`[IPC get-curse-project] success. Resolved ${resolvedDeps.length} dependencies.`);
+      return { success: true, data: mapped };
     } catch (e) {
-      sysLog(`[IPC get-modrinth-project] error: ${e.message}`);
+      sysLog(`[IPC get-curse-project] error: ${e.message}`);
       return { success: false, error: e.message };
     }
   });
@@ -1837,6 +1986,159 @@ module.exports = function(ipcMain) {
   ipcMain.on('open-external-link', (event, url) => {
     if (url && (url.startsWith('http://') || url.startsWith('https://'))) {
       shell.openExternal(url).catch(e => console.error('Failed to open external link:', e));
+    }
+  });
+
+  // --- R2 ADMIN FILE MANAGER ---
+
+  function getWebToken() {
+    const cacheFile = getCustomCacheFile();
+    if (!fs.existsSync(cacheFile)) return null;
+    try {
+      return JSON.parse(fs.readFileSync(cacheFile, 'utf8')).webToken || null;
+    } catch { return null; }
+  }
+
+  // List files/folders in R2 prefix
+  ipcMain.handle('r2-list-files', async (event, prefix) => {
+    const token = getWebToken();
+    if (!token) return { success: false, error: 'Не авторизован' };
+    try {
+      const resp = await axios.get(`${AUTH_SERVER}/api/admin/r2/list`, {
+        params: { prefix },
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      return { success: true, ...resp.data };
+    } catch (err) {
+      const msg = err.response?.data?.error || err.message;
+      return { success: false, error: msg };
+    }
+  });
+
+  // Upload file to R2 — opens dialog if filePath not provided
+  ipcMain.handle('r2-upload-file', async (event, key, filePath) => {
+    const token = getWebToken();
+    if (!token) return { success: false, error: 'Не авторизован' };
+
+    let targetPath = filePath;
+    let fileName = filePath ? path.basename(filePath) : null;
+
+    // If no path provided, open file dialog
+    if (!targetPath) {
+      const { BrowserWindow } = require('electron');
+      const focusedWindow = BrowserWindow.getFocusedWindow();
+      const result = await dialog.showOpenDialog(focusedWindow, {
+        title: 'Выберите файл для загрузки',
+        properties: ['openFile'],
+        filters: [
+          { name: 'Jar файлы', extensions: ['jar'] },
+          { name: 'Все файлы', extensions: ['*'] }
+        ]
+      });
+      if (result.canceled || !result.filePaths.length) return { success: false, canceled: true };
+      targetPath = result.filePaths[0];
+      fileName = path.basename(targetPath);
+    }
+
+    const resolvedKey = key.endsWith('/') ? key + fileName : key;
+
+    try {
+      const fileBuffer = fs.readFileSync(targetPath);
+      // Build multipart/form-data manually (no external dep needed)
+      const boundary = `----FormBoundary${require('crypto').randomBytes(8).toString('hex')}`;
+      const CRLF = '\r\n';
+      const header = Buffer.from(
+        `--${boundary}${CRLF}` +
+        `Content-Disposition: form-data; name="file"; filename="${fileName}"${CRLF}` +
+        `Content-Type: application/octet-stream${CRLF}${CRLF}`
+      );
+      const footer = Buffer.from(`${CRLF}--${boundary}--${CRLF}`);
+      const body = Buffer.concat([header, fileBuffer, footer]);
+
+      const resp = await axios.post(`${AUTH_SERVER}/api/admin/r2/upload`, body, {
+        params: { key: resolvedKey },
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': `multipart/form-data; boundary=${boundary}`,
+          'Content-Length': body.length
+        },
+        maxContentLength: Infinity,
+        maxBodyLength: Infinity,
+        onUploadProgress: (progressEvent) => {
+          if (progressEvent.total) {
+            const percent = Math.round((progressEvent.loaded / progressEvent.total) * 100);
+            event.sender.send('r2-upload-progress', percent);
+          }
+        }
+      });
+      return { success: true, ...resp.data, fileName };
+    } catch (err) {
+      const msg = err.response?.data?.error || err.message;
+      return { success: false, error: msg };
+    }
+  });
+
+  // Delete file from R2
+  ipcMain.handle('r2-delete-file', async (event, key) => {
+    const token = getWebToken();
+    if (!token) return { success: false, error: 'Не авторизован' };
+    try {
+      const resp = await axios.delete(`${AUTH_SERVER}/api/admin/r2/delete`, {
+        params: { key },
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      return { success: true, ...resp.data };
+    } catch (err) {
+      return { success: false, error: err.response?.data?.error || err.message };
+    }
+  });
+
+  // Get mods.json from R2
+  ipcMain.handle('r2-get-mods-json', async (event, key) => {
+    const token = getWebToken();
+    if (!token) return { success: false, error: 'Не авторизован' };
+    try {
+      const resp = await axios.get(`${AUTH_SERVER}/api/admin/r2/mods-json`, {
+        params: { key },
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      return { success: true, data: resp.data };
+    } catch (err) {
+      return { success: false, error: err.response?.data?.error || err.message };
+    }
+  });
+
+  // Select multiple files dialog
+  ipcMain.handle('r2-select-multiple-files', async () => {
+    const { BrowserWindow } = require('electron');
+    const focusedWindow = BrowserWindow.getFocusedWindow();
+    const result = await dialog.showOpenDialog(focusedWindow, {
+      title: 'Выберите файлы для загрузки',
+      properties: ['openFile', 'multiSelections'],
+      filters: [
+        { name: 'Jar файлы', extensions: ['jar'] },
+        { name: 'Все файлы', extensions: ['*'] }
+      ]
+    });
+    if (result.canceled) return [];
+    return result.filePaths;
+  });
+
+  // Save mods.json to R2
+  ipcMain.handle('r2-save-mods-json', async (event, key, content) => {
+    const token = getWebToken();
+    if (!token) return { success: false, error: 'Не авторизован' };
+    try {
+      const resp = await axios.put(`${AUTH_SERVER}/api/admin/r2/mods-json`, content, {
+        params: { key },
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      return { success: true, ...resp.data };
+    } catch (err) {
+      return { success: false, error: err.response?.data?.error || err.message };
     }
   });
 };

@@ -1,6 +1,6 @@
 {
   "name": "div-launcher",
-  "version": "1.0.9",
+  "version": "1.1.2",
   "description": "Custom Minecraft Launcher",
   "author": "Diverlin",
   "main": "src/main.js",
@@ -40,6 +40,8 @@
     }
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1075.0",
+    "@aws-sdk/lib-storage": "^3.1075.0",
     "adm-zip": "^0.5.16",
     "axios": "^1.13.6",
     "discord-rpc": "^4.0.1",

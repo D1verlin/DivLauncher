@@ -21,6 +21,19 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onServerLog: (callback) => ipcRenderer.on('server-log', callback),
   onServerStatus: (callback) => ipcRenderer.on('server-status', callback),
   onServerPlayers: (callback) => ipcRenderer.on('server-players', callback),
+
+  // --- CLEANUP (для предотвращения утечек IPC-слушателей) ---
+  removeAllListeners: (channel) => {
+    const ALLOWED_CHANNELS = [
+      'update-available', 'update-progress', 'update-downloaded',
+      'server-log', 'server-status', 'server-players',
+      'r2-upload-progress', 'download-progress', 'update-done',
+      'launch-progress', 'launch-error', 'launch-closed'
+    ];
+    if (ALLOWED_CHANNELS.includes(channel)) {
+      ipcRenderer.removeAllListeners(channel);
+    }
+  },
   
   minimizeWindow: () => ipcRenderer.send('window-minimize'),
   closeWindow: () => ipcRenderer.send('window-close'),
@@ -70,8 +83,23 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getInstalledMods: (clientDir) => ipcRenderer.invoke('get-installed-mods', clientDir),
   downloadMod: (url, clientDir, fileName) => ipcRenderer.invoke('download-mod', url, clientDir, fileName),
   deleteMod: (clientDir, fileName) => ipcRenderer.invoke('delete-mod', clientDir, fileName),
-  searchModrinth: (query, facets, limit, offset) => ipcRenderer.invoke('search-modrinth', query, facets, limit, offset),
-  getModrinthVersions: (slug, loaders, gameVersions) => ipcRenderer.invoke('get-modrinth-versions', slug, loaders, gameVersions),
-  getModrinthProject: (slug) => ipcRenderer.invoke('get-modrinth-project', slug),
-  openExternalLink: (url) => ipcRenderer.send('open-external-link', url)
+  searchCurse: (query, options) => ipcRenderer.invoke('search-curse', query, options),
+  getCurseVersions: (modId, loaders, gameVersions) => ipcRenderer.invoke('get-curse-versions', modId, loaders, gameVersions),
+  getCurseProject: (modId) => ipcRenderer.invoke('get-curse-project', modId),
+  openExternalLink: (url) => ipcRenderer.send('open-external-link', url),
+
+  // --- R2 ADMIN FILE MANAGER ---
+  r2ListFiles:     (prefix) => ipcRenderer.invoke('r2-list-files', prefix),
+  r2UploadFile:    (key, filePath) => ipcRenderer.invoke('r2-upload-file', key, filePath),
+  r2SelectMultipleFiles: () => ipcRenderer.invoke('r2-select-multiple-files'),
+  r2DeleteFile:    (key) => ipcRenderer.invoke('r2-delete-file', key),
+  r2GetModsJson:   (key) => ipcRenderer.invoke('r2-get-mods-json', key),
+  r2SaveModsJson:  (key, content) => ipcRenderer.invoke('r2-save-mods-json', key, content),
+  onR2UploadProgress: (callback) => ipcRenderer.on('r2-upload-progress', callback),
+
+  // --- SYSTEM INFO & BACKUPS ---
+  getSystemMemory: () => ipcRenderer.invoke('get-system-memory'),
+  listBackups: (pack) => ipcRenderer.invoke('list-backups', pack),
+  deleteBackup: (pack, fileName) => ipcRenderer.invoke('delete-backup', pack, fileName),
+  restoreBackup: (pack, fileName) => ipcRenderer.invoke('restore-backup', pack, fileName),
 });

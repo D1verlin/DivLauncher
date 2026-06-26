@@ -220,6 +220,22 @@ export default function SettingsPage({ currentPack }) {
 
   // Game
   const [ram,        setRam]       = useState(localStorage.getItem('launcher_ram')        || '4');
+  const [maxRam, setMaxRam] = useState(16);
+
+  useEffect(() => {
+    if (window.electronAPI && window.electronAPI.getSystemMemory) {
+      window.electronAPI.getSystemMemory().then(sysMem => {
+        if (sysMem && sysMem > 2) {
+          const calculatedMax = Math.max(2, Math.min(64, sysMem - 1));
+          setMaxRam(calculatedMax);
+          const currentRamNum = parseInt(ram, 10);
+          if (currentRamNum > calculatedMax) {
+            setRam(String(calculatedMax));
+          }
+        }
+      });
+    }
+  }, [ram]);
   const [winWidth,   setWinWidth]  = useState(localStorage.getItem('launcher_win_width')  || '1280');
   const [winHeight,  setWinHeight] = useState(localStorage.getItem('launcher_win_height') || '720');
   const [fullscreen, setFullscreen] = useState(localStorage.getItem('launcher_fullscreen') === 'true');
@@ -303,10 +319,10 @@ export default function SettingsPage({ currentPack }) {
               {ram} ГБ
             </motion.span>
           </div>
-          <input type="range" min="2" max="16" step="1" value={ram}
+          <input type="range" min="2" max={maxRam} step="1" value={ram}
             onChange={e => setRam(e.target.value)} style={{ width: '100%', cursor: 'pointer' }} />
           <div style={{ display: 'flex', gap: '6px', marginTop: '10px', flexWrap: 'wrap' }}>
-            {['2','4','6','8','12','16'].map(v => (
+            {['2','4','6','8','12','16','24','32','48','64'].filter(v => parseInt(v, 10) <= maxRam).map(v => (
               <PresetBtn key={v} active={ram === v} color="#10b981" onClick={() => setRam(v)}>{v} ГБ</PresetBtn>
             ))}
           </div>

@@ -58,6 +58,97 @@ export default function ServerPage({ logs, isRunning, players, currentPack, onPa
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const consoleEndRef = useRef(null);
 
+  const [backups, setBackups] = useState([]);
+  const [backupsLoading, setBackupsLoading] = useState(false);
+  const [isRestoring, setIsRestoring] = useState(false);
+
+  const getLogColor = (log) => {
+    if (log.includes('[ERROR]') || log.includes('[FATAL]') || log.toLowerCase().includes('error') || log.includes('Exception')) {
+      return '#ef4444'; // Red
+    }
+    if (log.includes('[WARN]') || log.includes('[WARNING]') || log.toLowerCase().includes('warn')) {
+      return '#f59e0b'; // Amber
+    }
+    if (log.includes('[INFO]') || log.includes('INFO')) {
+      return '#a1a1aa'; // Light Grey
+    }
+    return '#71717a'; // Grey
+  };
+
+  const renderColorizedLogs = (logsText) => {
+    if (!logsText) return <span style={{ color: '#52525b' }}>Ожидание запуска ядра...</span>;
+    const lines = logsText.split('\n');
+    return lines.map((line, idx) => {
+      if (!line && idx === lines.length - 1) return null;
+      return (
+        <div key={idx} style={{ color: getLogColor(line), minHeight: '1.2em' }}>
+          {line}
+        </div>
+      );
+    });
+  };
+
+  const handleExportServerLogs = () => {
+    if (!logs) return;
+    const blob = new Blob([logs], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `server_log_${currentPack?.id || 'logs'}.txt`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const loadBackups = async () => {
+    if (!currentPack) return;
+    setBackupsLoading(true);
+    try {
+      const list = await window.electronAPI.listBackups(currentPack);
+      setBackups(list || []);
+    } catch (e) {
+      console.error('Ошибка загрузки бэкапов:', e);
+    } finally {
+      setBackupsLoading(false);
+    }
+  };
+
+  const handleCreateBackup = () => {
+    if (!currentPack) return;
+    window.electronAPI.backupWorld(currentPack);
+    setTimeout(loadBackups, 2000);
+  };
+
+  const handleDeleteBackup = async (fileName) => {
+    if (!currentPack) return;
+    if (confirm(`Вы уверены, что хотите удалить бэкап ${fileName}?`)) {
+      const res = await window.electronAPI.deleteBackup(currentPack, fileName);
+      if (res.success) {
+        loadBackups();
+      } else {
+        alert('Ошибка удаления: ' + res.error);
+      }
+    }
+  };
+
+  const handleRestoreBackup = async (fileName) => {
+    if (!currentPack) return;
+    if (isRunning) {
+      alert('Невозможно восстановить бэкап при запущеном сервере! Сначала остановите сервер.');
+      return;
+    }
+    if (confirm(`Вы действительно хотите ВОССТАНОВИТЬ мир из ${fileName}? Текущий мир будет полностью удален.`)) {
+      setIsRestoring(true);
+      const res = await window.electronAPI.restoreBackup(currentPack, fileName);
+      setIsRestoring(false);
+      if (res.success) {
+        alert('Резервная копия успешно восстановлена!');
+        loadBackups();
+      } else {
+        alert('Ошибка восстановления: ' + res.error);
+      }
+    }
+  };
+
   const getDefaultLoader = (pack) => {
     if (!pack) return 'vanilla';
     if (pack.serverLoaderType) return pack.serverLoaderType;
@@ -78,6 +169,12 @@ export default function ServerPage({ logs, isRunning, players, currentPack, onPa
       loadProps(); // Load props when pack changes
     }
   }, [currentPack]);
+
+  useEffect(() => {
+    if (activeTab === 'backups') {
+      loadBackups();
+    }
+  }, [activeTab, currentPack]);
 
   useEffect(() => { 
     if (activeTab === 'console') {
@@ -191,6 +288,7 @@ export default function ServerPage({ logs, isRunning, players, currentPack, onPa
         <h2 style={{ margin: '0 20px 0 10px', fontSize: '18px', fontWeight: 700, color: '#fff' }}>Сервер</h2>
         <TabButton active={activeTab === 'console'} icon="fa-terminal" label="Консоль" onClick={() => setActiveTab('console')} />
         <TabButton active={activeTab === 'players'} icon="fa-users" label={`Игроки (${players.length})`} onClick={() => setActiveTab('players')} />
+        <TabButton active={activeTab === 'backups'} icon="fa-file-zipper" label="Бэкапы" onClick={() => setActiveTab('backups')} />
         <TabButton active={activeTab === 'settings'} icon="fa-sliders" label="Настройки" onClick={() => setActiveTab('settings')} />
       </div>
 
@@ -241,6 +339,12 @@ export default function ServerPage({ logs, isRunning, players, currentPack, onPa
                     <i className="fa-regular fa-folder-open"></i> Папка сервера
                   </motion.button>
 
+                  {logs && logs.trim() !== '' && (
+                    <motion.button whileHover={{ background: 'rgba(255,255,255,0.1)' }} onClick={handleExportServerLogs} style={{ ...glassPanelStyle, borderRadius: '12px', padding: '10px 15px', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', fontSize: '12px', fontWeight: 600, color: '#e4e4e7', transition: 'background 0.2s' }}>
+                      <i className="fa-solid fa-file-arrow-down"></i> Экспорт логов
+                    </motion.button>
+                  )}
+
                   {currentPack.isCustom && (
                     <motion.button 
                       whileHover={{ background: 'rgba(59, 130, 246, 0.15)', borderColor: 'rgba(59, 130, 246, 0.4)' }} 
@@ -259,7 +363,7 @@ export default function ServerPage({ logs, isRunning, players, currentPack, onPa
             {/* Console View */}
             <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', background: 'rgba(10, 10, 12, 0.6)', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.1)', overflow: 'hidden' }}>
               <div style={{ flexGrow: 1, padding: '15px', overflowY: 'auto', fontFamily: 'Consolas, monospace', fontSize: '12px', color: '#d4d4d8', whiteSpace: 'pre-wrap', wordBreak: 'break-all', userSelect: 'text', WebkitUserSelect: 'text' }}>
-                {logs || <span style={{ color: '#52525b' }}>Ожидание запуска ядра...</span>}
+                {renderColorizedLogs(logs)}
                 <div ref={consoleEndRef} />
               </div>
               
@@ -524,6 +628,112 @@ export default function ServerPage({ logs, isRunning, players, currentPack, onPa
                 </motion.div>
               )}
             </AnimatePresence>
+          </motion.div>
+        )}
+
+        {/* --- BACKUPS TAB --- */}
+        {activeTab === 'backups' && (
+          <motion.div variants={itemVariants} initial="hidden" animate="visible" style={{ ...glassPanelStyle, height: '100%' }}>
+            <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', height: '100%', gap: '15px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <h3 style={{ margin: 0, color: '#fff', fontSize: '16px', fontWeight: 800 }}>Резервные копии мира</h3>
+                  <p style={{ margin: '4px 0 0 0', color: '#71717a', fontSize: '12px', fontWeight: 600 }}>
+                    Архивы папки world. Восстановление перезапишет текущий мир.
+                  </p>
+                </div>
+                <motion.button
+                  whileHover={{ scale: 1.05, boxShadow: '0 0 15px rgba(59, 130, 246, 0.3)' }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={handleCreateBackup}
+                  disabled={backupsLoading || isRestoring}
+                  style={{
+                    background: 'linear-gradient(135deg, #3b82f6, #2563eb)',
+                    color: '#fff', border: 'none', padding: '10px 16px', borderRadius: '12px',
+                    fontWeight: 700, fontSize: '13px', cursor: (backupsLoading || isRestoring) ? 'wait' : 'pointer',
+                    display: 'flex', alignItems: 'center', gap: '8px'
+                  }}
+                >
+                  <i className="fa-solid fa-file-zipper"></i> Создать бэкап
+                </motion.button>
+              </div>
+
+              {isRestoring && (
+                <div style={{ background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.3)', padding: '12px', borderRadius: '12px', color: '#f87171', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <i className="fa-solid fa-spinner fa-spin"></i>
+                  <span>Восстановление мира в процессе... Пожалуйста, подождите.</span>
+                </div>
+              )}
+
+              {backupsLoading ? (
+                <div style={{ display: 'flex', flexGrow: 1, alignItems: 'center', justifyContent: 'center', color: '#a1a1aa' }}>
+                  <i className="fa-solid fa-circle-notch fa-spin" style={{ fontSize: '24px', marginRight: '10px' }}></i> Загрузка списка резервных копий...
+                </div>
+              ) : backups.length === 0 ? (
+                <div style={{ display: 'flex', flexGrow: 1, flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#52525b', gap: '15px' }}>
+                  <i className="fa-solid fa-folder-open" style={{ fontSize: '36px' }}></i>
+                  <div style={{ fontSize: '14px', fontWeight: 500 }}>Бэкапы не найдены</div>
+                </div>
+              ) : (
+                <div style={{ flexGrow: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '10px', paddingBottom: '20px' }}>
+                  {backups.map(backup => (
+                    <motion.div
+                      key={backup.name}
+                      whileHover={{ background: 'rgba(255,255,255,0.03)' }}
+                      style={{
+                        background: 'rgba(0,0,0,0.15)', padding: '12px 18px', borderRadius: '14px',
+                        border: '1px solid rgba(255,255,255,0.03)', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                        gap: '15px'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                        <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px' }}>
+                          <i className="fa-regular fa-file-zip"></i>
+                        </div>
+                        <div>
+                          <div style={{ color: '#e4e4e7', fontWeight: 700, fontSize: '13px', wordBreak: 'break-all' }}>{backup.name}</div>
+                          <div style={{ color: '#71717a', fontSize: '11px', fontWeight: 600, marginTop: '2px' }}>
+                            Размер: {(backup.size / (1024 * 1024)).toFixed(2)} МБ • Создан: {new Date(backup.time).toLocaleString()}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <motion.button
+                          whileHover={{ scale: 1.05, background: 'rgba(16, 185, 129, 0.15)' }}
+                          whileTap={{ scale: 0.95 }}
+                          onClick={() => handleRestoreBackup(backup.name)}
+                          disabled={isRestoring || isRunning}
+                          style={{
+                            background: 'rgba(16, 185, 129, 0.08)', border: '1px solid rgba(16, 185, 129, 0.2)',
+                            color: '#34d399', padding: '8px 14px', borderRadius: '10px', cursor: (isRestoring || isRunning) ? 'not-allowed' : 'pointer',
+                            fontSize: '12px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px',
+                            opacity: isRunning ? 0.5 : 1
+                          }}
+                          title={isRunning ? "Остановите сервер для восстановления" : "Восстановить мир из этого бэкапа"}
+                        >
+                          <i className="fa-solid fa-clock-rotate-left"></i> Восстановить
+                        </motion.button>
+                        <motion.button
+                          whileHover={{ scale: 1.05, background: 'rgba(239, 68, 68, 0.15)' }}
+                          whileTap={{ scale: 0.95 }}
+                          onClick={() => handleDeleteBackup(backup.name)}
+                          disabled={isRestoring}
+                          style={{
+                            background: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.2)',
+                            color: '#f87171', padding: '8px 14px', borderRadius: '10px', cursor: isRestoring ? 'not-allowed' : 'pointer',
+                            fontSize: '12px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px'
+                          }}
+                          title="Удалить этот бэкап"
+                        >
+                          <i className="fa-solid fa-trash-can"></i> Удалить
+                        </motion.button>
+                      </div>
+                    </motion.div>
+                  ))}
+                </div>
+              )}
+            </div>
           </motion.div>
         )}
 

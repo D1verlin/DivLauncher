@@ -1,9 +1,6 @@
 require('dotenv').config();
 const { app, BrowserWindow, ipcMain } = require('electron');
 
-// Отключаем проверку SSL сертификатов для обхода проблем с рукопожатием (handshake failed)
-app.commandLine.appendSwitch('ignore-certificate-errors');
-process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 
 const { autoUpdater } = require('electron-updater');
 const path = require('path');
@@ -36,7 +33,7 @@ function createWindow() {
   mainWindow.webContents.setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36");
   
   mainWindow.setMenu(null); 
-  mainWindow.webContents.openDevTools();
+
   
   // Режим разработчика
   
@@ -119,6 +116,16 @@ ipcMain.handle('get-app-version', () => {
   } catch (e) {
     console.error("Ошибка при чтении package.json:", e);
     return app.getVersion();
+  }
+});
+
+ipcMain.handle('get-system-memory', () => {
+  try {
+    const os = require('os');
+    return Math.round(os.totalmem() / (1024 * 1024 * 1024));
+  } catch (e) {
+    console.error("Ошибка при получении памяти системы:", e);
+    return 16;
   }
 });
 

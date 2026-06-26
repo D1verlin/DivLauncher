@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ClientPage from './pages/ClientPage';
 import ServerPage from './pages/ServerPage';
@@ -10,8 +10,104 @@ import UsersPage from './pages/UsersPage';
 import BuildsPage from './pages/BuildsPage';
 import CreatePackPage from './pages/CreatePackPage';
 import ModsPage from './pages/ModsPage';
+import OfficialBuildManagerPage from './pages/OfficialBuildManagerPage';
 
 const MODPACKS_URL = "https://mc.diverlin.ru/DivLauncher/modpacks.json";
+const MAX_SERVER_LOG_LINES = 500;
+
+// --- КАСТОМНЫЙ CONFIRM-МОДАЛ ---
+function ConfirmModal({ title, message, onConfirm, onCancel }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      style={{
+        position: 'fixed', inset: 0, zIndex: 99999,
+        background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(8px)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+      }}
+      onClick={(e) => { if (e.target === e.currentTarget) onCancel(); }}
+    >
+      <motion.div
+        initial={{ scale: 0.88, y: 16 }} animate={{ scale: 1, y: 0 }}
+        exit={{ scale: 0.88, y: 16 }} transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+        style={{
+          background: 'rgba(10, 10, 16, 0.92)', backdropFilter: 'blur(24px)',
+          WebkitBackdropFilter: 'blur(24px)', border: '1px solid rgba(255,255,255,0.08)',
+          borderRadius: '20px', padding: '28px', maxWidth: '400px', width: '90%',
+          boxShadow: '0 30px 60px rgba(0,0,0,0.8)',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '16px' }}>
+          <div style={{
+            width: '42px', height: '42px', borderRadius: '12px', flexShrink: 0,
+            background: 'rgba(239,68,68,0.14)', border: '1px solid rgba(239,68,68,0.3)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            <i className="fa-solid fa-triangle-exclamation" style={{ color: '#ef4444', fontSize: '16px' }} />
+          </div>
+          <div>
+            <p style={{ color: '#fff', fontWeight: 900, fontSize: '15px', margin: '0 0 4px 0' }}>{title}</p>
+            <p style={{ color: '#71717a', fontWeight: 600, fontSize: '12px', margin: 0 }}>{message}</p>
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
+          <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={onCancel}
+            style={{ flex: 1, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: '#a1a1aa', borderRadius: '12px', padding: '11px', fontWeight: 700, cursor: 'pointer', fontSize: '13px' }}>
+            Отмена
+          </motion.button>
+          <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={onConfirm}
+            style={{ flex: 1, background: 'linear-gradient(135deg, #ef4444, #dc2626)', border: 'none', color: '#fff', borderRadius: '12px', padding: '11px', fontWeight: 800, cursor: 'pointer', fontSize: '13px' }}>
+            Подтвердить
+          </motion.button>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+// --- КАСТОМНЫЙ ALERT-МОДАЛ ---
+function AlertModal({ title, message, onClose }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      style={{
+        position: 'fixed', inset: 0, zIndex: 99999,
+        background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(8px)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+      }}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <motion.div
+        initial={{ scale: 0.88, y: 16 }} animate={{ scale: 1, y: 0 }}
+        exit={{ scale: 0.88, y: 16 }} transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+        style={{
+          background: 'rgba(10, 10, 16, 0.92)', backdropFilter: 'blur(24px)',
+          WebkitBackdropFilter: 'blur(24px)', border: '1px solid rgba(255,255,255,0.08)',
+          borderRadius: '20px', padding: '28px', maxWidth: '380px', width: '90%',
+          boxShadow: '0 30px 60px rgba(0,0,0,0.8)',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '20px' }}>
+          <div style={{
+            width: '42px', height: '42px', borderRadius: '12px', flexShrink: 0,
+            background: 'rgba(239,68,68,0.14)', border: '1px solid rgba(239,68,68,0.3)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            <i className="fa-solid fa-circle-exclamation" style={{ color: '#f59e0b', fontSize: '16px' }} />
+          </div>
+          <div>
+            <p style={{ color: '#fff', fontWeight: 900, fontSize: '15px', margin: '0 0 4px 0' }}>{title}</p>
+            <p style={{ color: '#71717a', fontWeight: 600, fontSize: '12px', margin: 0 }}>{message}</p>
+          </div>
+        </div>
+        <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={onClose}
+          style={{ width: '100%', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)', color: '#fff', borderRadius: '12px', padding: '11px', fontWeight: 700, cursor: 'pointer', fontSize: '13px' }}>
+          Понятно
+        </motion.button>
+      </motion.div>
+    </motion.div>
+  );
+}
 
 // --- КОМПОНЕНТ АВТООБНОВЛЕНИЯ (Глассморфизм) ---
 function UpdateNotification() {
@@ -35,6 +131,12 @@ function UpdateNotification() {
     window.electronAPI.onUpdateDownloaded(() => {
       setStatus('downloaded');
     });
+
+    return () => {
+      window.electronAPI.removeAllListeners?.('update-available');
+      window.electronAPI.removeAllListeners?.('update-progress');
+      window.electronAPI.removeAllListeners?.('update-downloaded');
+    };
   }, []);
 
   return (
@@ -128,6 +230,13 @@ const TopBar = () => (
   </div>
 );
 
+// --- АНИМАЦИЯ СТРАНИЦ ---
+const pageVariants = {
+  initial: { opacity: 0, y: 12 },
+  animate: { opacity: 1, y: 0, transition: { duration: 0.22, ease: [0.4, 0, 0.2, 1] } },
+  exit:    { opacity: 0, y: -8,  transition: { duration: 0.15, ease: [0.4, 0, 1, 1] } },
+};
+
 // --- ОСНОВНОЕ ПРИЛОЖЕНИЕ ---
 export default function App() {
   const [currentPage, setCurrentPage] = useState('builds');
@@ -150,6 +259,20 @@ export default function App() {
   // Auth States
   const [profile, setProfile] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
+
+  // --- МОДАЛЬНЫЕ ОКНА (замена confirm/alert) ---
+  const [confirmModal, setConfirmModal] = useState(null); // { title, message, onConfirm }
+  const [alertModal, setAlertModal] = useState(null);     // { title, message }
+
+  const showConfirm = useCallback((title, message) => {
+    return new Promise((resolve) => {
+      setConfirmModal({ title, message, onConfirm: () => { setConfirmModal(null); resolve(true); }, onCancel: () => { setConfirmModal(null); resolve(false); } });
+    });
+  }, []);
+
+  const showAlert = useCallback((title, message) => {
+    setAlertModal({ title, message, onClose: () => setAlertModal(null) });
+  }, []);
 
   const handleLogout = async () => {
     if (window.electronAPI?.customLogout) {
@@ -257,14 +380,18 @@ export default function App() {
         localStorage.setItem('launcher_last_pack', newPack.id);
         setServerLogs(`Создана и выбрана сборка: ${newPack.name}...\n`);
       } else {
-        alert("Не удалось сохранить сборку: " + result.error);
+        showAlert('Ошибка сохранения', result.error || 'Не удалось сохранить сборку.');
       }
     }
   };
 
   const handleDeleteCustomPack = async (id) => {
     if (window.electronAPI && window.electronAPI.deleteCustomPack) {
-      if (confirm("Вы действительно хотите удалить эту сборку? Внимание: все файлы и моды этой сборки будут безвозвратно удалены!")) {
+      const confirmed = await showConfirm(
+        'Удалить сборку?',
+        'Все файлы и моды этой сборки будут безвозвратно удалены!'
+      );
+      if (confirmed) {
         const result = await window.electronAPI.deleteCustomPack(id);
         if (result.success) {
           const remainingPacks = modpacks.filter(p => p.id !== id);
@@ -277,7 +404,7 @@ export default function App() {
           }
           fetchModpacks();
         } else {
-          alert("Не удалось удалить сборку: " + result.error);
+          showAlert('Ошибка удаления', result.error || 'Не удалось удалить сборку.');
         }
       }
     }
@@ -296,9 +423,23 @@ export default function App() {
       window.electronAPI.getAppVersion().then(v => setAppVersion(v));
     }
 
-    window.electronAPI.onServerLog((e, data) => setServerLogs(p => p + data));
-    window.electronAPI.onServerStatus((e, status) => setIsServerRunning(status === 'starting'));
-    window.electronAPI.onServerPlayers((e, playerList) => setServerPlayers(playerList));
+    // Ограничиваем лог последними MAX_SERVER_LOG_LINES строками во избежание утечки памяти
+    const serverLogHandler = (e, data) => setServerLogs(prev => {
+      const lines = (prev + data).split('\n');
+      return lines.slice(-MAX_SERVER_LOG_LINES).join('\n');
+    });
+    const serverStatusHandler = (e, status) => setIsServerRunning(status === 'starting');
+    const serverPlayersHandler = (e, playerList) => setServerPlayers(playerList);
+
+    window.electronAPI.onServerLog(serverLogHandler);
+    window.electronAPI.onServerStatus(serverStatusHandler);
+    window.electronAPI.onServerPlayers(serverPlayersHandler);
+
+    return () => {
+      window.electronAPI.removeAllListeners?.('server-log');
+      window.electronAPI.removeAllListeners?.('server-status');
+      window.electronAPI.removeAllListeners?.('server-players');
+    };
   }, []);
 
   const handleManualUpdate = () => {
@@ -379,8 +520,185 @@ export default function App() {
     transition: 'background 0.5s ease-in-out'
   };
 
+  // Функция рендера активной страницы (ленивый рендер — только активная страница в DOM)
+  const renderPage = () => {
+    if (!currentPack) {
+      return (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', flexDirection: 'column', gap: '15px' }}>
+          <i className="fa-solid fa-layer-group" style={{ fontSize: '48px', color: 'rgba(255,255,255,0.2)' }} />
+          <div style={{ color: '#a1a1aa', fontSize: '14px', fontWeight: 600 }}>Пожалуйста, выберите сборку на странице сборок</div>
+          <motion.button 
+            whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
+            onClick={() => setCurrentPage('builds')}
+            style={{ background: 'linear-gradient(135deg, #3b82f6, #2563eb)', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: '10px', cursor: 'pointer', fontWeight: 700 }}
+          >
+            Перейти к сборкам
+          </motion.button>
+        </div>
+      );
+    }
+
+    switch (currentPage) {
+      case 'builds':
+        return (
+          <BuildsPage 
+            modpacks={modpacks} 
+            currentPack={currentPack} 
+            onSelect={(pack) => {
+              setCurrentPack(pack);
+              localStorage.setItem('launcher_last_pack', pack.id);
+              setServerLogs(`Выбрана сборка: ${pack.name}. Сервер готов...\n`);
+              setCurrentPage('client');
+            }} 
+            onDelete={handleDeleteCustomPack}
+            onExport={async (packId) => {
+              if (window.electronAPI?.exportCustomPack) {
+                const result = await window.electronAPI.exportCustomPack(packId);
+                if (!result.success) {
+                  showAlert('Ошибка экспорта', result.error || 'Не удалось экспортировать сборку.');
+                }
+              }
+            }}
+            onEdit={(pack) => {
+              setEditingPack(pack);
+              setCurrentPage('create-pack');
+            }}
+            onCreateClick={() => {
+              setEditingPack(null);
+              setCurrentPage('create-pack');
+            }}
+            onImportClick={async () => {
+              if (window.electronAPI?.importCustomPack) {
+                const result = await window.electronAPI.importCustomPack();
+                if (result.success) {
+                  fetchModpacks();
+                  if (result.pack) {
+                    setCurrentPack(result.pack);
+                    localStorage.setItem('launcher_last_pack', result.pack.id);
+                  }
+                } else if (!result.canceled && result.error !== 'Отменено') {
+                  showAlert('Ошибка импорта', result.error || 'Не удалось импортировать сборку.');
+                }
+              }
+            }}
+          />
+        );
+      case 'create-pack':
+        return (
+          <CreatePackPage 
+            isActive={true}
+            editPack={editingPack}
+            onCreate={(pack) => {
+              handleCreateCustomPack(pack);
+              setEditingPack(null);
+            }} 
+            onBack={() => {
+              setEditingPack(null);
+              setCurrentPage('builds');
+            }} 
+          />
+        );
+      case 'client':
+        return (
+          <ClientPage 
+            openSettings={() => setCurrentPage('settings')} 
+            openMods={() => setCurrentPage('mods')}
+            currentPack={currentPack} 
+          />
+        );
+      case 'mods':
+        // Для официальных сборок + admin → показываем менеджер R2
+        if (!currentPack.isCustom && profile && profile.is_admin === 1) {
+          return (
+            <OfficialBuildManagerPage
+              currentPack={currentPack}
+              onBack={() => setCurrentPage('client')}
+            />
+          );
+        }
+        // Для кастомных сборок (или обычных пользователей) → магазин модов
+        return <ModsPage currentPack={currentPack} onBack={() => setCurrentPage('client')} />;
+      case 'server':
+        return <ServerPage logs={serverLogs} isRunning={isServerRunning} players={serverPlayers} currentPack={currentPack} onPackUpdate={handlePackUpdate} />;
+      case 'users':
+        return (
+          <UsersPage 
+            active={true} 
+            onViewProfile={(user) => {
+              setViewedProfile({
+                id: user.id,
+                name: user.username,
+                uuid: user.uuid,
+                is_admin: user.is_admin,
+                badge: user.badge,
+                bio: user.bio,
+                skin_url: user.skin_url,
+                cape_url: user.cape_url,
+                stats: user.stats,
+              });
+              setCurrentPage('profile');
+            }} 
+          />
+        );
+      case 'profile':
+        return (
+          <ProfilePage 
+            profile={viewedProfile || profile} 
+            isOwnProfile={!viewedProfile || viewedProfile.uuid === profile.uuid}
+            onBack={() => {
+              setCurrentPage('users');
+              setViewedProfile(null);
+            }}
+            onLogout={handleLogout} 
+            currentPack={currentPack} 
+            modpacks={modpacks} 
+          />
+        );
+      case 'settings':
+        return <SettingsPage currentPack={currentPack} />;
+      case 'admin':
+        return profile && profile.is_admin === 1 ? (
+          <AdminPage 
+            active={true} 
+            profile={profile} 
+            onProfileUpdate={(updatedFields) => {
+              setProfile(prev => ({ ...prev, ...updatedFields }));
+            }} 
+            onModpacksUpdate={fetchModpacks}
+            onManageMods={(pack) => {
+              setCurrentPack(pack);
+              setCurrentPage('mods');
+            }}
+          />
+        ) : null;
+      default:
+        return null;
+    }
+  };
+
   return (
     <div style={appStyle}>
+      {/* Глобальные модалы */}
+      <AnimatePresence>
+        {confirmModal && (
+          <ConfirmModal
+            title={confirmModal.title}
+            message={confirmModal.message}
+            onConfirm={confirmModal.onConfirm}
+            onCancel={confirmModal.onCancel}
+          />
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {alertModal && (
+          <AlertModal
+            title={alertModal.title}
+            message={alertModal.message}
+            onClose={alertModal.onClose}
+          />
+        )}
+      </AnimatePresence>
+
       {animatedBg && currentPack.bgVideo && (
         <video 
           key={currentPack.id}
@@ -399,7 +717,8 @@ export default function App() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
               <NavButton icon="fa-layer-group" active={currentPage === 'builds' || currentPage === 'create-pack'} onClick={() => { setViewedProfile(null); setCurrentPage('builds'); }} color="#f59e0b" title="Сборки" />
               <NavButton icon="fa-gamepad" active={currentPage === 'client'} onClick={() => { setViewedProfile(null); setCurrentPage('client'); }} color="#10b981" title="Играть" />
-              <NavButton icon="fa-server" active={currentPage === 'server'} onClick={() => { setViewedProfile(null); setCurrentPage('server'); }} color="#3b82f6" title="Сервер" />
+              <NavButton icon="fa-server" active={currentPage === 'server'} onClick={() => { setViewedProfile(null); setCurrentPage('server'); }} color="#3b82f6" title="Сервер"
+                dot={isServerRunning} dotColor="#10b981" />
               <NavButton icon="fa-users" active={currentPage === 'users'} onClick={() => { setViewedProfile(null); setCurrentPage('users'); }} color="#6366f1" title="Игроки" />
               <NavButton icon="fa-circle-user" active={currentPage === 'profile'} onClick={() => { setViewedProfile(null); setCurrentPage('profile'); }} color="#a78bfa" title="Профиль" />
               {profile && profile.is_admin === 1 && (
@@ -426,151 +745,41 @@ export default function App() {
             </div>
           </div>
 
+        {/* Контентная область с анимацией переходов (ленивый рендер) */}
         <div style={{ flexGrow: 1, overflow: 'hidden', position: 'relative', zIndex: 10 }}>
-              <div style={{ display: currentPage === 'builds' ? 'block' : 'none', height: '100%' }}>
-                <BuildsPage 
-                  modpacks={modpacks} 
-                  currentPack={currentPack} 
-                  onSelect={(pack) => {
-                    setCurrentPack(pack);
-                    localStorage.setItem('launcher_last_pack', pack.id);
-                    setServerLogs(`Выбрана сборка: ${pack.name}. Сервер готов...\n`);
-                    setCurrentPage('client');
-                  }} 
-                  onDelete={handleDeleteCustomPack}
-                  onExport={async (packId) => {
-                    if (window.electronAPI?.exportCustomPack) {
-                      const result = await window.electronAPI.exportCustomPack(packId);
-                      if (!result.success) {
-                        alert('Ошибка экспорта: ' + result.error);
-                      }
-                    }
-                  }}
-                  onEdit={(pack) => {
-                    setEditingPack(pack);
-                    setCurrentPage('create-pack');
-                  }}
-                  onCreateClick={() => {
-                    setEditingPack(null);
-                    setCurrentPage('create-pack');
-                  }}
-                  onImportClick={async () => {
-                    if (window.electronAPI?.importCustomPack) {
-                      const result = await window.electronAPI.importCustomPack();
-                      if (result.success) {
-                        fetchModpacks();
-                        if (result.pack) {
-                          setCurrentPack(result.pack);
-                          localStorage.setItem('launcher_last_pack', result.pack.id);
-                        }
-                      } else if (!result.canceled && result.error !== 'Отменено') {
-                        alert("Ошибка импорта: " + result.error);
-                      }
-                    }
-                  }}
-                />
-              </div>
-
-              <div style={{ display: currentPage === 'create-pack' ? 'block' : 'none', height: '100%' }}>
-                <CreatePackPage 
-                  isActive={currentPage === 'create-pack'}
-                  editPack={editingPack}
-                  onCreate={(pack) => {
-                    handleCreateCustomPack(pack);
-                    setEditingPack(null);
-                  }} 
-                  onBack={() => {
-                    setEditingPack(null);
-                    setCurrentPage('builds');
-                  }} 
-                />
-              </div>
-
-          {currentPack ? (
-            <>
-              <div style={{ display: currentPage === 'client' ? 'block' : 'none', height: '100%' }}>
-                <ClientPage 
-                  openSettings={() => setCurrentPage('settings')} 
-                  openMods={() => setCurrentPage('mods')}
-                  currentPack={currentPack} 
-                />
-              </div>
-              <div style={{ display: currentPage === 'mods' ? 'block' : 'none', height: '100%' }}>
-                <ModsPage currentPack={currentPack} onBack={() => setCurrentPage('client')} />
-              </div>
-              <div style={{ display: currentPage === 'server' ? 'block' : 'none', height: '100%' }}>
-                <ServerPage logs={serverLogs} isRunning={isServerRunning} players={serverPlayers} currentPack={currentPack} onPackUpdate={handlePackUpdate} />
-              </div>
-              <div style={{ display: currentPage === 'users' ? 'block' : 'none', height: '100%' }}>
-                <UsersPage 
-                  active={currentPage === 'users'} 
-                  onViewProfile={(user) => {
-                    setViewedProfile({
-                      id: user.id,
-                      name: user.username,
-                      uuid: user.uuid,
-                      is_admin: user.is_admin,
-                      badge: user.badge,
-                      bio: user.bio,
-                      skin_url: user.skin_url,
-                      cape_url: user.cape_url,
-                      stats: user.stats,
-                    });
-                    setCurrentPage('profile');
-                  }} 
-                />
-              </div>
-              <div style={{ display: currentPage === 'profile' ? 'block' : 'none', height: '100%' }}>
-                <ProfilePage 
-                  profile={viewedProfile || profile} 
-                  isOwnProfile={!viewedProfile || viewedProfile.uuid === profile.uuid}
-                  onBack={() => {
-                    setCurrentPage('users');
-                    setViewedProfile(null);
-                  }}
-                  onLogout={handleLogout} 
-                  currentPack={currentPack} 
-                  modpacks={modpacks} 
-                />
-              </div>
-              <div style={{ display: currentPage === 'settings' ? 'block' : 'none', height: '100%' }}>
-                <SettingsPage currentPack={currentPack} />
-              </div>
-              {profile && profile.is_admin === 1 && (
-                <div style={{ display: currentPage === 'admin' ? 'block' : 'none', height: '100%' }}>
-                  <AdminPage 
-                    active={currentPage === 'admin'} 
-                    profile={profile} 
-                    onProfileUpdate={(updatedFields) => {
-                      setProfile(prev => ({ ...prev, ...updatedFields }));
-                    }} 
-                  />
-                </div>
-              )}
-            </>
-          ) : (
-            <div style={{ display: (currentPage !== 'builds' && currentPage !== 'create-pack') ? 'flex' : 'none', alignItems: 'center', justifyContent: 'center', height: '100%', flexDirection: 'column', gap: '15px' }}>
-              <i className="fa-solid fa-layer-group" style={{ fontSize: '48px', color: 'rgba(255,255,255,0.2)' }} />
-              <div style={{ color: '#a1a1aa', fontSize: '14px', fontWeight: 600 }}>Пожалуйста, выберите сборку на странице сборок</div>
-              <motion.button 
-                whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
-                onClick={() => setCurrentPage('builds')}
-                style={{ background: 'linear-gradient(135deg, #3b82f6, #2563eb)', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: '10px', cursor: 'pointer', fontWeight: 700 }}
-              >
-                Перейти к сборкам
-              </motion.button>
-            </div>
-          )}
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={currentPage}
+              variants={pageVariants}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              style={{ height: '100%' }}
+            >
+              {renderPage()}
+            </motion.div>
+          </AnimatePresence>
         </div>
       </div>
     </div>
   );
 }
 
-function NavButton({ icon, active, onClick, color, title }) {
+function NavButton({ icon, active, onClick, color, title, dot, dotColor }) {
   return (
-    <motion.button title={title} whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={onClick} style={{ width: '40px', height: '40px', borderRadius: '50%', border: 'none', cursor: 'pointer', background: active ? color : 'transparent', color: active ? '#fff' : '#52525b', fontSize: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <i className={`fa-solid ${icon}`}></i>
-    </motion.button>
+    <div style={{ position: 'relative' }}>
+      <motion.button title={title} whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={onClick} style={{ width: '40px', height: '40px', borderRadius: '50%', border: 'none', cursor: 'pointer', background: active ? color : 'transparent', color: active ? '#fff' : '#52525b', fontSize: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <i className={`fa-solid ${icon}`}></i>
+      </motion.button>
+      {dot && (
+        <span style={{
+          position: 'absolute', bottom: 1, right: 1,
+          width: '8px', height: '8px', borderRadius: '50%',
+          background: dotColor || '#10b981',
+          border: '2px solid rgba(17, 17, 17, 0.6)',
+          boxShadow: `0 0 6px ${dotColor || '#10b981'}`,
+        }} />
+      )}
+    </div>
   );
 }
