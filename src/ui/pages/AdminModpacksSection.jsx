@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useTranslation } from '../utils/i18n';
 
 const DEFAULT_BG = "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=1280";
 
@@ -49,6 +50,7 @@ const labelStyle = {
 // Dropdown Select with search support
 // ────────────────────────────────────────────────────────────
 function FormSelect({ label, value, options, onChange, placeholder, showSearch = false }) {
+  const { lang } = useTranslation();
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -110,7 +112,7 @@ function FormSelect({ label, value, options, onChange, placeholder, showSearch =
               <div style={{ padding: '4px', position: 'sticky', top: 0, background: 'rgba(20, 20, 25, 0.98)', zIndex: 1001, marginBottom: '4px' }}>
                 <input
                   type="text"
-                  placeholder="Поиск..."
+                  placeholder={lang === 'ru' ? 'Поиск...' : 'Search...'}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   onClick={(e) => e.stopPropagation()}
@@ -127,7 +129,7 @@ function FormSelect({ label, value, options, onChange, placeholder, showSearch =
             <div style={{ overflowY: 'auto', flexGrow: 1, display: 'flex', flexDirection: 'column', gap: '3px' }}>
               {filteredOptions.length === 0 ? (
                 <div style={{ padding: '10px 14px', fontSize: '12px', color: 'rgba(255,255,255,0.4)', textAlign: 'center' }}>
-                  Ничего не найдено
+                  {lang === 'ru' ? 'Ничего не найдено' : 'Nothing found'}
                 </div>
               ) : (
                 filteredOptions.map(opt => (
@@ -171,6 +173,7 @@ function FormSelect({ label, value, options, onChange, placeholder, showSearch =
 // Main component
 // ────────────────────────────────────────────────────────────
 export default function AdminModpacksSection({ onModpacksUpdate, onManageMods }) {
+  const { t, lang } = useTranslation();
   const [packs, setPacks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -217,6 +220,8 @@ export default function AdminModpacksSection({ onModpacksUpdate, onManageMods })
   const [promos, setPromos] = useState({});
   const [saving, setSaving] = useState(false);
   const [loadingServerLoader, setLoadingServerLoader] = useState(false);
+  
+  const cleanId = packId.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '');
   
   // Fetch modpacks list from R2
   const loadPacks = useCallback(async () => {
@@ -269,18 +274,18 @@ export default function AdminModpacksSection({ onModpacksUpdate, onManageMods })
 
   // Handle uploading files (images, webm or zips) to R2
   const handleR2Upload = async (field, assetNameTarget, fileExtension) => {
-    if (!packId.trim()) {
-      alert('Пожалуйста, сначала укажите ID сборки, чтобы сформировать правильные пути на сервере!');
+    if (!cleanId) {
+      alert(lang === 'ru' ? 'Пожалуйста, сначала укажите ID сборки, чтобы сформировать правильные пути на сервере!' : 'Please specify the pack ID first to set up the correct paths on the server!');
       return;
     }
     setUploadingField(field);
     setUploadProgress(prev => ({ ...prev, [field]: 0 }));
     
     // Construct target uploader key
-    // Assets are stored in DivLauncher/{packId}/assets/
-    // ZIPs are stored in DivLauncher/{packId}/
+    // Assets are stored in DivLauncher/{cleanId}/assets/
+    // ZIPs are stored in DivLauncher/{cleanId}/
     const isZip = field === 'packZipUrl';
-    const folder = isZip ? `DivLauncher/${packId.trim()}/` : `DivLauncher/${packId.trim()}/assets/`;
+    const folder = isZip ? `DivLauncher/${cleanId}/` : `DivLauncher/${cleanId}/assets/`;
     const targetKey = `${folder}${assetNameTarget}.${fileExtension}`;
     
     try {
@@ -293,7 +298,7 @@ export default function AdminModpacksSection({ onModpacksUpdate, onManageMods })
         if (field === 'icon') setIcon(publicUrl);
         if (field === 'packZipUrl') setPackZipUrl(publicUrl);
       } else if (res && !res.canceled) {
-        alert(res.error || 'Ошибка загрузки файла');
+        alert(res.error || (lang === 'ru' ? 'Ошибка загрузки файла' : 'File upload error'));
       }
     } catch (err) {
       alert(err.message);
@@ -315,8 +320,7 @@ export default function AdminModpacksSection({ onModpacksUpdate, onManageMods })
 
   // Auto-generation of paths & configs
   useEffect(() => {
-    if (isNew && packId.trim()) {
-      const cleanId = packId.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '');
+    if (isNew && cleanId) {
       setClientDir(`.${cleanId}-client`);
       setServerDir(`.${cleanId}-server`);
       
@@ -327,12 +331,12 @@ export default function AdminModpacksSection({ onModpacksUpdate, onManageMods })
         setPackZipUrl(`${domain}/DivLauncher/${cleanId}/${cleanId}_V100.zip`);
       }
     }
-  }, [packId, isNew, useZip]);
+  }, [cleanId, isNew, useZip]);
 
   // Auto-fill Forge installer parameters based on MC version
   const handleAutoFillLoader = () => {
     if (!mcVersion) {
-      alert('Сначала выберите версию Minecraft!');
+      alert(lang === 'ru' ? 'Сначала выберите версию Minecraft!' : 'Please select Minecraft version first!');
       return;
     }
     if (loaderType === 'fabric') {
@@ -346,7 +350,7 @@ export default function AdminModpacksSection({ onModpacksUpdate, onManageMods })
         setForgeUrl(`https://maven.minecraftforge.net/net/minecraftforge/forge/${fullVersion}/forge-${fullVersion}-installer.jar`);
         setForgeInstallerName(`forge-${fullVersion}-installer.jar`);
       } else {
-        alert(`Не удалось найти рекомендуемую версию Forge для Minecraft ${mcVersion}. Пожалуйста, укажите параметры вручную.`);
+        alert(lang === 'ru' ? `Не удалось найти рекомендуемую версию Forge для Minecraft ${mcVersion}. Пожалуйста, укажите параметры вручную.` : `Could not find recommended Forge version for Minecraft ${mcVersion}. Please specify settings manually.`);
       }
     } else if (loaderType === 'neoforge') {
       // standard version format
@@ -354,7 +358,7 @@ export default function AdminModpacksSection({ onModpacksUpdate, onManageMods })
       setInstallerUrl(`https://maven.neoforged.net/releases/net/neoforged/neoforge/21.0.33/neoforge-21.0.33-installer.jar`);
       setInstallerName('neoforge-21.0.33-installer.jar');
     } else {
-      alert('Для Ванильного ядра автозаполнение не требуется.');
+      alert(lang === 'ru' ? 'Для Ванильного ядра автозаполнение не требуется.' : 'Autofill is not required for Vanilla.');
     }
   };
 
@@ -363,7 +367,7 @@ export default function AdminModpacksSection({ onModpacksUpdate, onManageMods })
     const targetType = type || serverLoaderType;
     if (targetType === 'none') return;
     if (!mcVersion) {
-      alert('Пожалуйста, сначала выберите версию Minecraft на первой вкладке!');
+      alert(lang === 'ru' ? 'Пожалуйста, сначала выберите версию Minecraft на первой вкладке!' : 'Please select Minecraft version on the first tab first!');
       return;
     }
     
@@ -380,10 +384,10 @@ export default function AdminModpacksSection({ onModpacksUpdate, onManageMods })
             setServerLoaderUrl(detail.downloads.server.url);
             setServerLoaderName(`minecraft_server.${mcVersion}.jar`);
           } else {
-            alert('Не удалось найти ссылку на серверную часть в манифесте Mojang.');
+            alert(lang === 'ru' ? 'Не удалось найти ссылку на серверную часть в манифесте Mojang.' : 'Failed to find server download link in Mojang manifest.');
           }
         } else {
-          alert('Версия Minecraft не найдена в манифесте Mojang.');
+          alert(lang === 'ru' ? 'Версия Minecraft не найдена в манифесте Mojang.' : 'Minecraft version not found in Mojang manifest.');
         }
       } else if (targetType === 'fabric') {
         if (installerUrl) {
@@ -404,7 +408,7 @@ export default function AdminModpacksSection({ onModpacksUpdate, onManageMods })
             setServerLoaderUrl(`https://maven.minecraftforge.net/net/minecraftforge/forge/${fullVersion}/forge-${fullVersion}-installer.jar`);
             setServerLoaderName(`forge-${fullVersion}-installer.jar`);
           } else {
-            alert('Сначала выполните автонастройку загрузчика клиента (Forge) на первой вкладке!');
+            alert(lang === 'ru' ? 'Сначала выполните автонастройку загрузчика клиента (Forge) на первой вкладке!' : 'Please autofill the client loader (Forge) on the first tab first!');
           }
         }
       } else if (targetType === 'neoforge') {
@@ -445,11 +449,11 @@ export default function AdminModpacksSection({ onModpacksUpdate, onManageMods })
           setServerLoaderUrl('https://github.com/IzzelAliz/Arclight/releases/download/Trials/1.0.6/arclight-forge-1.16.5-1.0.6.jar');
           setServerLoaderName('arclight-forge-1.16.5-1.0.6.jar');
         } else {
-          alert('Не удалось автоматически подобрать гибридное ядро для этой версии Minecraft. Укажите параметры вручную.');
+          alert(lang === 'ru' ? 'Не удалось автоматически подобрать гибридное ядро для этой версии Minecraft. Укажите параметры вручную.' : 'Could not automatically find hybrid core for this Minecraft version. Please specify settings manually.');
         }
       }
     } catch (err) {
-      alert(`Ошибка автонастройки серверного ядра: ${err.message}`);
+      alert(lang === 'ru' ? `Ошибка автонастройки серверного ядра: ${err.message}` : `Server core autofill error: ${err.message}`);
     } finally {
       setLoadingServerLoader(false);
     }
@@ -519,15 +523,14 @@ export default function AdminModpacksSection({ onModpacksUpdate, onManageMods })
 
   const handleSave = async (e) => {
     e.preventDefault();
-    if (!packId.trim() || !name.trim() || !mcVersion) {
-      alert('Заполните обязательные поля: ID, Название и Версия Minecraft!');
+    if (!cleanId || !name.trim() || !mcVersion) {
+      alert(lang === 'ru' ? 'Заполните обязательные поля: ID, Название и Версия Minecraft!' : 'Please fill in all required fields: ID, Name, and Minecraft Version!');
       return;
     }
     
     setSaving(true);
     
     // Construct pack object
-    const cleanId = packId.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '');
     const packObj = {
       id: cleanId,
       name: name.trim(),
@@ -577,7 +580,7 @@ export default function AdminModpacksSection({ onModpacksUpdate, onManageMods })
       
       // Check ID clash for new packs
       if (isNew && currentList.some(p => p.id === cleanId)) {
-        alert(`Сборка с ID "${cleanId}" уже существует! Выберите другой ID.`);
+        alert(lang === 'ru' ? `Сборка с ID "${cleanId}" уже существует! Выберите другой ID.` : `Pack with ID "${cleanId}" already exists! Please choose another ID.`);
         setSaving(false);
         return;
       }
@@ -593,7 +596,7 @@ export default function AdminModpacksSection({ onModpacksUpdate, onManageMods })
       // 2. Save modpacks.json back to R2
       const saveRes = await window.electronAPI.r2SaveModsJson('DivLauncher/modpacks.json', currentList);
       if (!saveRes.success) {
-        alert(saveRes.error || 'Ошибка при сохранении modpacks.json на R2');
+        alert(saveRes.error || (lang === 'ru' ? 'Ошибка при сохранении modpacks.json на R2' : 'Error saving modpacks.json to R2'));
         setSaving(false);
         return;
       }
@@ -608,7 +611,7 @@ export default function AdminModpacksSection({ onModpacksUpdate, onManageMods })
         }
       }
 
-      alert('Сборка успешно сохранена на R2!');
+      alert(lang === 'ru' ? 'Сборка успешно сохранена на R2!' : 'Pack successfully saved to R2!');
       setEditingPack(null);
       loadPacks();
       if (onModpacksUpdate) onModpacksUpdate();
@@ -620,7 +623,10 @@ export default function AdminModpacksSection({ onModpacksUpdate, onManageMods })
   };
 
   const handleDelete = async (pack) => {
-    if (!confirm(`Вы действительно хотите удалить официальную сборку "${pack.name}" (ID: ${pack.id})?\nВнимание! Это удалит её только из списка сборок. Файлы на R2 останутся.`)) {
+    if (!confirm(lang === 'ru' 
+      ? `Вы действительно хотите удалить официальную сборку "${pack.name}" (ID: ${pack.id})?\nВнимание! Это удалит её только из списка сборок. Файлы на R2 останутся.`
+      : `Are you sure you want to delete the official pack "${pack.name}" (ID: ${pack.id})?\nWarning! This will only remove it from the pack list. Files on R2 will remain.`
+    )) {
       return;
     }
 
@@ -632,14 +638,14 @@ export default function AdminModpacksSection({ onModpacksUpdate, onManageMods })
         const newList = listRes.data.filter(p => p.id !== pack.id);
         const saveRes = await window.electronAPI.r2SaveModsJson('DivLauncher/modpacks.json', newList);
         if (saveRes.success) {
-          alert('Сборка удалена!');
+          alert(lang === 'ru' ? 'Сборка удалена!' : 'Pack deleted!');
           loadPacks();
           if (onModpacksUpdate) onModpacksUpdate();
         } else {
-          alert(saveRes.error || 'Ошибка сохранения на R2');
+          alert(saveRes.error || (lang === 'ru' ? 'Ошибка сохранения на R2' : 'Error saving to R2'));
         }
       } else {
-        alert(listRes.error || 'Ошибка получения списка сборок');
+        alert(listRes.error || (lang === 'ru' ? 'Ошибка получения списка сборок' : 'Error getting modpacks list'));
       }
     } catch (err) {
       alert(err.message);
@@ -683,10 +689,10 @@ export default function AdminModpacksSection({ onModpacksUpdate, onManageMods })
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
           <div>
             <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '1px' }}>
-              Официальные сборки
+              {lang === 'ru' ? 'Официальные сборки' : 'Official Packs'}
             </h2>
             <p style={{ margin: '3px 0 0 0', fontSize: '11px', color: '#71717a', fontWeight: 600 }}>
-              Управление глобальным списком официальных сборок DivLauncher (`modpacks.json`)
+              {lang === 'ru' ? 'Управление глобальным списком официальных сборок DivLauncher (modpacks.json)' : 'Manage the global official modpacks list for DivLauncher (modpacks.json)'}
             </p>
           </div>
           <div style={{ display: 'flex', gap: '8px' }}>
@@ -700,7 +706,7 @@ export default function AdminModpacksSection({ onModpacksUpdate, onManageMods })
                 display: 'flex', alignItems: 'center', gap: '6px'
               }}
             >
-              <i className="fa-solid fa-plus" /> Создать сборку
+              <i className="fa-solid fa-plus" /> {lang === 'ru' ? 'Создать сборку' : 'Create Pack'}
             </motion.button>
             <button onClick={loadPacks} disabled={loading}
               style={{
@@ -726,14 +732,14 @@ export default function AdminModpacksSection({ onModpacksUpdate, onManageMods })
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: '15px' }}>
               <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1.5, ease: 'linear' }}
                 style={{ width: '36px', height: '36px', border: '3px solid rgba(167, 139, 250, 0.1)', borderTopColor: '#a78bfa', borderRadius: '50%' }} />
-              <span style={{ fontSize: '13px', color: '#a1a1aa', fontWeight: 600 }}>Загрузка сборок с R2...</span>
+              <span style={{ fontSize: '13px', color: '#a1a1aa', fontWeight: 600 }}>{lang === 'ru' ? 'Загрузка сборок с R2...' : 'Loading packs from R2...'}</span>
             </div>
           ) : packs.length === 0 ? (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: '12px', color: '#52525b' }}>
               <i className="fa-solid fa-box-open" style={{ fontSize: '42px' }} />
-              <span style={{ fontSize: '14px', fontWeight: 700 }}>Официальных сборок пока нет</span>
+              <span style={{ fontSize: '14px', fontWeight: 700 }}>{lang === 'ru' ? 'Официальных сборок пока нет' : 'No official packs yet'}</span>
               <button onClick={handleCreateClick} style={{ background: 'rgba(99,102,241,0.2)', color: '#818cf8', border: 'none', padding: '8px 16px', borderRadius: '10px', fontWeight: 800, cursor: 'pointer', fontSize: '12px' }}>
-                Создать первую сборку
+                {lang === 'ru' ? 'Создать первую сборку' : 'Create first pack'}
               </button>
             </div>
           ) : (
@@ -800,7 +806,7 @@ export default function AdminModpacksSection({ onModpacksUpdate, onManageMods })
                             background: 'rgba(16,185,129,0.06)', border: '1px solid rgba(16,185,129,0.18)',
                             color: '#34d399', width: '32px', height: '32px', borderRadius: '9px', cursor: 'pointer',
                             display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s'
-                          }} title="Управление модами и R2"
+                          }} title={lang === 'ru' ? 'Управление модами и R2' : 'Manage mods and R2'}
                         >
                           <i className="fa-solid fa-puzzle-piece" style={{ fontSize: '12px' }} />
                         </button>
@@ -811,7 +817,7 @@ export default function AdminModpacksSection({ onModpacksUpdate, onManageMods })
                           background: 'rgba(59,130,246,0.06)', border: '1px solid rgba(59,130,246,0.18)',
                           color: '#60a5fa', width: '32px', height: '32px', borderRadius: '9px', cursor: 'pointer',
                           display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s'
-                        }} title="Редактировать параметры"
+                        }} title={lang === 'ru' ? 'Редактировать параметры' : 'Edit settings'}
                       >
                         <i className="fa-solid fa-pen" style={{ fontSize: '12px' }} />
                       </button>
@@ -821,7 +827,7 @@ export default function AdminModpacksSection({ onModpacksUpdate, onManageMods })
                           background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.18)',
                           color: '#f87171', width: '32px', height: '32px', borderRadius: '9px', cursor: 'pointer',
                           display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s'
-                        }} title="Удалить сборку"
+                        }} title={lang === 'ru' ? 'Удалить сборку' : 'Delete pack'}
                       >
                         <i className="fa-solid fa-trash-can" style={{ fontSize: '12px' }} />
                       </button>
@@ -849,10 +855,10 @@ export default function AdminModpacksSection({ onModpacksUpdate, onManageMods })
         </button>
         <div>
           <h2 style={{ margin: 0, fontSize: '15px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '1px' }}>
-            {isNew ? 'Создание официальной сборки' : `Настройка: ${name}`}
+            {isNew ? (lang === 'ru' ? 'Создание официальной сборки' : 'Create Official Pack') : (lang === 'ru' ? `Настройка: ${name}` : `Settings: ${name}`)}
           </h2>
           <p style={{ margin: '2px 0 0 0', fontSize: '10px', color: '#71717a', fontWeight: 600 }}>
-            {isNew ? 'Заполните параметры новой сборки' : `Редактирование конфигурации с ID: ${packId}`}
+            {isNew ? (lang === 'ru' ? 'Заполните параметры новой сборки' : 'Fill in the parameters for the new pack') : (lang === 'ru' ? `Редактирование конфигурации с ID: ${packId}` : `Editing configuration with ID: ${packId}`)}
           </p>
         </div>
       </div>
@@ -860,9 +866,9 @@ export default function AdminModpacksSection({ onModpacksUpdate, onManageMods })
       {/* Form Tabs */}
       <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
         {[
-          { id: 'basic', label: 'Основные параметры', icon: 'fa-gears' },
-          { id: 'assets', label: 'Оформление (R2)', icon: 'fa-images' },
-          { id: 'server', label: 'Сервер & Сеть', icon: 'fa-network-wired' }
+          { id: 'basic', label: lang === 'ru' ? 'Основные параметры' : 'Basic Parameters', icon: 'fa-gears' },
+          { id: 'assets', label: lang === 'ru' ? 'Оформление (R2)' : 'Design (R2)', icon: 'fa-images' },
+          { id: 'server', label: lang === 'ru' ? 'Сервер & Сеть' : 'Server & Network', icon: 'fa-network-wired' }
         ].map(t => (
           <button key={t.id} onClick={() => setActiveFormTab(t.id)}
             style={{
@@ -889,30 +895,30 @@ export default function AdminModpacksSection({ onModpacksUpdate, onManageMods })
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px' }}>
                 <div>
-                  <label style={labelStyle}>ID Сборки (уникальный, латиница)*</label>
-                  <input type="text" placeholder="например: stalker"
-                    value={packId} onChange={e => setPackId(e.target.value)} disabled={!isNew}
+                  <label style={labelStyle}>{lang === 'ru' ? 'ID Сборки (уникальный, латиница)*' : 'Pack ID (unique, alphanumeric)*'}</label>
+                  <input type="text" placeholder={lang === 'ru' ? 'например: stalker' : 'e.g. stalker'}
+                    value={packId} onChange={e => setPackId(e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, ''))} disabled={!isNew}
                     style={{ ...inputStyle, textTransform: 'lowercase' }} required />
                 </div>
                 <div>
-                  <label style={labelStyle}>Название сборки*</label>
-                  <input type="text" placeholder="например: S.T.A.L.K.E.R BATTLE"
+                  <label style={labelStyle}>{lang === 'ru' ? 'Название сборки*' : 'Pack Name*'}</label>
+                  <input type="text" placeholder={lang === 'ru' ? 'например: S.T.A.L.K.E.R BATTLE' : 'e.g. S.T.A.L.K.E.R BATTLE'}
                     value={name} onChange={e => setName(e.target.value)} style={inputStyle} required />
                 </div>
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr', gap: '12px', alignItems: 'end' }}>
                 <FormSelect
-                  label="Версия Minecraft*"
+                  label={lang === 'ru' ? 'Версия Minecraft*' : 'Minecraft Version*'}
                   value={mcVersion}
                   options={versions.map(v => ({ value: v, label: `Minecraft ${v}` }))}
                   onChange={setMcVersion}
-                  placeholder="Выберите версию..."
+                  placeholder={lang === 'ru' ? 'Выберите версию...' : 'Select version...'}
                   showSearch={true}
                 />
                 
                 <FormSelect
-                  label="Загрузчик модов*"
+                  label={lang === 'ru' ? 'Загрузчик модов*' : 'Mod Loader*'}
                   value={loaderType}
                   options={[
                     { value: 'vanilla', label: 'Vanilla' },
@@ -921,7 +927,7 @@ export default function AdminModpacksSection({ onModpacksUpdate, onManageMods })
                     { value: 'neoforge', label: 'NeoForge' }
                   ]}
                   onChange={setLoaderType}
-                  placeholder="Загрузчик..."
+                  placeholder={lang === 'ru' ? 'Загрузчик...' : 'Loader...'}
                 />
 
                 <div>
@@ -930,7 +936,7 @@ export default function AdminModpacksSection({ onModpacksUpdate, onManageMods })
                       ...inputStyle, background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.25)', color: '#34d399', cursor: 'pointer', fontWeight: 800, textAlign: 'center'
                     }}
                   >
-                    <i className="fa-solid fa-wand-magic-sparkles" style={{ marginRight: '6px' }} /> Автонастройка
+                    <i className="fa-solid fa-wand-magic-sparkles" style={{ marginRight: '6px' }} /> {lang === 'ru' ? 'Автонастройка' : 'Autofill'}
                   </button>
                 </div>
               </div>
@@ -940,7 +946,7 @@ export default function AdminModpacksSection({ onModpacksUpdate, onManageMods })
                 <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: '12px', background: 'rgba(255,255,255,0.02)', padding: '12px', borderRadius: '14px', border: '1px solid rgba(255,255,255,0.04)' }}>
                   <div>
                     <label style={labelStyle}>Forge Installer URL</label>
-                    <input type="text" placeholder="Ссылка на установщик Forge .jar"
+                    <input type="text" placeholder={lang === 'ru' ? 'Ссылка на установщик Forge .jar' : 'Forge installer .jar link'}
                       value={forgeUrl} onChange={e => setForgeUrl(e.target.value)} style={inputStyle} />
                   </div>
                   <div>
@@ -954,18 +960,18 @@ export default function AdminModpacksSection({ onModpacksUpdate, onManageMods })
               {(loaderType === 'fabric' || loaderType === 'neoforge') && (
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr 1fr', gap: '12px', background: 'rgba(255,255,255,0.02)', padding: '12px', borderRadius: '14px', border: '1px solid rgba(255,255,255,0.04)' }}>
                   <div>
-                    <label style={labelStyle}>Версия загрузчика</label>
-                    <input type="text" placeholder="например: 0.16.10"
+                    <label style={labelStyle}>{lang === 'ru' ? 'Версия загрузчика' : 'Loader Version'}</label>
+                    <input type="text" placeholder={lang === 'ru' ? 'например: 0.16.10' : 'e.g. 0.16.10'}
                       value={loaderVersion} onChange={e => setLoaderVersion(e.target.value)} style={inputStyle} />
                   </div>
                   <div>
                     <label style={labelStyle}>Installer URL</label>
-                    <input type="text" placeholder="Ссылка на установщик Fabric"
+                    <input type="text" placeholder={lang === 'ru' ? 'Ссылка на установщик' : 'Installer URL'}
                       value={installerUrl} onChange={e => setInstallerUrl(e.target.value)} style={inputStyle} />
                   </div>
                   <div>
                     <label style={labelStyle}>Installer File Name</label>
-                    <input type="text" placeholder="fabric-installer-xxx.jar"
+                    <input type="text" placeholder="installer-xxx.jar"
                       value={installerName} onChange={e => setInstallerName(e.target.value)} style={inputStyle} />
                   </div>
                 </div>
@@ -973,20 +979,20 @@ export default function AdminModpacksSection({ onModpacksUpdate, onManageMods })
 
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px' }}>
                 <div>
-                  <label style={labelStyle}>Директория клиента (папка в AppData)*</label>
-                  <input type="text" placeholder="например: .stalker-client"
+                  <label style={labelStyle}>{lang === 'ru' ? 'Директория клиента (папка в AppData)*' : 'Client Directory (folder in AppData)*'}</label>
+                  <input type="text" placeholder={lang === 'ru' ? 'например: .stalker-client' : 'e.g. .stalker-client'}
                     value={clientDir} onChange={e => setClientDir(e.target.value)} style={inputStyle} required />
                 </div>
                 <div>
-                  <label style={labelStyle}>Директория сервера</label>
-                  <input type="text" placeholder="например: .stalker-server"
+                  <label style={labelStyle}>{lang === 'ru' ? 'Директория сервера' : 'Server Directory'}</label>
+                  <input type="text" placeholder={lang === 'ru' ? 'например: .stalker-server' : 'e.g. .stalker-server'}
                     value={serverDir} onChange={e => setServerDir(e.target.value)} style={inputStyle} />
                 </div>
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '12px', alignItems: 'end' }}>
                 <div>
-                  <label style={labelStyle}>Версия сборки (для обновлений)*</label>
+                  <label style={labelStyle}>{lang === 'ru' ? 'Версия сборки (для обновлений)*' : 'Pack Version (for updates)*'}</label>
                   <input type="text" placeholder="1.0.0"
                     value={packVersion} onChange={e => setPackVersion(e.target.value)} style={inputStyle} required />
                 </div>
@@ -994,32 +1000,32 @@ export default function AdminModpacksSection({ onModpacksUpdate, onManageMods })
                   <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '12px', fontWeight: 700 }}>
                     <input type="checkbox" checked={useZip} onChange={e => setUseZip(e.target.checked)}
                       style={{ width: '16px', height: '16px', accentColor: '#10b981' }} />
-                    Использовать единый ZIP архив вместо поштучной синхронизации модов через mods.json
+                    {lang === 'ru' ? 'Использовать единый ZIP архив вместо поштучной синхронизации модов через mods.json' : 'Use a single ZIP archive instead of individual mod synchronization via mods.json'}
                   </label>
                 </div>
               </div>
 
               {!useZip ? (
                 <div>
-                  <label style={labelStyle}>Ссылка на файл mods.json на R2*</label>
+                  <label style={labelStyle}>{lang === 'ru' ? 'Ссылка на файл mods.json на R2*' : 'Link to mods.json file on R2*'}</label>
                   <input type="text" placeholder="https://mc.diverlin.ru/.../mods.json"
                     value={modsJsonUrl} onChange={e => setModsJsonUrl(e.target.value)} style={inputStyle} required={!useZip} />
                 </div>
               ) : (
                 <div style={{ display: 'flex', gap: '10px', alignItems: 'end' }}>
                   <div style={{ flex: 1 }}>
-                    <label style={labelStyle}>Ссылка на ZIP архив сборки на R2*</label>
+                    <label style={labelStyle}>{lang === 'ru' ? 'Ссылка на ZIP архив сборки на R2*' : 'Link to pack ZIP archive on R2*'}</label>
                     <input type="text" placeholder="https://mc.diverlin.ru/.../pack.zip"
                       value={packZipUrl} onChange={e => setPackZipUrl(e.target.value)} style={inputStyle} required={useZip} />
                   </div>
-                  <button type="button" onClick={() => handleR2Upload('packZipUrl', `${packId}_V${packVersion.replace(/\./g, '')}`, 'zip')}
+                  <button type="button" onClick={() => handleR2Upload('packZipUrl', `${cleanId}_V${packVersion.replace(/\./g, '')}`, 'zip')}
                     disabled={uploadingField === 'packZipUrl'}
                     style={uploadBtnStyle('packZipUrl')}
                   >
                     {uploadingField === 'packZipUrl' ? (
                       <><i className="fa-solid fa-spinner fa-spin" /> {uploadProgress.packZipUrl || 0}%</>
                     ) : (
-                      <><i className="fa-solid fa-cloud-arrow-up" /> Загрузить ZIP</>
+                      <><i className="fa-solid fa-cloud-arrow-up" /> {lang === 'ru' ? 'Загрузить ZIP' : 'Upload ZIP'}</>
                     )}
                   </button>
                 </div>
@@ -1033,15 +1039,16 @@ export default function AdminModpacksSection({ onModpacksUpdate, onManageMods })
               <div style={{ display: 'flex', gap: '15px', background: 'rgba(99,102,241,0.06)', border: '1px solid rgba(99,102,241,0.15)', padding: '12px', borderRadius: '14px', alignItems: 'center' }}>
                 <i className="fa-solid fa-cloud-arrow-up" style={{ color: '#818cf8', fontSize: '20px' }} />
                 <span style={{ fontSize: '11px', color: '#a1a1aa', lineHeight: 1.4 }}>
-                  Все медиафайлы сборки будут автоматически загружены на Cloudflare R2 по пути: <code style={{ color: '#818cf8', fontSize: '10.5px' }}>DivLauncher/{packId || 'id'}/assets/</code>.
-                  Просто нажмите кнопку "Загрузить" рядом с соответствующим полем!
+                  {lang === 'ru' 
+                    ? `Все медиафайлы сборки будут автоматически загружены на Cloudflare R2 по пути: DivLauncher/${cleanId || 'id'}/assets/. Просто нажмите кнопку "Загрузить" рядом с соответствующим полем!`
+                    : `All media files for this pack will be automatically uploaded to Cloudflare R2 at: DivLauncher/${cleanId || 'id'}/assets/. Just click the "Upload" button next to the field!`}
                 </span>
               </div>
 
               {/* Background image */}
               <div style={{ display: 'flex', gap: '10px', alignItems: 'end' }}>
                 <div style={{ flex: 1 }}>
-                  <label style={labelStyle}>Изображение фона (bgImage)</label>
+                  <label style={labelStyle}>{lang === 'ru' ? 'Изображение фона (bgImage)' : 'Background Image (bgImage)'}</label>
                   <input type="text" placeholder="https://mc.diverlin.ru/.../bg.jpg"
                     value={bgImage} onChange={e => setBgImage(e.target.value)} style={inputStyle} />
                 </div>
@@ -1052,7 +1059,7 @@ export default function AdminModpacksSection({ onModpacksUpdate, onManageMods })
                   {uploadingField === 'bgImage' ? (
                     <><i className="fa-solid fa-spinner fa-spin" /> {uploadProgress.bgImage || 0}%</>
                   ) : (
-                    <><i className="fa-solid fa-cloud-arrow-up" /> Загрузить</>
+                    <><i className="fa-solid fa-cloud-arrow-up" /> {lang === 'ru' ? 'Загрузить' : 'Upload'}</>
                   )}
                 </button>
               </div>
@@ -1060,8 +1067,8 @@ export default function AdminModpacksSection({ onModpacksUpdate, onManageMods })
               {/* Background video */}
               <div style={{ display: 'flex', gap: '10px', alignItems: 'end' }}>
                 <div style={{ flex: 1 }}>
-                  <label style={labelStyle}>Видео фона (.webm - bgVideo)</label>
-                  <input type="text" placeholder="https://mc.diverlin.ru/.../bg.webm (необязательно)"
+                  <label style={labelStyle}>{lang === 'ru' ? 'Видео фона (.webm - bgVideo)' : 'Background Video (.webm - bgVideo)'}</label>
+                  <input type="text" placeholder={lang === 'ru' ? 'https://mc.diverlin.ru/.../bg.webm (необязательно)' : 'https://mc.diverlin.ru/.../bg.webm (optional)'}
                     value={bgVideo} onChange={e => setBgVideo(e.target.value)} style={inputStyle} />
                 </div>
                 <button type="button" onClick={() => handleR2Upload('bgVideo', 'bg_video', 'webm')}
@@ -1071,7 +1078,7 @@ export default function AdminModpacksSection({ onModpacksUpdate, onManageMods })
                   {uploadingField === 'bgVideo' ? (
                     <><i className="fa-solid fa-spinner fa-spin" /> {uploadProgress.bgVideo || 0}%</>
                   ) : (
-                    <><i className="fa-solid fa-cloud-arrow-up" /> Загрузить</>
+                    <><i className="fa-solid fa-cloud-arrow-up" /> {lang === 'ru' ? 'Загрузить' : 'Upload'}</>
                   )}
                 </button>
               </div>
@@ -1079,7 +1086,7 @@ export default function AdminModpacksSection({ onModpacksUpdate, onManageMods })
               {/* Logo */}
               <div style={{ display: 'flex', gap: '10px', alignItems: 'end' }}>
                 <div style={{ flex: 1 }}>
-                  <label style={labelStyle}>Логотип сборки (logo - прозрачный PNG)</label>
+                  <label style={labelStyle}>{lang === 'ru' ? 'Логотип сборки (logo - прозрачный PNG)' : 'Pack Logo (logo - transparent PNG)'}</label>
                   <input type="text" placeholder="https://mc.diverlin.ru/.../logo.png"
                     value={logo} onChange={e => setLogo(e.target.value)} style={inputStyle} />
                 </div>
@@ -1090,7 +1097,7 @@ export default function AdminModpacksSection({ onModpacksUpdate, onManageMods })
                   {uploadingField === 'logo' ? (
                     <><i className="fa-solid fa-spinner fa-spin" /> {uploadProgress.logo || 0}%</>
                   ) : (
-                    <><i className="fa-solid fa-cloud-arrow-up" /> Загрузить</>
+                    <><i className="fa-solid fa-cloud-arrow-up" /> {lang === 'ru' ? 'Загрузить' : 'Upload'}</>
                   )}
                 </button>
               </div>
@@ -1098,7 +1105,7 @@ export default function AdminModpacksSection({ onModpacksUpdate, onManageMods })
               {/* Icon */}
               <div style={{ display: 'flex', gap: '10px', alignItems: 'end' }}>
                 <div style={{ flex: 1 }}>
-                  <label style={labelStyle}>Иконка сборки (icon - квадратный PNG)</label>
+                  <label style={labelStyle}>{lang === 'ru' ? 'Иконка сборки (icon - квадратный PNG)' : 'Pack Icon (icon - square PNG)'}</label>
                   <input type="text" placeholder="https://mc.diverlin.ru/.../icon.png"
                     value={icon} onChange={e => setIcon(e.target.value)} style={inputStyle} />
                 </div>
@@ -1109,7 +1116,7 @@ export default function AdminModpacksSection({ onModpacksUpdate, onManageMods })
                   {uploadingField === 'icon' ? (
                     <><i className="fa-solid fa-spinner fa-spin" /> {uploadProgress.icon || 0}%</>
                   ) : (
-                    <><i className="fa-solid fa-cloud-arrow-up" /> Загрузить</>
+                    <><i className="fa-solid fa-cloud-arrow-up" /> {lang === 'ru' ? 'Загрузить' : 'Upload'}</>
                   )}
                 </button>
               </div>
@@ -1121,10 +1128,10 @@ export default function AdminModpacksSection({ onModpacksUpdate, onManageMods })
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr', gap: '12px', alignItems: 'end' }}>
                 <FormSelect
-                  label="Ядро сервера"
+                  label={lang === 'ru' ? 'Ядро сервера' : 'Server Core'}
                   value={serverLoaderType}
                   options={[
-                    { value: 'none', label: 'Не настраивать сервер' },
+                    { value: 'none', label: lang === 'ru' ? 'Не настраивать сервер' : 'Do not configure server' },
                     { value: 'vanilla', label: 'Vanilla' },
                     { value: 'forge', label: 'Forge' },
                     { value: 'fabric', label: 'Fabric' },
@@ -1137,7 +1144,7 @@ export default function AdminModpacksSection({ onModpacksUpdate, onManageMods })
                       handleAutoFillServerLoader(val);
                     }
                   }}
-                  placeholder="Выберите тип..."
+                  placeholder={lang === 'ru' ? 'Выберите тип...' : 'Select type...'}
                 />
                 
                 <div>
@@ -1155,9 +1162,9 @@ export default function AdminModpacksSection({ onModpacksUpdate, onManageMods })
                     }}
                   >
                     {loadingServerLoader ? (
-                      <><i className="fa-solid fa-spinner fa-spin" /> Поиск...</>
+                      <><i className="fa-solid fa-spinner fa-spin" /> {lang === 'ru' ? 'Поиск...' : 'Searching...'}</>
                     ) : (
-                      <><i className="fa-solid fa-wand-magic-sparkles" /> Автонастройка</>
+                      <><i className="fa-solid fa-wand-magic-sparkles" /> {lang === 'ru' ? 'Автонастройка' : 'Autofill'}</>
                     )}
                   </button>
                 </div>
@@ -1166,7 +1173,7 @@ export default function AdminModpacksSection({ onModpacksUpdate, onManageMods })
                   <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '11px', fontWeight: 700 }}>
                     <input type="checkbox" checked={autoInstallSkinsRestorer} onChange={e => setAutoInstallSkinsRestorer(e.target.checked)}
                       style={{ width: '16px', height: '16px', accentColor: '#10b981' }} />
-                    SkinsRestorer на сервер
+                    {lang === 'ru' ? 'SkinsRestorer на сервер' : 'SkinsRestorer on server'}
                   </label>
                 </div>
               </div>
@@ -1174,12 +1181,12 @@ export default function AdminModpacksSection({ onModpacksUpdate, onManageMods })
               {serverLoaderType !== 'none' && (
                 <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: '12px', background: 'rgba(255,255,255,0.02)', padding: '12px', borderRadius: '14px', border: '1px solid rgba(255,255,255,0.04)' }}>
                   <div>
-                    <label style={labelStyle}>URL Скачивания ядра сервера</label>
+                    <label style={labelStyle}>{lang === 'ru' ? 'URL Скачивания ядра сервера' : 'Server Core Download URL'}</label>
                     <input type="text" placeholder="https://github.com/.../arclight.jar"
                       value={serverLoaderUrl} onChange={e => setServerLoaderUrl(e.target.value)} style={inputStyle} />
                   </div>
                   <div>
-                    <label style={labelStyle}>Имя файла серверного ядра</label>
+                    <label style={labelStyle}>{lang === 'ru' ? 'Имя файла серверного ядра' : 'Server Core File Name'}</label>
                     <input type="text" placeholder="arclight-forge-xxxx.jar"
                       value={serverLoaderName} onChange={e => setServerLoaderName(e.target.value)} style={inputStyle} />
                   </div>
@@ -1199,7 +1206,7 @@ export default function AdminModpacksSection({ onModpacksUpdate, onManageMods })
               cursor: 'pointer', fontFamily: 'Montserrat'
             }}
           >
-            Отмена
+            {t('cancel')}
           </button>
           <button type="submit" disabled={saving}
             style={{
@@ -1211,9 +1218,9 @@ export default function AdminModpacksSection({ onModpacksUpdate, onManageMods })
             }}
           >
             {saving ? (
-              <><i className="fa-solid fa-spinner fa-spin" /> Сохранение...</>
+              <><i className="fa-solid fa-spinner fa-spin" /> {lang === 'ru' ? 'Сохранение...' : 'Saving...'}</>
             ) : (
-              <><i className="fa-solid fa-floppy-disk" /> Сохранить в modpacks.json</>
+              <><i className="fa-solid fa-floppy-disk" /> {lang === 'ru' ? 'Сохранить в modpacks.json' : 'Save to modpacks.json'}</>
             )}
           </button>
         </div>

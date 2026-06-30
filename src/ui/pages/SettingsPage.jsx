@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import * as skinview3d from 'skinview3d';
+import { useTranslation } from '../utils/i18n';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -48,11 +49,12 @@ const labelStyle = {
 // ─── Confirm Modal (заменяет window.confirm, который не работает в Electron без frame) ──
 
 function ConfirmModal({ title, message, onConfirm, onCancel }) {
+  const { t } = useTranslation();
   return (
     <motion.div
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
       style={{
-        position: 'fixed', inset: 0, zIndex: 9999,
+        position: 'fixed', inset: 0, zIndex: 999,
         background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(8px)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
       }}
@@ -83,7 +85,7 @@ function ConfirmModal({ title, message, onConfirm, onCancel }) {
               border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.05)',
               color: '#a1a1aa', cursor: 'pointer', fontFamily: 'Montserrat', fontWeight: 700, fontSize: '13px',
             }}>
-            Отмена
+            {t('cancel')}
           </motion.button>
           <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={onConfirm}
             style={{
@@ -91,7 +93,7 @@ function ConfirmModal({ title, message, onConfirm, onCancel }) {
               border: '1px solid rgba(239,68,68,0.3)', background: 'rgba(239,68,68,0.14)',
               color: '#f87171', cursor: 'pointer', fontFamily: 'Montserrat', fontWeight: 800, fontSize: '13px',
             }}>
-            Сбросить
+            {t('settings_reset')}
           </motion.button>
         </div>
       </motion.div>
@@ -215,6 +217,7 @@ function InfoBox({ color = '#a1a1aa', icon = 'fa-solid fa-circle-info', children
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function SettingsPage({ currentPack }) {
+  const { lang, setLang, t } = useTranslation();
   const [activeTab, setActiveTab] = useState('game');
   const [showConfirm, setShowConfirm] = useState(false);
 
@@ -310,27 +313,27 @@ export default function SettingsPage({ currentPack }) {
   // ═══════════════════════════════════════════════════════════════════════════
   const renderGame = () => (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-      <Section title="Оперативная память" icon="fa-solid fa-memory" color="#10b981">
+      <Section title={t('settings_ram')} icon="fa-solid fa-memory" color="#10b981">
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-            <label style={labelStyle}>Объём ОЗУ</label>
+            <label style={labelStyle}>{t('settings_ram_amount')}</label>
             <motion.span key={ram} initial={{ scale: 1.35, color: '#fff' }} animate={{ scale: 1, color: '#10b981' }}
               style={{ fontWeight: 900, fontSize: '22px', textShadow: '0 0 14px rgba(16,185,129,0.5)', fontFamily: 'Montserrat' }}>
-              {ram} ГБ
+              {ram} {lang === 'ru' ? 'ГБ' : 'GB'}
             </motion.span>
           </div>
           <input type="range" min="2" max={maxRam} step="1" value={ram}
             onChange={e => setRam(e.target.value)} style={{ width: '100%', cursor: 'pointer' }} />
           <div style={{ display: 'flex', gap: '6px', marginTop: '10px', flexWrap: 'wrap' }}>
             {['2','4','6','8','12','16','24','32','48','64'].filter(v => parseInt(v, 10) <= maxRam).map(v => (
-              <PresetBtn key={v} active={ram === v} color="#10b981" onClick={() => setRam(v)}>{v} ГБ</PresetBtn>
+              <PresetBtn key={v} active={ram === v} color="#10b981" onClick={() => setRam(v)}>{v} {lang === 'ru' ? 'ГБ' : 'GB'}</PresetBtn>
             ))}
           </div>
         </div>
       </Section>
 
-      <Section title="Окно Minecraft" icon="fa-solid fa-display" color="#60a5fa">
-        <Field label="Полноэкранный режим" row>
+      <Section title={t('settings_window')} icon="fa-solid fa-display" color="#60a5fa">
+        <Field label={t('settings_fullscreen')} row>
           <Toggle value={fullscreen} onChange={setFullscreen} color="#60a5fa" />
         </Field>
         <AnimatePresence>
@@ -339,14 +342,14 @@ export default function SettingsPage({ currentPack }) {
               exit={{ opacity: 0, height: 0 }} transition={{ duration: 0.22 }}
               style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column', gap: '12px' }}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 28px 1fr', gap: '8px', alignItems: 'end' }}>
-                <Field label="Ширина (px)">
+                <Field label={t('settings_width')}>
                   <motion.input whileHover={{ borderColor: 'rgba(96,165,250,0.4)' }}
                     whileFocus={{ borderColor: 'rgba(96,165,250,0.65)', boxShadow: '0 0 0 3px rgba(96,165,250,0.1)' }}
                     type="number" value={winWidth} onChange={e => setWinWidth(e.target.value)}
                     placeholder="1280" style={glassInput} />
                 </Field>
                 <div style={{ color: '#3f3f46', fontWeight: 900, fontSize: '18px', paddingBottom: '10px', textAlign: 'center' }}>×</div>
-                <Field label="Высота (px)">
+                <Field label={t('settings_height')}>
                   <motion.input whileHover={{ borderColor: 'rgba(96,165,250,0.4)' }}
                     whileFocus={{ borderColor: 'rgba(96,165,250,0.65)', boxShadow: '0 0 0 3px rgba(96,165,250,0.1)' }}
                     type="number" value={winHeight} onChange={e => setWinHeight(e.target.value)}
@@ -354,7 +357,7 @@ export default function SettingsPage({ currentPack }) {
                 </Field>
               </div>
               <div>
-                <label style={labelStyle}>Быстрый выбор</label>
+                <label style={labelStyle}>{t('settings_quick_select')}</label>
                 <div style={{ display: 'flex', gap: '6px' }}>
                   {[{l:'1280×720',w:'1280',h:'720'},{l:'1920×1080',w:'1920',h:'1080'},{l:'2560×1440',w:'2560',h:'1440'}].map(r => (
                     <PresetBtn key={r.l} active={winWidth===r.w && winHeight===r.h} color="#60a5fa"
@@ -374,21 +377,21 @@ export default function SettingsPage({ currentPack }) {
   // ═══════════════════════════════════════════════════════════════════════════
   const renderJava = () => (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-      <Section title="Java для клиента" icon="fa-solid fa-mug-hot" color="#ef4444">
-        <Field label="Путь к Java 17 (Клиент)">
+      <Section title={t('settings_java_client')} icon="fa-solid fa-mug-hot" color="#ef4444">
+        <Field label={t('settings_java_client_path')}>
           <motion.input whileHover={{ borderColor: 'rgba(239,68,68,0.4)' }}
             whileFocus={{ borderColor: 'rgba(239,68,68,0.65)', boxShadow: '0 0 0 3px rgba(239,68,68,0.1)' }}
             type="text" value={clientJava} onChange={e => setClientJava(e.target.value)}
-            placeholder="Оставьте пустым для авто-загрузки (Рекомендуется)" spellCheck="false" style={glassInput} />
+            placeholder={t('settings_java_placeholder')} spellCheck="false" style={glassInput} />
         </Field>
-        <InfoBox color="#ef4444">При пустом поле Java 17 скачается автоматически при первом запуске.</InfoBox>
+        <InfoBox color="#ef4444">{t('settings_java_info')}</InfoBox>
       </Section>
-      <Section title="Java для сервера" icon="fa-solid fa-server" color="#f43f5e">
-        <Field label="Путь к Java 17 (Сервер)">
+      <Section title={t('settings_java_server')} icon="fa-solid fa-server" color="#f43f5e">
+        <Field label={t('settings_java_server_path')}>
           <motion.input whileHover={{ borderColor: 'rgba(244,63,94,0.4)' }}
             whileFocus={{ borderColor: 'rgba(244,63,94,0.65)', boxShadow: '0 0 0 3px rgba(244,63,94,0.1)' }}
             type="text" value={serverJava} onChange={e => setServerJava(e.target.value)}
-            placeholder="Оставьте пустым для авто-загрузки (Рекомендуется)" spellCheck="false" style={glassInput} />
+            placeholder={t('settings_java_placeholder')} spellCheck="false" style={glassInput} />
         </Field>
       </Section>
     </div>
@@ -399,28 +402,28 @@ export default function SettingsPage({ currentPack }) {
   // ═══════════════════════════════════════════════════════════════════════════
   const renderNetwork = () => (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-      <Section title="Режим подключения" icon="fa-solid fa-tower-broadcast" color="#3b82f6">
+      <Section title={t('settings_network_mode')} icon="fa-solid fa-tower-broadcast" color="#3b82f6">
         <SegmentControl value={mode} onChange={setMode}
           options={[
-            { value: 'host',    label: 'Я хост',       icon: 'fa-solid fa-house-signal',    color: '#3b82f6' },
-            { value: 'connect', label: 'Подключиться', icon: 'fa-solid fa-plug-circle-bolt', color: '#8b5cf6' },
+            { value: 'host',    label: t('settings_mode_host'),       icon: 'fa-solid fa-house-signal',    color: '#3b82f6' },
+            { value: 'connect', label: t('settings_mode_connect'), icon: 'fa-solid fa-plug-circle-bolt', color: '#8b5cf6' },
           ]}
         />
         <AnimatePresence mode="popLayout">
           {mode === 'connect' && (
             <motion.div key="ip" initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.18 }}>
-              <Field label="IP адрес сервера">
+              <Field label={t('settings_server_ip')}>
                 <motion.input whileHover={{ borderColor: 'rgba(59,130,246,0.4)' }}
                   whileFocus={{ borderColor: 'rgba(59,130,246,0.65)', boxShadow: '0 0 0 3px rgba(59,130,246,0.1)' }}
                   type="text" value={ip} onChange={e => setIp(e.target.value)}
-                  placeholder="Например: 26.15.112.5" style={glassInput} />
+                  placeholder={t('settings_ip_placeholder')} style={glassInput} />
               </Field>
             </motion.div>
           )}
         </AnimatePresence>
         {mode === 'host' && (
-          <InfoBox color="#3b82f6">Сервер запустится на вашем компьютере. Дайте друзьям свой IP-адрес для подключения.</InfoBox>
+          <InfoBox color="#3b82f6">{t('settings_host_info')}</InfoBox>
         )}
       </Section>
     </div>
@@ -431,12 +434,21 @@ export default function SettingsPage({ currentPack }) {
   // ═══════════════════════════════════════════════════════════════════════════
   const renderMisc = () => (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-      <Section title="Интерфейс" icon="fa-solid fa-palette" color="#14b8a6">
+      <Section title={t('settings_lang')} icon="fa-solid fa-language" color="#6366f1">
+        <SegmentControl value={lang} onChange={setLang}
+          options={[
+            { value: 'ru', label: 'Русский', icon: 'fa-solid fa-font', color: '#6366f1' },
+            { value: 'en', label: 'English', icon: 'fa-solid fa-font', color: '#10b981' }
+          ]}
+        />
+      </Section>
+
+      <Section title={t('settings_interface')} icon="fa-solid fa-palette" color="#14b8a6">
         <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               <i className="fa-solid fa-film" style={{ color: '#14b8a6' }}></i>
-              <span style={{ color: '#fff', fontSize: '14px', fontFamily: 'Montserrat' }}>Анимированный фон (видео)</span>
+              <span style={{ color: '#fff', fontSize: '14px', fontFamily: 'Montserrat' }}>{t('settings_animated_bg')}</span>
             </div>
             <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
               <input type="checkbox" checked={animatedBg} onChange={(e) => {
@@ -450,11 +462,11 @@ export default function SettingsPage({ currentPack }) {
             </label>
           </div>
           <InfoBox color="#14b8a6" icon="fa-solid fa-circle-info">
-            Изменение применяется мгновенно. Отключите, если лаунчер тормозит.
+            {t('settings_interface_info')}
           </InfoBox>
         </div>
       </Section>
-      <Section title="Профиль настроек" icon="fa-solid fa-floppy-disk" color="#f59e0b">
+      <Section title={t('settings_profile_config')} icon="fa-solid fa-floppy-disk" color="#f59e0b">
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
           <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={handleExport}
             style={{
@@ -463,7 +475,7 @@ export default function SettingsPage({ currentPack }) {
               fontFamily: 'Montserrat', fontWeight: 800, fontSize: '12px',
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
             }}>
-            <i className="fa-solid fa-file-export" /> Экспорт
+            <i className="fa-solid fa-file-export" /> {t('settings_export')}
           </motion.button>
           <label style={{ cursor: 'pointer', display: 'block' }}>
             <motion.div whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
@@ -473,15 +485,15 @@ export default function SettingsPage({ currentPack }) {
                 fontFamily: 'Montserrat', fontWeight: 800, fontSize: '12px',
                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
               }}>
-              <i className="fa-solid fa-file-import" /> Импорт
+              <i className="fa-solid fa-file-import" /> {t('settings_import')}
             </motion.div>
             <input ref={importRef} type="file" accept=".json" style={{ display: 'none' }} onChange={handleImport} />
           </label>
         </div>
-        <InfoBox color="#f59e0b">Скин и аккаунт Xbox не включаются в экспорт.</InfoBox>
+        <InfoBox color="#f59e0b">{t('settings_profile_info')}</InfoBox>
       </Section>
 
-      <Section title="Сброс" icon="fa-solid fa-rotate-left" color="#ef4444">
+      <Section title={t('settings_reset')} icon="fa-solid fa-rotate-left" color="#ef4444">
         <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
           onClick={() => setShowConfirm(true)}
           style={{
@@ -490,7 +502,7 @@ export default function SettingsPage({ currentPack }) {
             fontFamily: 'Montserrat', fontWeight: 800, fontSize: '12px', width: '100%',
             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
           }}>
-          <i className="fa-solid fa-trash-can" /> Сбросить все настройки
+          <i className="fa-solid fa-trash-can" /> {t('settings_reset_all')}
         </motion.button>
       </Section>
     </div>
@@ -505,8 +517,8 @@ export default function SettingsPage({ currentPack }) {
       <AnimatePresence>
         {showConfirm && (
           <ConfirmModal
-            title="Сбросить настройки?"
-            message="Все настройки будут удалены. Это действие нельзя отменить."
+            title={t('settings_reset_confirm_title')}
+            message={t('settings_reset_confirm_msg')}
             onConfirm={handleReset}
             onCancel={() => setShowConfirm(false)}
           />
@@ -521,7 +533,7 @@ export default function SettingsPage({ currentPack }) {
             letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '12px',
             textShadow: '0 4px 14px rgba(0,0,0,0.6)',
           }}>
-            Настройки
+            {t('settings_title')}
           </h1>
           <div style={{
             display: 'flex', gap: '4px', background: 'rgba(0,0,0,0.4)',
@@ -543,14 +555,14 @@ export default function SettingsPage({ currentPack }) {
                   }}>
                   {active && (
                     <motion.div layoutId="tabHL"
-                      style={{
+                       style={{
                         position: 'absolute', inset: 0, borderRadius: '11px',
                         background: `${tab.color}14`, border: `1px solid ${tab.color}32`,
                       }}
                       transition={{ type: 'spring', stiffness: 380, damping: 35 }} />
                   )}
                   <i className={tab.icon} style={{ fontSize: '11px', position: 'relative' }} />
-                  <span style={{ position: 'relative' }}>{tab.label}</span>
+                  <span style={{ position: 'relative' }}>{t('tab_' + tab.id)}</span>
                 </motion.button>
               );
             })}

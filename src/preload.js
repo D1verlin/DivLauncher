@@ -1,4 +1,4 @@
-const { contextBridge, ipcRenderer } = require('electron');
+const { contextBridge, ipcRenderer, webUtils } = require('electron');
 
 contextBridge.exposeInMainWorld('electronAPI', {
   launchGame: (options) => ipcRenderer.send('launch-game', options),
@@ -65,10 +65,19 @@ contextBridge.exposeInMainWorld('electronAPI', {
   updateBio:       (bio) => ipcRenderer.invoke('update-bio', bio),
   getUsers:        () => ipcRenderer.invoke('get-users'),
   getAuthServerUrl:() => ipcRenderer.invoke('get-auth-server-url'),
+  startGoogleAuth: (action) => ipcRenderer.invoke('start-google-auth', action),
+  updateProfileCustomization: (updates) => ipcRenderer.invoke('update-profile-customization', updates),
+  uploadBackground: () => ipcRenderer.invoke('upload-background'),
+  uploadAvatar: () => ipcRenderer.invoke('upload-avatar'),
+  unlinkGoogle: () => ipcRenderer.invoke('unlink-google'),
   // --- ADMIN APIs ---
   getAdminUsers:    () => ipcRenderer.invoke('get-admin-users'),
   updateAdminUser:  (id, updates) => ipcRenderer.invoke('update-admin-user', id, updates),
   deleteAdminUser:  (id) => ipcRenderer.invoke('delete-admin-user', id),
+  getBadges:        () => ipcRenderer.invoke('get-badges'),
+  createAdminBadge: (badge) => ipcRenderer.invoke('create-admin-badge', badge),
+  updateAdminBadge: (id, badge) => ipcRenderer.invoke('update-admin-badge', id, badge),
+  deleteAdminBadge: (id) => ipcRenderer.invoke('delete-admin-badge', id),
   getCustomPacks: () => ipcRenderer.invoke('get-custom-packs'),
   saveCustomPack: (pack) => ipcRenderer.invoke('save-custom-pack', pack),
   importCustomPack: () => ipcRenderer.invoke('import-custom-pack'),
@@ -80,12 +89,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
   setDiscordPlaying: (packName) => ipcRenderer.send('discord-status-playing', packName),
   
   // --- MOD MANAGEMENT ---
-  getInstalledMods: (clientDir) => ipcRenderer.invoke('get-installed-mods', clientDir),
-  downloadMod: (url, clientDir, fileName) => ipcRenderer.invoke('download-mod', url, clientDir, fileName),
-  deleteMod: (clientDir, fileName) => ipcRenderer.invoke('delete-mod', clientDir, fileName),
+  getInstalledMods: (clientDir, projectType) => ipcRenderer.invoke('get-installed-mods', clientDir, projectType),
+  downloadMod: (url, clientDir, fileName, projectType) => ipcRenderer.invoke('download-mod', url, clientDir, fileName, projectType),
+  deleteMod: (clientDir, fileName, projectType) => ipcRenderer.invoke('delete-mod', clientDir, fileName, projectType),
   searchCurse: (query, options) => ipcRenderer.invoke('search-curse', query, options),
   getCurseVersions: (modId, loaders, gameVersions) => ipcRenderer.invoke('get-curse-versions', modId, loaders, gameVersions),
   getCurseProject: (modId) => ipcRenderer.invoke('get-curse-project', modId),
+  searchModrinth: (query, options) => ipcRenderer.invoke('search-modrinth', query, options),
+  getModrinthVersions: (modId, loaders, gameVersions) => ipcRenderer.invoke('get-modrinth-versions', modId, loaders, gameVersions),
+  getModrinthProject: (modId) => ipcRenderer.invoke('get-modrinth-project', modId),
   openExternalLink: (url) => ipcRenderer.send('open-external-link', url),
 
   // --- R2 ADMIN FILE MANAGER ---
@@ -96,6 +108,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   r2GetModsJson:   (key) => ipcRenderer.invoke('r2-get-mods-json', key),
   r2SaveModsJson:  (key, content) => ipcRenderer.invoke('r2-save-mods-json', key, content),
   onR2UploadProgress: (callback) => ipcRenderer.on('r2-upload-progress', callback),
+  getPathForFile: (file) => {
+    if (webUtils && typeof webUtils.getPathForFile === 'function') {
+      return webUtils.getPathForFile(file);
+    }
+    return file.path;
+  },
 
   // --- SYSTEM INFO & BACKUPS ---
   getSystemMemory: () => ipcRenderer.invoke('get-system-memory'),

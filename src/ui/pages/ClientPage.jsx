@@ -1,18 +1,20 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useTranslation } from '../utils/i18n';
 
 // --- ФУНКЦИЯ ФОРМАТИРОВАНИЯ ВРЕМЕНИ ---
-const formatPlaytime = (ms) => {
+const formatPlaytime = (ms, t) => {
   const totalMins = Math.floor(ms / 60000);
-  if (totalMins === 0) return 'Меньше минуты';
-  if (totalMins < 60) return `${totalMins} мин.`;
+  if (totalMins === 0) return t('client_playtime_less_minute');
+  if (totalMins < 60) return `${totalMins}${t('client_playtime_minutes')}`;
   const h = Math.floor(totalMins / 60);
   const m = totalMins % 60;
-  return `${h} ч. ${m} мин.`;
+  return `${h}${t('client_playtime_hours')}${m}${t('client_playtime_minutes')}`;
 };
 
 export default function ClientPage({ openSettings, openMods, currentPack, onDeletePack }) {
-  const [status, setStatus] = useState(`Готово к запуску`);
+  const { lang, t } = useTranslation();
+  const [status, setStatus] = useState(t('client_ready'));
   const [isLaunching, setIsLaunching] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
@@ -80,9 +82,9 @@ export default function ClientPage({ openSettings, openMods, currentPack, onDele
     const savedTime = parseInt(localStorage.getItem(`playtime_${currentPack.id}`) || '0', 10);
     setPlaytime(savedTime);
     
-    let initialStatus = 'Готово к запуску';
-    if (needsInstall) initialStatus = `Требуется установка: v${currentPack.packVersion}`;
-    else if (needsUpdate) initialStatus = `Доступно обновление: v${currentPack.packVersion}`;
+    let initialStatus = t('client_ready');
+    if (needsInstall) initialStatus = `${t('client_needs_install')}${currentPack.packVersion}`;
+    else if (needsUpdate) initialStatus = `${t('client_needs_update')}${currentPack.packVersion}`;
     
     setStatus(initialStatus);
     setConsoleLogs([]); 
@@ -115,7 +117,7 @@ export default function ClientPage({ openSettings, openMods, currentPack, onDele
     if (window.electronAPI.onDownloadProgress) {
       window.electronAPI.onDownloadProgress((event, percent) => {
         setDownloadProgress(percent);
-        setStatus(`Загрузка файлов: ${percent}%`);
+        setStatus(`${t('client_updating')} (${percent}%)`);
       });
     }
 
@@ -123,7 +125,10 @@ export default function ClientPage({ openSettings, openMods, currentPack, onDele
       window.electronAPI.onUpdateDone(() => {
         localStorage.setItem(`installed_v_${currentPackRef.current.id}`, currentPackRef.current.packVersion);
         setIsUpdating(false);
-        setStatus(needsInstall ? 'Сборка успешно установлена!' : 'Сборка обновлена!');
+        setStatus(needsInstall 
+          ? (lang === 'ru' ? 'Сборка успешно установлена!' : 'Modpack installed successfully!') 
+          : (lang === 'ru' ? 'Сборка обновлена!' : 'Modpack updated!')
+        );
       });
     }
 
@@ -146,7 +151,7 @@ export default function ClientPage({ openSettings, openMods, currentPack, onDele
           )) {
             setIsLaunching(false);
             setIsPlaying(true); 
-            setStatus('Игра запущена!'); 
+            setStatus(t('client_playing')); 
             // ЗАПУСКАЕМ ТАЙМЕР
             sessionStartRef.current = Date.now();
 
@@ -160,14 +165,17 @@ export default function ClientPage({ openSettings, openMods, currentPack, onDele
       }
       
       setStatus(msg);
-      if (msg.includes('Запуск Minecraft...')) {
-        setConsoleLogs(["Инициализация движка...", "Передача управления Java..."]);
+      if (msg.includes('Запуск Minecraft...') || msg.includes('Launching Minecraft...')) {
+        setConsoleLogs(lang === 'ru' 
+          ? ["Инициализация движка...", "Передача управления Java..."] 
+          : ["Initializing engine...", "Handing over to Java..."]
+        );
       }
     });
 
     window.electronAPI.onError((event, msg) => { 
-      setStatus(`Ошибка: ${msg}`); 
-      fullLogsRef.current.push(`[ERROR] Ошибка запуска: ${msg}`);
+      setStatus(`${t('error')}: ${msg}`); 
+      fullLogsRef.current.push(`[ERROR] ${lang === 'ru' ? 'Ошибка запуска' : 'Launch error'}: ${msg}`);
       setIsLaunching(false); 
       setIsPlaying(false);
       setIsUpdating(false);
@@ -184,7 +192,7 @@ export default function ClientPage({ openSettings, openMods, currentPack, onDele
         sessionStartRef.current = null;
       }
 
-      setStatus('Игра закрыта.'); 
+      setStatus(t('client_closed')); 
       setIsLaunching(false); 
       setIsPlaying(false); 
       setConsoleLogs([]); 
@@ -212,7 +220,7 @@ export default function ClientPage({ openSettings, openMods, currentPack, onDele
 
     if (needsInstall || needsUpdate) {
       setIsUpdating(true);
-      setStatus(needsInstall ? 'Начинаем установку...' : 'Начинаем обновление...');
+      setStatus(needsInstall ? t('client_updating') : t('client_launching'));
       if (window.electronAPI.updatePack) {
         window.electronAPI.updatePack(currentPack);
       }
@@ -220,15 +228,15 @@ export default function ClientPage({ openSettings, openMods, currentPack, onDele
     }
 
     if (activeUsername.length < 3) { 
-      setStatus('⚠️ Авторизуйтесь в настройках!'); 
+      setStatus(t('client_username_warning')); 
       return; 
     }
     
     setIsLaunching(true);
     setIsPlaying(false);
-    setStatus('Подготовка к запуску...');
-    fullLogsRef.current = ['Проверка файлов сборки...'];
-    setConsoleLogs(['Проверка файлов сборки...']);
+    setStatus(t('client_launching'));
+    fullLogsRef.current = [t('client_launching')];
+    setConsoleLogs([t('client_launching')]);
 
     window.electronAPI.launchGame({
       pack: currentPack,
@@ -327,7 +335,7 @@ export default function ClientPage({ openSettings, openMods, currentPack, onDele
         <motion.div variants={itemVariants} style={{ display: 'flex', alignItems: 'center', gap: '15px', minHeight: '30px', marginBottom: '35px', position: 'relative', width: '100%' }}>
           <div style={{ background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.05)', padding: '6px 12px', borderRadius: '10px', fontSize: '13px', color: '#a1a1aa', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px', boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.3)', flexShrink: 0 }}>
             <i className="fa-regular fa-clock" style={{ color: '#3b82f6' }}></i>
-            В игре: <span style={{ color: '#fff' }}>{formatPlaytime(playtime)}</span>
+            {t('client_playtime')}<span style={{ color: '#fff' }}>{formatPlaytime(playtime, t)}</span>
           </div>
           <p style={{ 
             fontSize: '15px', 
@@ -378,7 +386,7 @@ export default function ClientPage({ openSettings, openMods, currentPack, onDele
             {(isLaunching || isUpdating) ? <i className="fa-solid fa-spinner fa-spin"></i> : (isPlaying ? <i className="fa-solid fa-stop"></i> : (needsInstall ? <i className="fa-solid fa-download"></i> : (needsUpdate ? <i className="fa-solid fa-cloud-arrow-down"></i> : <i className="fa-solid fa-play"></i>)))} 
             
             {/* ТЕКСТ */}
-            {isLaunching ? 'ЗАПУСК...' : (isUpdating ? (needsInstall ? 'УСТАНОВКА...' : 'ОБНОВЛЕНИЕ...') : (isPlaying ? 'ОСТАНОВИТЬ' : (needsInstall ? 'УСТАНОВИТЬ СБОРКУ' : (needsUpdate ? 'ОБНОВИТЬ СБОРКУ' : 'ИГРАТЬ'))))}
+            {isLaunching ? (lang === 'ru' ? 'ЗАПУСК...' : 'LAUNCHING...') : (isUpdating ? (needsInstall ? (lang === 'ru' ? 'УСТАНОВКА...' : 'INSTALLING...') : (lang === 'ru' ? 'ОБНОВЛЕНИЕ...' : 'UPDATING...')) : (isPlaying ? (lang === 'ru' ? 'ОСТАНОВИТЬ' : 'STOP') : (needsInstall ? t('client_install').toUpperCase() : (needsUpdate ? t('client_update').toUpperCase() : t('client_play').toUpperCase()))))}
           </motion.button>
 
           <motion.button 
@@ -386,7 +394,7 @@ export default function ClientPage({ openSettings, openMods, currentPack, onDele
             whileTap={!(isLaunching || isUpdating) && !isPlaying ? { scale: 0.95 } : {}} 
             onClick={!(isLaunching || isUpdating) && !isPlaying ? openSettings : undefined} 
             style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(10px)', color: (isLaunching || isUpdating || isPlaying) ? 'rgba(255,255,255,0.3)' : '#fff', border: '1px solid rgba(255,255,255,0.1)', width: '65px', height: '65px', borderRadius: '20px', fontSize: '22px', cursor: (isLaunching || isUpdating || isPlaying) ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 10px 25px rgba(0,0,0,0.5)', transition: 'color 0.3s' }}
-            title="Настройки"
+            title={t('tab_settings')}
           >
             <i className="fa-solid fa-sliders"></i>
           </motion.button>
@@ -396,7 +404,7 @@ export default function ClientPage({ openSettings, openMods, currentPack, onDele
             whileTap={!(isLaunching || isUpdating) && !isPlaying ? { scale: 0.95 } : {}} 
             onClick={!(isLaunching || isUpdating) && !isPlaying ? openMods : undefined} 
             style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(10px)', color: (isLaunching || isUpdating || isPlaying) ? 'rgba(255,255,255,0.3)' : '#fff', border: '1px solid rgba(255,255,255,0.1)', width: '65px', height: '65px', borderRadius: '20px', fontSize: '22px', cursor: (isLaunching || isUpdating || isPlaying) ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 10px 25px rgba(0,0,0,0.5)', transition: 'color 0.3s' }}
-            title="Моды"
+            title={t('tab_mods')}
           >
             <i className="fa-solid fa-puzzle-piece"></i>
           </motion.button>
@@ -405,7 +413,7 @@ export default function ClientPage({ openSettings, openMods, currentPack, onDele
             whileHover={!(isLaunching || isUpdating) ? { background: 'rgba(0,0,0,0.8)', scale: 1.05, borderColor: 'rgba(255,255,255,0.3)' } : {}} 
             whileTap={!(isLaunching || isUpdating) ? { scale: 0.95 } : {}} onClick={!(isLaunching || isUpdating) ? () => window.electronAPI.openClientFolder(currentPack) : undefined} 
             style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(10px)', color: (isLaunching || isUpdating) ? 'rgba(255,255,255,0.3)' : '#fff', border: '1px solid rgba(255,255,255,0.1)', width: '65px', height: '65px', borderRadius: '20px', fontSize: '22px', cursor: (isLaunching || isUpdating) ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 10px 25px rgba(0,0,0,0.5)', transition: 'color 0.3s' }}
-            title="Папка сборки"
+            title={lang === 'ru' ? 'Папка сборки' : 'Pack Folder'}
           >
             <i className="fa-regular fa-folder-open"></i>
           </motion.button>
@@ -418,7 +426,7 @@ export default function ClientPage({ openSettings, openMods, currentPack, onDele
               whileTap={{ scale: 0.95 }}
               onClick={handleExportLogs} 
               style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(10px)', color: '#fff', border: '1px solid rgba(255,255,255,0.1)', width: '65px', height: '65px', borderRadius: '20px', fontSize: '22px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 10px 25px rgba(0,0,0,0.5)', transition: 'color 0.3s' }}
-              title="Экспорт логов"
+              title={t('client_export_logs')}
             >
               <i className="fa-solid fa-file-arrow-down"></i>
             </motion.button>

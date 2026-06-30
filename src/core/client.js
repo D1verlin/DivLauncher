@@ -10,6 +10,7 @@ const AdmZip = require('adm-zip');
 axios.defaults.headers.common['User-Agent'] = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36';
 const { app, shell, dialog, Notification } = require('electron'); 
 const { execSync } = require('child_process');
+const { Worker } = require('worker_threads');
 const { Client, Authenticator } = require('minecraft-launcher-core');
 
 const launcher = new Client();
@@ -1442,6 +1443,117 @@ module.exports = function(ipcMain) {
     }
   });
 
+  ipcMain.handle('get-badges', async () => {
+    const logger = createLogger();
+    logger.log("=== [get-badges] START ===");
+    try {
+      logger.log(`Fetching badges from Web API: ${AUTH_SERVER}/api/badges`);
+      const response = await axios.get(`${AUTH_SERVER}/api/badges`);
+      return { success: true, badges: response.data };
+    } catch (err) {
+      let errMsg = err.message;
+      if (err.response && err.response.data) {
+        const resData = err.response.data;
+        errMsg = resData.errorMessage || resData.error || errMsg;
+      }
+      logger.log("get-badges failed:", errMsg);
+      return { success: false, error: errMsg };
+    }
+  });
+
+  ipcMain.handle('create-admin-badge', async (event, badge) => {
+    const logger = createLogger();
+    logger.log("=== [create-admin-badge] START ===");
+    try {
+      const cacheFile = getCustomCacheFile();
+      if (!fs.existsSync(cacheFile)) {
+        return { success: false, error: 'Вы не авторизованы', logs: logger.getLogs() };
+      }
+      const cached = JSON.parse(fs.readFileSync(cacheFile, 'utf8'));
+      const webToken = cached.webToken;
+      if (!webToken) {
+        return { success: false, error: 'Токен веб-авторизации не найден', logs: logger.getLogs() };
+      }
+
+      logger.log(`Creating badge via Web API: ${AUTH_SERVER}/api/admin/badges`);
+      const response = await axios.post(`${AUTH_SERVER}/api/admin/badges`, badge, {
+        headers: { 'Authorization': `Bearer ${webToken}` }
+      });
+
+      return { success: true, badge: response.data };
+    } catch (err) {
+      let errMsg = err.message;
+      if (err.response && err.response.data) {
+        const resData = err.response.data;
+        errMsg = resData.errorMessage || resData.error || errMsg;
+      }
+      logger.log("create-admin-badge failed:", errMsg);
+      return { success: false, error: errMsg };
+    }
+  });
+
+  ipcMain.handle('update-admin-badge', async (event, id, badge) => {
+    const logger = createLogger();
+    logger.log(`=== [update-admin-badge] START (id: ${id}) ===`);
+    try {
+      const cacheFile = getCustomCacheFile();
+      if (!fs.existsSync(cacheFile)) {
+        return { success: false, error: 'Вы не авторизованы', logs: logger.getLogs() };
+      }
+      const cached = JSON.parse(fs.readFileSync(cacheFile, 'utf8'));
+      const webToken = cached.webToken;
+      if (!webToken) {
+        return { success: false, error: 'Токен веб-авторизации не найден', logs: logger.getLogs() };
+      }
+
+      logger.log(`Updating badge ${id} via Web API: ${AUTH_SERVER}/api/admin/badges/${id}`);
+      const response = await axios.put(`${AUTH_SERVER}/api/admin/badges/${id}`, badge, {
+        headers: { 'Authorization': `Bearer ${webToken}` }
+      });
+
+      return { success: true, badge: response.data };
+    } catch (err) {
+      let errMsg = err.message;
+      if (err.response && err.response.data) {
+        const resData = err.response.data;
+        errMsg = resData.errorMessage || resData.error || errMsg;
+      }
+      logger.log("update-admin-badge failed:", errMsg);
+      return { success: false, error: errMsg };
+    }
+  });
+
+  ipcMain.handle('delete-admin-badge', async (event, id) => {
+    const logger = createLogger();
+    logger.log(`=== [delete-admin-badge] START (id: ${id}) ===`);
+    try {
+      const cacheFile = getCustomCacheFile();
+      if (!fs.existsSync(cacheFile)) {
+        return { success: false, error: 'Вы не авторизованы', logs: logger.getLogs() };
+      }
+      const cached = JSON.parse(fs.readFileSync(cacheFile, 'utf8'));
+      const webToken = cached.webToken;
+      if (!webToken) {
+        return { success: false, error: 'Токен веб-авторизации не найден', logs: logger.getLogs() };
+      }
+
+      logger.log(`Deleting badge ${id} via Web API: ${AUTH_SERVER}/api/admin/badges/${id}`);
+      const response = await axios.delete(`${AUTH_SERVER}/api/admin/badges/${id}`, {
+        headers: { 'Authorization': `Bearer ${webToken}` }
+      });
+
+      return { success: true, message: response.data.message };
+    } catch (err) {
+      let errMsg = err.message;
+      if (err.response && err.response.data) {
+        const resData = err.response.data;
+        errMsg = resData.errorMessage || resData.error || errMsg;
+      }
+      logger.log("delete-admin-badge failed:", errMsg);
+      return { success: false, error: errMsg };
+    }
+  });
+
   ipcMain.handle('change-password', async (event, oldPassword, newPassword) => {
     const logger = createLogger();
     logger.log("=== [change-password] START ===");
@@ -1538,6 +1650,359 @@ module.exports = function(ipcMain) {
     return AUTH_SERVER;
   });
 
+  ipcMain.handle('start-google-auth', async (event, action) => {
+    const logger = createLogger();
+    logger.log(`=== [start-google-auth] START === Action: ${action}`);
+    const http = require('http');
+    const { shell } = require('electron');
+    
+    return new Promise((resolve) => {
+      const server = http.createServer();
+      
+      let serverClosed = false;
+      const closeServer = () => {
+        if (!serverClosed) {
+          server.close();
+          serverClosed = true;
+          logger.log("Local OAuth server closed.");
+        }
+      };
+
+      const timeout = setTimeout(() => {
+        closeServer();
+        resolve({ success: false, error: 'Время ожидания авторизации истекло.' });
+      }, 5 * 60 * 1000);
+
+      server.on('request', async (req, res) => {
+        const urlObj = new URL(req.url, `http://${req.headers.host}`);
+        if (urlObj.pathname === '/auth-callback') {
+          const status = urlObj.searchParams.get('status');
+          const email = urlObj.searchParams.get('email');
+          const errorMsg = urlObj.searchParams.get('error');
+
+          res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+          
+          if (status === 'success') {
+            if (action === 'login') {
+              const token = urlObj.searchParams.get('token');
+              const accessToken = urlObj.searchParams.get('accessToken');
+              const clientToken = urlObj.searchParams.get('clientToken');
+              const username = urlObj.searchParams.get('username');
+              const uuid = urlObj.searchParams.get('uuid');
+              const id = parseInt(urlObj.searchParams.get('id'));
+              const is_admin = parseInt(urlObj.searchParams.get('is_admin'));
+              const badge = urlObj.searchParams.get('badge');
+
+              const cacheData = {
+                accessToken,
+                clientToken,
+                selectedProfile: { id: uuid, name: username },
+                availableProfiles: [{ id: uuid, name: username }],
+                webToken: token
+              };
+
+              fs.writeFileSync(getCustomCacheFile(), JSON.stringify(cacheData));
+              logger.log("Auth credentials written to cache file successfully via Google Auth.");
+              
+              resolve({
+                success: true,
+                id,
+                name: username,
+                uuid,
+                accessToken,
+                webToken: token,
+                is_admin,
+                badge
+              });
+            } else {
+              resolve({ success: true, action: 'link', email });
+            }
+
+            res.end(`
+              <html>
+                <head>
+                  <title>DivLauncher Authorization</title>
+                  <style>
+                    body {
+                      background: #09090e;
+                      color: #fff;
+                      font-family: 'Montserrat', sans-serif;
+                      display: flex;
+                      align-items: center;
+                      justify-content: center;
+                      height: 100vh;
+                      margin: 0;
+                    }
+                    .card {
+                      background: rgba(10, 10, 16, 0.6);
+                      backdrop-filter: blur(20px);
+                      border: 1px solid rgba(167, 139, 250, 0.2);
+                      border-radius: 20px;
+                      padding: 40px;
+                      text-align: center;
+                      box-shadow: 0 20px 50px rgba(0,0,0,0.6);
+                      max-width: 400px;
+                    }
+                    h1 { color: #10b981; margin-top: 0; font-size: 24px; text-transform: uppercase; letter-spacing: 2px; }
+                    p { color: #a1a1aa; font-size: 14px; line-height: 1.6; }
+                  </style>
+                </head>
+                <body>
+                  <div class="card">
+                    <h1>DivLauncher</h1>
+                    <p>Авторизация успешно пройдена! Вы можете закрыть эту вкладку и вернуться в лаунчер.</p>
+                  </div>
+                </body>
+              </html>
+            `);
+          } else {
+            resolve({ success: false, error: errorMsg || 'Неизвестная ошибка Google авторизации.' });
+            res.end(`
+              <html>
+                <head>
+                  <title>DivLauncher Authorization Error</title>
+                  <style>
+                    body {
+                      background: #09090e;
+                      color: #fff;
+                      font-family: 'Montserrat', sans-serif;
+                      display: flex;
+                      align-items: center;
+                      justify-content: center;
+                      height: 100vh;
+                      margin: 0;
+                    }
+                    .card {
+                      background: rgba(10, 10, 16, 0.6);
+                      backdrop-filter: blur(20px);
+                      border: 1px solid rgba(239, 68, 68, 0.2);
+                      border-radius: 20px;
+                      padding: 40px;
+                      text-align: center;
+                      box-shadow: 0 20px 50px rgba(0,0,0,0.6);
+                      max-width: 400px;
+                    }
+                    h1 { color: #ef4444; margin-top: 0; font-size: 24px; text-transform: uppercase; letter-spacing: 2px; }
+                    p { color: #a1a1aa; font-size: 14px; line-height: 1.6; }
+                  </style>
+                </head>
+                <body>
+                  <div class="card">
+                    <h1>Ошибка авторизации</h1>
+                    <p>${errorMsg || 'Что-то пошло не так при авторизации через Google.'}</p>
+                  </div>
+                </body>
+              </html>
+            `);
+          }
+          
+          clearTimeout(timeout);
+          closeServer();
+        }
+      });
+
+      server.listen(0, 'localhost', () => {
+        const port = server.address().port;
+        logger.log(`Local OAuth loopback server listening on port ${port}`);
+        
+        let url = `${AUTH_SERVER}/api/auth/google?port=${port}&action=${action}`;
+        if (action === 'link') {
+          try {
+            const cacheFile = getCustomCacheFile();
+            if (fs.existsSync(cacheFile)) {
+              const cached = JSON.parse(fs.readFileSync(cacheFile, 'utf8'));
+              if (cached.webToken) {
+                url += `&token=${cached.webToken}`;
+              }
+            }
+          } catch (e) {
+            logger.log("Error reading token for link action:", e.message);
+          }
+        }
+        
+        logger.log(`Opening browser to URL: ${url}`);
+        shell.openExternal(url).catch(e => {
+          logger.log("Failed to open external browser:", e.message);
+          clearTimeout(timeout);
+          closeServer();
+          resolve({ success: false, error: 'Не удалось открыть веб-браузер: ' + e.message });
+        });
+      });
+    });
+  });
+
+  ipcMain.handle('update-profile-customization', async (event, updates) => {
+    const logger = createLogger();
+    logger.log("=== [update-profile-customization] START ===");
+    try {
+      const cacheFile = getCustomCacheFile();
+      if (!fs.existsSync(cacheFile)) {
+        return { success: false, error: 'Вы не авторизованы', logs: logger.getLogs() };
+      }
+      const cached = JSON.parse(fs.readFileSync(cacheFile, 'utf8'));
+      const webToken = cached.webToken;
+      if (!webToken) {
+        return { success: false, error: 'Токен веб-авторизации не найден', logs: logger.getLogs() };
+      }
+
+      logger.log(`Updating profile customization via Web API: ${AUTH_SERVER}/api/profile/customize`);
+      const response = await axios.post(`${AUTH_SERVER}/api/profile/customize`, updates, {
+        headers: { 'Authorization': `Bearer ${webToken}` }
+      });
+
+      return { success: true, user: response.data.user };
+    } catch (err) {
+      let errMsg = err.message;
+      if (err.response && err.response.data) {
+        const resData = err.response.data;
+        errMsg = resData.errorMessage || resData.error || errMsg;
+      }
+      logger.log("update-profile-customization failed:", errMsg);
+      return { success: false, error: errMsg };
+    }
+  });
+
+  ipcMain.handle('upload-background', async (event) => {
+    const logger = createLogger();
+    logger.log("=== [upload-background] START ===");
+    try {
+      const cacheFile = getCustomCacheFile();
+      if (!fs.existsSync(cacheFile)) {
+        return { success: false, error: 'Вы не авторизованы', logs: logger.getLogs() };
+      }
+      const cached = JSON.parse(fs.readFileSync(cacheFile, 'utf8'));
+      const webToken = cached.webToken;
+      if (!webToken) {
+        return { success: false, error: 'Токен веб-авторизации не найден', logs: logger.getLogs() };
+      }
+
+      logger.log("Opening background selection dialog...");
+      const { canceled, filePaths } = await dialog.showOpenDialog({
+        title: 'Выберите изображение фона профиля (PNG/JPG/GIF)',
+        filters: [{ name: 'Изображения', extensions: ['png', 'jpg', 'jpeg', 'gif'] }],
+        properties: ['openFile']
+      });
+
+      if (canceled || filePaths.length === 0) {
+        logger.log("Background selection canceled by user.");
+        return { success: false, error: 'Выбор отменен', logs: logger.getLogs() };
+      }
+
+      const filePath = filePaths[0];
+      const fileBuffer = fs.readFileSync(filePath);
+
+      const boundary = `----ElectronBoundary${Math.random().toString(36).substring(2)}`;
+      const mime = filePath.toLowerCase().endsWith('.gif') ? 'image/gif' : (filePath.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg');
+      const filename = filePath.toLowerCase().endsWith('.gif') ? 'bg.gif' : (filePath.toLowerCase().endsWith('.png') ? 'bg.png' : 'bg.jpg');
+      
+      const header = Buffer.from(
+        `--${boundary}\r\n` +
+        `Content-Disposition: form-data; name="background"; filename="${filename}"\r\n` +
+        `Content-Type: ${mime}\r\n\r\n`
+      );
+      const footer = Buffer.from(`\r\n--${boundary}--\r\n`);
+      const payload = Buffer.concat([header, fileBuffer, footer]);
+
+      logger.log(`Uploading background image to: ${AUTH_SERVER}/api/profile/background`);
+      const responseData = await uploadFileNative(`${AUTH_SERVER}/api/profile/background`, webToken, boundary, payload);
+      return { success: true, profile_bg_value: responseData.profile_bg_value, logs: logger.getLogs() };
+    } catch (err) {
+      let errMsg = err.message;
+      if (err.response && err.response.data) {
+        const resData = err.response.data;
+        errMsg = resData.errorMessage || resData.error || errMsg;
+      }
+      logger.log("upload-background failed:", errMsg);
+      return { success: false, error: errMsg, logs: logger.getLogs() };
+    }
+  });
+
+  ipcMain.handle('upload-avatar', async (event) => {
+    const logger = createLogger();
+    logger.log("=== [upload-avatar] START ===");
+    try {
+      const cacheFile = getCustomCacheFile();
+      if (!fs.existsSync(cacheFile)) {
+        return { success: false, error: 'Вы не авторизованы', logs: logger.getLogs() };
+      }
+      const cached = JSON.parse(fs.readFileSync(cacheFile, 'utf8'));
+      const webToken = cached.webToken;
+      if (!webToken) {
+        return { success: false, error: 'Токен веб-авторизации не найден', logs: logger.getLogs() };
+      }
+
+      logger.log("Opening avatar selection dialog...");
+      const { canceled, filePaths } = await dialog.showOpenDialog({
+        title: 'Выберите изображение аватара (PNG/JPG/GIF)',
+        filters: [{ name: 'Изображения', extensions: ['png', 'jpg', 'jpeg', 'gif'] }],
+        properties: ['openFile']
+      });
+
+      if (canceled || filePaths.length === 0) {
+        logger.log("Avatar selection canceled by user.");
+        return { success: false, error: 'Выбор отменен', logs: logger.getLogs() };
+      }
+
+      const filePath = filePaths[0];
+      const fileBuffer = fs.readFileSync(filePath);
+
+      const boundary = `----ElectronBoundary${Math.random().toString(36).substring(2)}`;
+      const mime = filePath.toLowerCase().endsWith('.gif') ? 'image/gif' : (filePath.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg');
+      const filename = filePath.toLowerCase().endsWith('.gif') ? 'avatar.gif' : (filePath.toLowerCase().endsWith('.png') ? 'avatar.png' : 'avatar.jpg');
+      
+      const header = Buffer.from(
+        `--${boundary}\r\n` +
+        `Content-Disposition: form-data; name="avatar"; filename="${filename}"\r\n` +
+        `Content-Type: ${mime}\r\n\r\n`
+      );
+      const footer = Buffer.from(`\r\n--${boundary}--\r\n`);
+      const payload = Buffer.concat([header, fileBuffer, footer]);
+
+      logger.log(`Uploading avatar image to: ${AUTH_SERVER}/api/profile/avatar`);
+      const responseData = await uploadFileNative(`${AUTH_SERVER}/api/profile/avatar`, webToken, boundary, payload);
+      return { success: true, avatar_url: responseData.avatar_url, logs: logger.getLogs() };
+    } catch (err) {
+      let errMsg = err.message;
+      if (err.response && err.response.data) {
+        const resData = err.response.data;
+        errMsg = resData.errorMessage || resData.error || errMsg;
+      }
+      logger.log("upload-avatar failed:", errMsg);
+      return { success: false, error: errMsg, logs: logger.getLogs() };
+    }
+  });
+
+  ipcMain.handle('unlink-google', async () => {
+    const logger = createLogger();
+    logger.log("=== [unlink-google] START ===");
+    try {
+      const cacheFile = getCustomCacheFile();
+      if (!fs.existsSync(cacheFile)) {
+        return { success: false, error: 'Вы не авторизованы', logs: logger.getLogs() };
+      }
+      const cached = JSON.parse(fs.readFileSync(cacheFile, 'utf8'));
+      const webToken = cached.webToken;
+      if (!webToken) {
+        return { success: false, error: 'Токен веб-авторизации не найден', logs: logger.getLogs() };
+      }
+
+      logger.log(`Unlinking Google via Web API: ${AUTH_SERVER}/api/profile/google/unlink`);
+      const response = await axios.post(`${AUTH_SERVER}/api/profile/google/unlink`, {}, {
+        headers: { 'Authorization': `Bearer ${webToken}` }
+      });
+
+      return { success: true, message: response.data.message };
+    } catch (err) {
+      let errMsg = err.message;
+      if (err.response && err.response.data) {
+        const resData = err.response.data;
+        errMsg = resData.errorMessage || resData.error || errMsg;
+      }
+      logger.log("unlink-google failed:", errMsg);
+      return { success: false, error: errMsg };
+    }
+  });
+
   const getCustomPacksFile = () => path.join(app.getPath('userData'), 'custom_modpacks.json');
 
   ipcMain.handle('get-custom-packs', async () => {
@@ -1563,8 +2028,8 @@ module.exports = function(ipcMain) {
       }
 
       const processAsset = (urlProp) => {
-        if (pack[urlProp] && pack[urlProp].startsWith('file://')) {
-          let sourcePath = decodeURI(pack[urlProp].replace('file://', ''));
+        if (pack[urlProp] && pack[urlProp].startsWith('local-file://')) {
+          let sourcePath = decodeURI(pack[urlProp].replace('local-file://', ''));
           if (sourcePath.startsWith('/') && sourcePath.includes(':')) {
             sourcePath = sourcePath.substring(1);
           }
@@ -1574,7 +2039,7 @@ module.exports = function(ipcMain) {
             if (sourcePath !== destPath) {
               fs.copyFileSync(sourcePath, destPath);
             }
-            pack[urlProp] = `file://${destPath.replace(/\\/g, '/')}`;
+            pack[urlProp] = `local-file://${destPath.replace(/\\/g, '/')}`;
           }
         }
       };
@@ -1658,11 +2123,11 @@ module.exports = function(ipcMain) {
 
       if (packData) {
         const fixAsset = (urlProp) => {
-          if (packData[urlProp] && packData[urlProp].startsWith('file://')) {
+          if (packData[urlProp] && packData[urlProp].startsWith('local-file://')) {
             const fileName = path.basename(packData[urlProp]);
             const newPath = path.join(targetClientDir, 'assets', fileName);
             if (fs.existsSync(newPath)) {
-              packData[urlProp] = `file://${newPath.replace(/\\/g, '/')}`;
+              packData[urlProp] = `local-file://${newPath.replace(/\\/g, '/')}`;
             }
           }
         };
@@ -1718,11 +2183,34 @@ module.exports = function(ipcMain) {
       // Ensure divpack.json is up to date in the directory
       fs.writeFileSync(path.join(clientPath, 'divpack.json'), JSON.stringify(packToExport, null, 2));
 
-      const zip = new AdmZip();
-      zip.addLocalFolder(clientPath, '');
-      zip.writeZip(filePath);
+      return new Promise((resolve) => {
+        const workerPath = path.join(__dirname, 'export-worker.js');
+        sysLog(`[IPC export-custom-pack] spawning worker thread for zipping. workerPath: ${workerPath}`);
+        
+        const worker = new Worker(workerPath, {
+          workerData: { clientPath, filePath }
+        });
 
-      return { success: true };
+        worker.on('message', (msg) => {
+          sysLog(`[IPC export-custom-pack] worker message: ${JSON.stringify(msg)}`);
+          if (msg.success) {
+            resolve({ success: true });
+          } else {
+            resolve({ success: false, error: msg.error || 'Ошибка при архивации сборки' });
+          }
+        });
+
+        worker.on('error', (err) => {
+          sysLog(`[IPC export-custom-pack] worker error: ${err.message}`);
+          resolve({ success: false, error: err.message });
+        });
+
+        worker.on('exit', (code) => {
+          sysLog(`[IPC export-custom-pack] worker exited with code ${code}`);
+          // Resolve if message handler hasn't already resolved it (e.g. crash/forced exit)
+          resolve({ success: false, error: `Воркер завершился с ошибкой (код: ${code})` });
+        });
+      });
     } catch (err) {
       console.error('Error exporting custom pack:', err);
       return { success: false, error: err.message };
@@ -1757,24 +2245,46 @@ module.exports = function(ipcMain) {
   });
 
   // --- CURSEFORGE INTEGRATION ---
-  ipcMain.handle('get-installed-mods', async (event, clientDir) => {
+  ipcMain.handle('get-installed-mods', async (event, clientDir, projectType = 'mod') => {
     if (!clientDir) return { success: false, error: "No clientDir provided" };
     try {
-      const modsPath = path.resolve(app.getPath('userData'), clientDir, 'mods');
-      if (!fs.existsSync(modsPath)) return { success: true, mods: [] };
-      const files = fs.readdirSync(modsPath).filter(f => f.endsWith('.jar'));
+      let subFolder = 'mods';
+      let extensionFilter = '.jar';
+      if (projectType === 'resourcepack') {
+        subFolder = 'resourcepacks';
+        extensionFilter = '.zip';
+      } else if (projectType === 'shader') {
+        subFolder = 'shaderpacks';
+        extensionFilter = '.zip';
+      }
+
+      const folderPath = path.resolve(app.getPath('userData'), clientDir, subFolder);
+      if (!fs.existsSync(folderPath)) return { success: true, mods: [] };
+      
+      const files = fs.readdirSync(folderPath).filter(f => {
+        const lower = f.toLowerCase();
+        if (projectType === 'resourcepack') {
+          // Resourcepacks can be zip files or folders
+          return lower.endsWith('.zip') || fs.statSync(path.join(folderPath, f)).isDirectory();
+        }
+        return lower.endsWith(extensionFilter);
+      });
       return { success: true, mods: files };
     } catch (e) {
       return { success: false, error: e.message };
     }
   });
 
-  ipcMain.handle('download-mod', async (event, url, clientDir, fileName) => {
+  ipcMain.handle('download-mod', async (event, url, clientDir, fileName, projectType = 'mod') => {
     if (!url || !clientDir || !fileName) return { success: false, error: "Invalid args" };
     try {
-      const modsPath = path.resolve(app.getPath('userData'), clientDir, 'mods');
-      if (!fs.existsSync(modsPath)) fs.mkdirSync(modsPath, { recursive: true });
-      const dest = path.join(modsPath, fileName);
+      let subFolder = 'mods';
+      if (projectType === 'resourcepack') subFolder = 'resourcepacks';
+      else if (projectType === 'shader') subFolder = 'shaderpacks';
+
+      const folderPath = path.resolve(app.getPath('userData'), clientDir, subFolder);
+      if (!fs.existsSync(folderPath)) fs.mkdirSync(folderPath, { recursive: true });
+      const dest = path.join(folderPath, fileName);
       await downloadFile(url, dest);
       return { success: true };
     } catch (e) {
@@ -1782,10 +2292,14 @@ module.exports = function(ipcMain) {
     }
   });
 
-  ipcMain.handle('delete-mod', async (event, clientDir, fileName) => {
+  ipcMain.handle('delete-mod', async (event, clientDir, fileName, projectType = 'mod') => {
     if (!clientDir || !fileName) return { success: false, error: "Invalid args" };
     try {
-      const dest = path.resolve(app.getPath('userData'), clientDir, 'mods', fileName);
+      let subFolder = 'mods';
+      if (projectType === 'resourcepack') subFolder = 'resourcepacks';
+      else if (projectType === 'shader') subFolder = 'shaderpacks';
+
+      const dest = path.resolve(app.getPath('userData'), clientDir, subFolder, fileName);
       if (fs.existsSync(dest)) fs.unlinkSync(dest);
       return { success: true };
     } catch (e) {
@@ -1979,6 +2493,189 @@ module.exports = function(ipcMain) {
       return { success: true, data: mapped };
     } catch (e) {
       sysLog(`[IPC get-curse-project] error: ${e.message}`);
+      return { success: false, error: e.message };
+    }
+  });
+
+  ipcMain.handle('search-modrinth', async (event, query, options) => {
+    const { mcVersion, loader, category, limit, offset, sortField, sortOrder, projectType = 'mod' } = options || {};
+    sysLog(`[IPC search-modrinth] query: "${query}", options: ${JSON.stringify(options)}`);
+    try {
+      const facets = [];
+      
+      // Project type filter
+      facets.push([`project_type:${projectType}`]);
+      
+      // Game version filter
+      if (mcVersion) {
+        facets.push([`versions:${mcVersion}`]);
+      }
+      
+      // Mod loader filter
+      if (loader && projectType === 'mod') {
+        facets.push([`categories:${loader.toLowerCase()}`]);
+      }
+      
+      // Category filter
+      if (category) {
+        let cat = category.toLowerCase();
+        if (cat === 'technology') cat = 'tech';
+        else if (cat === 'library') cat = 'utility';
+        facets.push([`categories:${cat}`]);
+      }
+
+      // Sorting
+      let index = 'relevance';
+      if (sortField === 'downloads') index = 'downloads';
+      else if (sortField === 'updated') index = 'updated';
+      else if (sortField === 'newest') index = 'newest';
+
+      const params = {
+        query: query || '',
+        index: index,
+        offset: offset || 0,
+        limit: limit || 12
+      };
+
+      if (facets.length > 0) {
+        params.facets = JSON.stringify(facets);
+      }
+
+      const response = await axios.get('https://api.modrinth.com/v2/search', {
+        params,
+        headers: { 'User-Agent': 'D1verlin/DivLauncher/1.0.0 (contact@diverlin.ru)' }
+      });
+
+      const data = response.data || {};
+      const hits = (data.hits || []).map(hit => ({
+        id: hit.project_id,
+        project_id: hit.project_id,
+        slug: hit.slug,
+        icon_url: hit.icon_url || '',
+        title: hit.title,
+        name: hit.title,
+        author: hit.author || 'Неизвестен',
+        downloads: hit.downloads || 0,
+        description: hit.description || '',
+        categories: hit.categories || [],
+        project_type: hit.project_type
+      }));
+
+      sysLog(`[IPC search-modrinth] success. Received ${hits.length} hits.`);
+      return { success: true, data: { hits } };
+    } catch (e) {
+      sysLog(`[IPC search-modrinth] error: ${e.message}`);
+      return { success: false, error: e.message };
+    }
+  });
+
+  ipcMain.handle('get-modrinth-versions', async (event, modId, loaders, gameVersions) => {
+    sysLog(`[IPC get-modrinth-versions] modId: ${modId}, loaders: ${JSON.stringify(loaders)}, gameVersions: ${JSON.stringify(gameVersions)}`);
+    try {
+      const params = {};
+      if (loaders && loaders.length > 0) {
+        params.loaders = JSON.stringify(loaders.map(l => l.toLowerCase()));
+      }
+      if (gameVersions && gameVersions.length > 0) {
+        params.game_versions = JSON.stringify(gameVersions);
+      }
+
+      const response = await axios.get(`https://api.modrinth.com/v2/project/${modId}/version`, {
+        params,
+        headers: { 'User-Agent': 'D1verlin/DivLauncher/1.0.0 (contact@diverlin.ru)' }
+      });
+
+      const versions = response.data || [];
+      const mappedVersions = versions.map(v => {
+        const primaryFile = v.files.find(f => f.primary) || v.files[0];
+        return {
+          id: v.id,
+          displayName: v.name,
+          fileName: primaryFile?.filename || 'unknown.jar',
+          fileDate: v.date_published,
+          releaseType: v.version_type === 'release' ? 1 : v.version_type === 'beta' ? 2 : 3,
+          downloadUrl: primaryFile?.url || '',
+          gameVersions: v.game_versions,
+          files: v.files.map(f => ({
+            url: f.url,
+            filename: f.filename,
+            primary: f.primary
+          }))
+        };
+      });
+
+      sysLog(`[IPC get-modrinth-versions] success. Received ${mappedVersions.length} versions.`);
+      return { success: true, data: mappedVersions };
+    } catch (e) {
+      sysLog(`[IPC get-modrinth-versions] error: ${e.message}`);
+      return { success: false, error: e.message };
+    }
+  });
+
+  ipcMain.handle('get-modrinth-project', async (event, modId) => {
+    sysLog(`[IPC get-modrinth-project] modId: ${modId}`);
+    try {
+      const response = await axios.get(`https://api.modrinth.com/v2/project/${modId}`, {
+        headers: { 'User-Agent': 'D1verlin/DivLauncher/1.0.0 (contact@diverlin.ru)' }
+      });
+
+      const project = response.data || {};
+      
+      let resolvedDeps = [];
+      try {
+        const versionsResponse = await axios.get(`https://api.modrinth.com/v2/project/${modId}/version`, {
+          headers: { 'User-Agent': 'D1verlin/DivLauncher/1.0.0 (contact@diverlin.ru)' }
+        });
+        const latestVersion = versionsResponse.data?.[0];
+        if (latestVersion && latestVersion.dependencies) {
+          const deps = latestVersion.dependencies.filter(d => d.dependency_type === 'required').slice(0, 5);
+          resolvedDeps = await Promise.all(
+            deps.map(async (dep) => {
+              if (dep.project_id) {
+                try {
+                  const depProjectResponse = await axios.get(`https://api.modrinth.com/v2/project/${dep.project_id}`, {
+                    headers: { 'User-Agent': 'D1verlin/DivLauncher/1.0.0 (contact@diverlin.ru)' },
+                    timeout: 5000
+                  });
+                  const d = depProjectResponse.data;
+                  return {
+                    id: d.id,
+                    name: d.title,
+                    slug: d.slug,
+                    icon_url: d.icon_url || '',
+                    relationType: 3
+                  };
+                } catch (e) {
+                  return { id: dep.project_id, name: `ID: ${dep.project_id}`, relationType: 3 };
+                }
+              }
+              return { id: dep.version_id, name: `Version ID: ${dep.version_id}`, relationType: 3 };
+            })
+          );
+        }
+      } catch (depErr) {
+        sysLog(`[IPC get-modrinth-project] dependency check warning: ${depErr.message}`);
+      }
+
+      const mapped = {
+        id: project.id,
+        slug: project.slug,
+        title: project.title,
+        name: project.title,
+        icon_url: project.icon_url || '',
+        downloads: project.downloads || 0,
+        body: project.body || '',
+        gallery: (project.gallery || []).map(g => ({ url: g.url })),
+        client_side: project.client_side || 'optional',
+        server_side: project.server_side || 'optional',
+        license: { name: project.license?.name || 'Open Source' },
+        dependencies: resolvedDeps
+      };
+
+      sysLog(`[IPC get-modrinth-project] success.`);
+      return { success: true, data: mapped };
+    } catch (e) {
+      sysLog(`[IPC get-modrinth-project] error: ${e.message}`);
       return { success: false, error: e.message };
     }
   });

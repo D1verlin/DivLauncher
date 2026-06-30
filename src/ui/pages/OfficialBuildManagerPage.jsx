@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useTranslation } from '../utils/i18n';
 
 // ────────────────────────────────────────────────────────────
 // Helpers
@@ -104,10 +105,11 @@ function ErrorBanner({ msg, onClose }) {
 }
 
 function TabBar({ active, onChange }) {
+  const { lang } = useTranslation();
   const tabs = [
-    { id: 'mods',  icon: 'fa-puzzle-piece', label: 'Моды' },
+    { id: 'mods',  icon: 'fa-puzzle-piece', label: lang === 'ru' ? 'Моды' : 'Mods' },
     { id: 'json',  icon: 'fa-code',         label: 'mods.json' },
-    { id: 'files', icon: 'fa-folder-open',  label: 'Файлы сборки' },
+    { id: 'files', icon: 'fa-folder-open',  label: lang === 'ru' ? 'Файлы сборки' : 'Pack Files' },
   ];
   return (
     <div style={{ display: 'flex', gap: '6px', marginBottom: '18px' }}>
@@ -134,6 +136,7 @@ function TabBar({ active, onChange }) {
 // Tab 1: Mods — driven by mods.json (array of URL strings)
 // ────────────────────────────────────────────────────────────
 function ModsTab({ modsKey, modsPrefix, publicBase }) {
+  const { lang } = useTranslation();
   const [urls, setUrls]             = useState([]);   // string[]
   const [r2Files, setR2Files]       = useState({});   // key -> { size, lastModified }
   const [loading, setLoading]       = useState(false);
@@ -161,7 +164,7 @@ function ModsTab({ modsKey, modsPrefix, publicBase }) {
     setLoading(false);
 
     if (!resJson.success) {
-      setError(resJson.error || 'Ошибка загрузки mods.json');
+      setError(resJson.error || (lang === 'ru' ? 'Ошибка загрузки mods.json' : 'Failed to load mods.json'));
       return;
     }
 
@@ -188,14 +191,8 @@ function ModsTab({ modsKey, modsPrefix, publicBase }) {
     const handler = (_, pct) => setUploadPct(pct);
     window.electronAPI.onR2UploadProgress(handler);
     
-    const preventGlobal = (e) => e.preventDefault();
-    window.addEventListener('dragover', preventGlobal);
-    window.addEventListener('drop', preventGlobal);
-
     return () => {
       window.electronAPI.removeAllListeners?.('r2-upload-progress');
-      window.removeEventListener('dragover', preventGlobal);
-      window.removeEventListener('drop', preventGlobal);
     };
   }, [load]);
 
@@ -205,13 +202,13 @@ function ModsTab({ modsKey, modsPrefix, publicBase }) {
     setSaving(true);
     const res = await window.electronAPI.r2SaveModsJson(modsKey, newUrls);
     setSaving(false);
-    if (!res.success) setError(res.error || 'Ошибка сохранения');
+    if (!res.success) setError(res.error || (lang === 'ru' ? 'Ошибка сохранения' : 'Save error'));
     return res.success;
   };
 
   // Upload multiple files → R2, then add URLs to mods.json
   const doUploadMultiple = async (filePaths) => {
-    if (!modsPrefix) { setError('Не удалось определить путь модов на R2'); return; }
+    if (!modsPrefix) { setError(lang === 'ru' ? 'Не удалось определить путь модов на R2' : 'Failed to determine mods path on R2'); return; }
     if (!filePaths || filePaths.length === 0) return;
 
     setUploading(true);
@@ -224,14 +221,14 @@ function ModsTab({ modsKey, modsPrefix, publicBase }) {
       const path = filePaths[i];
       const fileName = path.split(/[\\/]/).pop();
       setUploadPct(0);
-      setSuccessMsg(`Загрузка (${i + 1}/${filePaths.length}): ${fileName}...`);
+      setSuccessMsg(lang === 'ru' ? `Загрузка (${i + 1}/${filePaths.length}): ${fileName}...` : `Uploading (${i + 1}/${filePaths.length}): ${fileName}...`);
 
       const res = await window.electronAPI.r2UploadFile(modsPrefix, path);
       if (res.canceled) {
         break; // stop on cancel
       }
       if (!res.success) {
-        setError(`Ошибка загрузки "${fileName}": ${res.error || 'неизвестная ошибка'}`);
+        setError(lang === 'ru' ? `Ошибка загрузки "${fileName}": ${res.error || 'неизвестная ошибка'}` : `Upload error for "${fileName}": ${res.error || 'unknown error'}`);
         continue;
       }
 
@@ -250,7 +247,7 @@ function ModsTab({ modsKey, modsPrefix, publicBase }) {
       setUrls(currentUrls);
       const saved = await save(currentUrls);
       if (saved) {
-        flash(`✓ Загружено модов: ${successCount}`);
+        flash(lang === 'ru' ? `✓ Загружено модов: ${successCount}` : `✓ Uploaded mods: ${successCount}`);
         load(); // Reload files mapping
       }
     }
@@ -266,8 +263,11 @@ function ModsTab({ modsKey, modsPrefix, publicBase }) {
 
   const handleDrop = async (e) => {
     e.preventDefault();
+    e.stopPropagation();
     setDragOver(false);
-    const paths = Array.from(e.dataTransfer.files).map(f => f.path).filter(Boolean);
+    const paths = Array.from(e.dataTransfer.files)
+      .map(f => window.electronAPI.getPathForFile ? window.electronAPI.getPathForFile(f) : f.path)
+      .filter(Boolean);
     if (paths.length > 0) {
       await doUploadMultiple(paths);
     }
@@ -287,7 +287,7 @@ function ModsTab({ modsKey, modsPrefix, publicBase }) {
     setUrls(newUrls);
     await save(newUrls);
     setConfirmDelete(null);
-    flash('Мод удалён');
+    flash(lang === 'ru' ? 'Мод удалён' : 'Mod deleted');
     load(); // Reload to refresh both lists
   };
 
@@ -295,9 +295,9 @@ function ModsTab({ modsKey, modsPrefix, publicBase }) {
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: '12px' }}>
       {/* Drop zone / upload button */}
       <div
-        onDragEnter={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; setDragOver(true); }}
-        onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; setDragOver(true); }}
-        onDragLeave={() => setDragOver(false)}
+        onDragEnter={e => { e.preventDefault(); e.stopPropagation(); e.dataTransfer.dropEffect = 'copy'; setDragOver(true); }}
+        onDragOver={e => { e.preventDefault(); e.stopPropagation(); e.dataTransfer.dropEffect = 'copy'; setDragOver(true); }}
+        onDragLeave={e => { e.preventDefault(); e.stopPropagation(); setDragOver(false); }}
         onDrop={handleDrop}
         onClick={handleSelectFiles}
         style={{
@@ -305,7 +305,8 @@ function ModsTab({ modsKey, modsPrefix, publicBase }) {
           borderRadius: '14px', padding: '16px 20px',
           background: dragOver ? 'rgba(99,102,241,0.07)' : 'rgba(255,255,255,0.02)',
           display: 'flex', alignItems: 'center', gap: '14px',
-          transition: 'all 0.2s', cursor: uploading ? 'default' : 'pointer', flexShrink: 0
+          transition: 'all 0.2s', cursor: uploading ? 'default' : 'pointer', flexShrink: 0,
+          WebkitUserDrag: 'auto'
         }}>
         <div style={{
           width: '40px', height: '40px', borderRadius: '12px', flexShrink: 0,
@@ -320,7 +321,7 @@ function ModsTab({ modsKey, modsPrefix, publicBase }) {
         <div style={{ flex: 1, minWidth: 0, pointerEvents: 'none' }}>
           {uploading ? (
             <>
-              <p style={{ margin: 0, fontWeight: 700, fontSize: '13px', color: '#e4e4e7' }}>Загрузка файлов на R2...</p>
+              <p style={{ margin: 0, fontWeight: 700, fontSize: '13px', color: '#e4e4e7' }}>{lang === 'ru' ? 'Загрузка файлов на R2...' : 'Uploading files to R2...'}</p>
               <div style={{ marginTop: '6px', width: '100%', height: '4px', background: 'rgba(255,255,255,0.06)', borderRadius: '10px', overflow: 'hidden' }}>
                 <motion.div animate={{ width: `${uploadPct}%` }} transition={{ ease: 'linear', duration: 0.2 }}
                   style={{ height: '100%', background: 'linear-gradient(90deg,#6366f1,#818cf8)', borderRadius: '10px' }} />
@@ -330,16 +331,16 @@ function ModsTab({ modsKey, modsPrefix, publicBase }) {
           ) : (
             <>
               <p style={{ margin: 0, fontWeight: 700, fontSize: '13px', color: '#e4e4e7' }}>
-                Перетащите файлы .jar сюда или нажмите для выбора
+                {lang === 'ru' ? 'Перетащите файлы .jar сюда или нажмите для выбора' : 'Drag .jar files here or click to select'}
               </p>
               <p style={{ margin: '2px 0 0', fontSize: '11px', color: '#52525b', fontWeight: 600 }}>
-                Файлы загрузятся в <code style={{ color: '#818cf8', fontSize: '10px' }}>{modsPrefix}</code> и автоматически добавятся в mods.json
+                {lang === 'ru' ? 'Файлы загрузятся в ' : 'Files will be uploaded to '}<code style={{ color: '#818cf8', fontSize: '10px' }}>{modsPrefix}</code>{lang === 'ru' ? ' и автоматически добавятся в mods.json' : ' and added to mods.json automatically'}
               </p>
             </>
           )}
         </div>
         {successMsg && <StatusBadge text={successMsg} type="success" />}
-        {saving && !uploading && <StatusBadge text="Сохранение..." type="warn" />}
+        {saving && !uploading && <StatusBadge text={lang === 'ru' ? 'Сохранение...' : 'Saving...'} type="warn" />}
       </div>
 
       <AnimatePresence>{error && <ErrorBanner msg={error} onClose={() => setError('')} />}</AnimatePresence>
@@ -348,12 +349,12 @@ function ModsTab({ modsKey, modsPrefix, publicBase }) {
       <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '5px', paddingRight: '4px' }}>
         {loading ? (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', gap: '10px', color: '#52525b' }}>
-            <Spinner /><span style={{ fontSize: '13px', fontWeight: 600 }}>Загрузка модов...</span>
+            <Spinner /><span style={{ fontSize: '13px', fontWeight: 600 }}>{lang === 'ru' ? 'Загрузка модов...' : 'Loading mods...'}</span>
           </div>
         ) : urls.length === 0 ? (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: '10px', color: '#3f3f46' }}>
             <i className="fa-solid fa-box-open" style={{ fontSize: '36px' }} />
-            <p style={{ fontSize: '13px', fontWeight: 600, margin: 0 }}>Список модов пуст</p>
+            <p style={{ fontSize: '13px', fontWeight: 600, margin: 0 }}>{lang === 'ru' ? 'Список модов пуст' : 'Mod list is empty'}</p>
           </div>
         ) : (
           <AnimatePresence>
@@ -389,26 +390,26 @@ function ModsTab({ modsKey, modsPrefix, publicBase }) {
                       {name}
                     </p>
                     <p style={{ margin: '1px 0 0', fontSize: '10px', color: meta ? '#a1a1aa' : '#fbbf24', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {meta ? `${formatBytes(meta.size)} · ${formatDate(meta.lastModified)}` : '⚠️ Нет файла на R2 (только в mods.json)'}
+                      {meta ? `${formatBytes(meta.size)} · ${formatDate(meta.lastModified)}` : (lang === 'ru' ? '⚠️ Нет файла на R2 (только в mods.json)' : '⚠️ No file on R2 (only in mods.json)')}
                     </p>
                   </div>
                   <AnimatePresence mode="wait">
                     {confirmDelete === url ? (
                       <motion.div key="confirm" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }}
                         style={{ display: 'flex', gap: '5px', alignItems: 'center', flexShrink: 0 }}>
-                        <span style={{ fontSize: '10px', color: '#fbbf24', fontWeight: 700 }}>Удалить?</span>
+                        <span style={{ fontSize: '10px', color: '#fbbf24', fontWeight: 700 }}>{lang === 'ru' ? 'Удалить?' : 'Delete?'}</span>
                         <button onClick={() => handleDelete(url)}
                           style={{ padding: '4px 8px', borderRadius: '7px', border: 'none', cursor: 'pointer', fontSize: '11px', fontWeight: 800, background: 'rgba(239,68,68,0.2)', color: '#f87171' }}>
-                          Да
+                          {lang === 'ru' ? 'Да' : 'Yes'}
                         </button>
                         <button onClick={() => setConfirmDelete(null)}
                           style={{ padding: '4px 8px', borderRadius: '7px', border: 'none', cursor: 'pointer', fontSize: '11px', fontWeight: 800, background: 'rgba(255,255,255,0.06)', color: '#71717a' }}>
-                          Нет
+                          {lang === 'ru' ? 'Нет' : 'No'}
                         </button>
                       </motion.div>
                     ) : (
                       <motion.button key="del" whileHover={{ scale: 1.15 }} whileTap={{ scale: 0.9 }}
-                        onClick={() => setConfirmDelete(url)} title="Удалить мод"
+                        onClick={() => setConfirmDelete(url)} title={lang === 'ru' ? 'Удалить мод' : 'Delete mod'}
                         style={{ background: 'transparent', border: 'none', color: '#3f3f46', cursor: 'pointer', fontSize: '13px', padding: '3px', flexShrink: 0, transition: 'color 0.15s' }}
                         onMouseEnter={e => e.currentTarget.style.color = '#f87171'}
                         onMouseLeave={e => e.currentTarget.style.color = '#3f3f46'}>
@@ -426,11 +427,11 @@ function ModsTab({ modsKey, modsPrefix, publicBase }) {
       {/* Footer */}
       {!loading && urls.length > 0 && (
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', paddingTop: '8px', borderTop: '1px solid rgba(255,255,255,0.05)', flexShrink: 0 }}>
-          <StatusBadge text={`${urls.length} модов`} type="info" />
+          <StatusBadge text={lang === 'ru' ? `${urls.length} модов` : `${urls.length} mods`} type="info" />
           <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
             onClick={load}
             style={{ marginLeft: 'auto', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', color: '#71717a', padding: '5px 12px', borderRadius: '8px', cursor: 'pointer', fontSize: '11px', fontWeight: 700 }}>
-            <i className="fa-solid fa-arrows-rotate" style={{ marginRight: '6px' }} />Обновить
+            <i className="fa-solid fa-arrows-rotate" style={{ marginRight: '6px' }} />{lang === 'ru' ? 'Обновить' : 'Refresh'}
           </motion.button>
         </div>
       )}
@@ -442,6 +443,7 @@ function ModsTab({ modsKey, modsPrefix, publicBase }) {
 // Tab 2: mods.json raw/structured editor
 // ────────────────────────────────────────────────────────────
 function ModsJsonTab({ modsKey, publicBase, modsPrefix }) {
+  const { lang } = useTranslation();
   const [raw, setRaw]             = useState('');
   const [loading, setLoading]     = useState(false);
   const [saving, setSaving]       = useState(false);
@@ -458,7 +460,7 @@ function ModsJsonTab({ modsKey, publicBase, modsPrefix }) {
     setError('');
     const res = await window.electronAPI.r2GetModsJson(modsKey);
     setLoading(false);
-    if (!res.success) { setError(res.error || 'Ошибка загрузки'); return; }
+    if (!res.success) { setError(res.error || (lang === 'ru' ? 'Ошибка загрузки' : 'Load error')); return; }
     const txt = typeof res.data === 'string' ? res.data : JSON.stringify(res.data, null, 2);
     setRaw(txt);
     tryParse(txt);
@@ -479,11 +481,11 @@ function ModsJsonTab({ modsKey, publicBase, modsPrefix }) {
     if (parseError) return;
     setSaving(true); setError('');
     let content;
-    try { content = JSON.parse(raw); } catch { setError('Невалидный JSON'); setSaving(false); return; }
+    try { content = JSON.parse(raw); } catch { setError(lang === 'ru' ? 'Невалидный JSON' : 'Invalid JSON'); setSaving(false); return; }
     const res = await window.electronAPI.r2SaveModsJson(modsKey, content);
     setSaving(false);
     if (res.success) { setSaved(true); setTimeout(() => setSaved(false), 3000); }
-    else setError(res.error || 'Ошибка сохранения');
+    else setError(res.error || (lang === 'ru' ? 'Ошибка сохранения' : 'Save error'));
   };
 
   // For list view: parsed should be string[]
@@ -517,7 +519,7 @@ function ModsJsonTab({ modsKey, publicBase, modsPrefix }) {
           {modsKey}
         </code>
         <div style={{ display: 'flex', background: 'rgba(255,255,255,0.04)', borderRadius: '10px', padding: '2px', gap: '2px', flexShrink: 0 }}>
-          {[{ id: 'list', icon: 'fa-list', label: 'Список' }, { id: 'raw', icon: 'fa-code', label: 'JSON' }].map(m => (
+          {[{ id: 'list', icon: 'fa-list', label: lang === 'ru' ? 'Список' : 'List' }, { id: 'raw', icon: 'fa-code', label: 'JSON' }].map(m => (
             <motion.button key={m.id} whileTap={{ scale: 0.95 }} onClick={() => setViewMode(m.id)}
               style={{ padding: '4px 10px', borderRadius: '8px', border: 'none', cursor: 'pointer', fontSize: '11px', fontWeight: 700,
                 background: viewMode === m.id ? 'rgba(99,102,241,0.3)' : 'transparent',
@@ -526,8 +528,8 @@ function ModsJsonTab({ modsKey, publicBase, modsPrefix }) {
             </motion.button>
           ))}
         </div>
-        {parseError && <StatusBadge text="Ошибка JSON" type="error" />}
-        {saved && <StatusBadge text="Сохранено ✓" type="success" />}
+        {parseError && <StatusBadge text={lang === 'ru' ? 'Ошибка JSON' : 'JSON Error'} type="error" />}
+        {saved && <StatusBadge text={lang === 'ru' ? 'Сохранено ✓' : 'Saved ✓'} type="success" />}
         <motion.button whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.96 }}
           onClick={handleSave} disabled={saving || !!parseError}
           style={{
@@ -539,7 +541,7 @@ function ModsJsonTab({ modsKey, publicBase, modsPrefix }) {
             boxShadow: parseError ? 'none' : '0 4px 14px rgba(99,102,241,0.3)'
           }}>
           {saving ? <Spinner size={14} color="#fff" /> : <i className="fa-solid fa-floppy-disk" />}
-          Сохранить
+          {lang === 'ru' ? 'Сохранить' : 'Save'}
         </motion.button>
       </div>
 
@@ -547,7 +549,7 @@ function ModsJsonTab({ modsKey, publicBase, modsPrefix }) {
 
       {loading ? (
         <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', color: '#52525b' }}>
-          <Spinner /><span style={{ fontSize: '13px', fontWeight: 600 }}>Загрузка mods.json...</span>
+          <Spinner /><span style={{ fontSize: '13px', fontWeight: 600 }}>{lang === 'ru' ? 'Загрузка mods.json...' : 'Loading mods.json...'}</span>
         </div>
       ) : viewMode === 'raw' ? (
         <div style={{ flex: 1, position: 'relative', display: 'flex', flexDirection: 'column' }}>
@@ -573,7 +575,7 @@ function ModsJsonTab({ modsKey, publicBase, modsPrefix }) {
           <div style={{ display: 'flex', gap: '6px', flexShrink: 0, marginBottom: '4px' }}>
             <input value={newUrl} onChange={e => setNewUrl(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && addUrl()}
-              placeholder={`${publicBase || 'https://mc.diverlin.ru'}/${modsPrefix || ''}имя_мода.jar`}
+              placeholder={`${publicBase || 'https://mc.diverlin.ru'}/${modsPrefix || ''}${lang === 'ru' ? 'имя_мода' : 'mod_name'}.jar`}
               style={{
                 flex: 1, background: 'rgba(0,0,0,0.25)', border: '1px solid rgba(255,255,255,0.08)',
                 borderRadius: '9px', padding: '7px 12px', color: '#e4e4e7', fontSize: '12px',
@@ -592,7 +594,7 @@ function ModsJsonTab({ modsKey, publicBase, modsPrefix }) {
           {urlList.length === 0 ? (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: '8px', color: '#3f3f46' }}>
               <i className="fa-solid fa-file-code" style={{ fontSize: '32px' }} />
-              <p style={{ fontSize: '13px', fontWeight: 600, margin: 0 }}>mods.json пуст</p>
+              <p style={{ fontSize: '13px', fontWeight: 600, margin: 0 }}>{lang === 'ru' ? 'mods.json пуст' : 'mods.json is empty'}</p>
             </div>
           ) : urlList.map((url, idx) => (
             <motion.div key={idx} initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0, transition: { delay: idx * 0.02 } }}
@@ -628,6 +630,7 @@ function ModsJsonTab({ modsKey, publicBase, modsPrefix }) {
 // Tab 3: Generic R2 file browser
 // ────────────────────────────────────────────────────────────
 function FileBrowserTab({ rootPrefix }) {
+  const { lang } = useTranslation();
   const [prefix, setPrefix]         = useState(rootPrefix || '');
   const [files, setFiles]           = useState([]);
   const [folders, setFolders]       = useState([]);
@@ -648,7 +651,7 @@ function FileBrowserTab({ rootPrefix }) {
     const res = await window.electronAPI.r2ListFiles(target);
     setLoading(false);
     if (res.success) { setFiles(res.files || []); setFolders(res.folders || []); }
-    else setError(res.error || 'Ошибка получения списка файлов');
+    else setError(res.error || (lang === 'ru' ? 'Ошибка получения списка файлов' : 'Failed to list files'));
   }, [prefix, rootPrefix]);
 
   useEffect(() => {
@@ -657,14 +660,8 @@ function FileBrowserTab({ rootPrefix }) {
     const handler = (_, pct) => setUploadPct(pct);
     window.electronAPI.onR2UploadProgress(handler);
 
-    const preventGlobal = (e) => e.preventDefault();
-    window.addEventListener('dragover', preventGlobal);
-    window.addEventListener('drop', preventGlobal);
-
     return () => {
       window.electronAPI.removeAllListeners?.('r2-upload-progress');
-      window.removeEventListener('dragover', preventGlobal);
-      window.removeEventListener('drop', preventGlobal);
     };
   }, [rootPrefix]);
 
@@ -686,14 +683,14 @@ function FileBrowserTab({ rootPrefix }) {
       const path = filePaths[i];
       const fileName = path.split(/[\\/]/).pop();
       setUploadPct(0);
-      setSuccessMsg(`Загрузка (${i + 1}/${filePaths.length}): ${fileName}...`);
+      setSuccessMsg(lang === 'ru' ? `Загрузка (${i + 1}/${filePaths.length}): ${fileName}...` : `Uploading (${i + 1}/${filePaths.length}): ${fileName}...`);
 
       const res = await window.electronAPI.r2UploadFile(prefix, path);
       if (res.canceled) break;
       if (res.success) {
         successCount++;
       } else {
-        setError(`Ошибка загрузки "${fileName}": ${res.error || 'неизвестная ошибка'}`);
+        setError(lang === 'ru' ? `Ошибка загрузки "${fileName}": ${res.error || 'неизвестная ошибка'}` : `Upload error for "${fileName}": ${res.error || 'unknown error'}`);
       }
     }
 
@@ -701,7 +698,7 @@ function FileBrowserTab({ rootPrefix }) {
     setUploadPct(0);
     setSuccessMsg('');
     if (successCount > 0) {
-      flash(`✓ Загружено файлов: ${successCount}`);
+      flash(lang === 'ru' ? `✓ Загружено файлов: ${successCount}` : `✓ Uploaded files: ${successCount}`);
       load(prefix);
     }
   };
@@ -715,9 +712,11 @@ function FileBrowserTab({ rootPrefix }) {
   };
 
   const handleDrop = async (e) => {
-    e.preventDefault(); setDragOver(false);
+    e.preventDefault(); e.stopPropagation(); setDragOver(false);
     if (uploading) return;
-    const paths = Array.from(e.dataTransfer.files).map(f => f.path).filter(Boolean);
+    const paths = Array.from(e.dataTransfer.files)
+      .map(f => window.electronAPI.getPathForFile ? window.electronAPI.getPathForFile(f) : f.path)
+      .filter(Boolean);
     if (paths.length > 0) {
       await doUploadMultiple(paths);
     }
@@ -728,7 +727,7 @@ function FileBrowserTab({ rootPrefix }) {
     const res = await window.electronAPI.r2DeleteFile(key);
     setDeletingKey(null); setConfirmDelete(null);
     if (res.success) load(prefix);
-    else setError(res.error || 'Ошибка удаления');
+    else setError(res.error || (lang === 'ru' ? 'Ошибка удаления' : 'Delete error'));
   };
 
   return (
@@ -746,7 +745,7 @@ function FileBrowserTab({ rootPrefix }) {
         <motion.button whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.96 }}
           onClick={handleSelectFiles}
           style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 12px', borderRadius: '9px', border: 'none', cursor: 'pointer', fontSize: '12px', fontWeight: 700, background: 'rgba(99,102,241,0.15)', color: '#818cf8', flexShrink: 0 }}>
-          {uploading ? <><Spinner size={14} color="#818cf8" />{uploadPct}%</> : <><i className="fa-solid fa-cloud-arrow-up" />Загрузить</>}
+          {uploading ? <><Spinner size={14} color="#818cf8" />{uploadPct}%</> : <><i className="fa-solid fa-cloud-arrow-up" />{lang === 'ru' ? 'Загрузить' : 'Upload'}</>}
           {successMsg && <span style={{ color: '#34d399', marginLeft: '4px' }}>{successMsg}</span>}
         </motion.button>
       </div>
@@ -755,22 +754,24 @@ function FileBrowserTab({ rootPrefix }) {
 
       {/* File list */}
       <div
-        onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; setDragOver(true); }}
-        onDragLeave={() => setDragOver(false)}
+        onDragEnter={e => { e.preventDefault(); e.stopPropagation(); e.dataTransfer.dropEffect = 'copy'; setDragOver(true); }}
+        onDragOver={e => { e.preventDefault(); e.stopPropagation(); e.dataTransfer.dropEffect = 'copy'; setDragOver(true); }}
+        onDragLeave={e => { e.preventDefault(); e.stopPropagation(); setDragOver(false); }}
         onDrop={handleDrop}
         style={{
           flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '4px', paddingRight: '4px',
           border: dragOver ? '2px dashed rgba(99,102,241,0.5)' : '2px dashed transparent',
-          borderRadius: '12px', transition: 'border 0.2s'
+          borderRadius: '12px', transition: 'border 0.2s',
+          WebkitUserDrag: 'auto'
         }}>
         {loading ? (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', gap: '10px', color: '#52525b' }}>
-            <Spinner /><span style={{ fontSize: '13px', fontWeight: 600 }}>Загрузка...</span>
+            <Spinner /><span style={{ fontSize: '13px', fontWeight: 600 }}>{lang === 'ru' ? 'Загрузка...' : 'Loading...'}</span>
           </div>
         ) : folders.length === 0 && files.length === 0 ? (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: '10px', color: '#3f3f46' }}>
             <i className="fa-solid fa-folder-open" style={{ fontSize: '34px' }} />
-            <p style={{ fontSize: '13px', fontWeight: 600, margin: 0 }}>Папка пуста</p>
+            <p style={{ fontSize: '13px', fontWeight: 600, margin: 0 }}>{lang === 'ru' ? 'Папка пуста' : 'Folder is empty'}</p>
           </div>
         ) : (
           <>
@@ -798,14 +799,14 @@ function FileBrowserTab({ rootPrefix }) {
                   {confirmDelete === file.key ? (
                     <motion.div key="c" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
                       style={{ display: 'flex', gap: '5px', alignItems: 'center' }}>
-                      <span style={{ fontSize: '10px', color: '#fbbf24', fontWeight: 700 }}>Удалить?</span>
+                      <span style={{ fontSize: '10px', color: '#fbbf24', fontWeight: 700 }}>{lang === 'ru' ? 'Удалить?' : 'Delete?'}</span>
                       <button onClick={() => handleDelete(file.key)} disabled={deletingKey === file.key}
                         style={{ padding: '3px 8px', borderRadius: '7px', border: 'none', cursor: 'pointer', fontSize: '11px', fontWeight: 800, background: 'rgba(239,68,68,0.2)', color: '#f87171' }}>
-                        {deletingKey === file.key ? '...' : 'Да'}
+                        {deletingKey === file.key ? '...' : (lang === 'ru' ? 'Да' : 'Yes')}
                       </button>
                       <button onClick={() => setConfirmDelete(null)}
                         style={{ padding: '3px 8px', borderRadius: '7px', border: 'none', cursor: 'pointer', fontSize: '11px', fontWeight: 800, background: 'rgba(255,255,255,0.06)', color: '#71717a' }}>
-                        Нет
+                        {lang === 'ru' ? 'Нет' : 'No'}
                       </button>
                     </motion.div>
                   ) : (
@@ -831,9 +832,32 @@ function FileBrowserTab({ rootPrefix }) {
 // Root component
 // ────────────────────────────────────────────────────────────
 export default function OfficialBuildManagerPage({ currentPack, onBack }) {
+  const { lang } = useTranslation();
   const [tab, setTab] = useState('mods');
   const { modsKey, modsPrefix, rootPrefix, publicBase } = deriveKeys(currentPack);
   const noUrl = !currentPack.modsJsonUrl;
+
+  useEffect(() => {
+    const preventGlobalDrag = (e) => {
+      e.preventDefault();
+      if (e.dataTransfer) {
+        e.dataTransfer.dropEffect = 'none';
+      }
+    };
+    const preventGlobalDrop = (e) => {
+      e.preventDefault();
+    };
+
+    document.addEventListener('dragenter', preventGlobalDrag);
+    document.addEventListener('dragover', preventGlobalDrag);
+    document.addEventListener('drop', preventGlobalDrop);
+
+    return () => {
+      document.removeEventListener('dragenter', preventGlobalDrag);
+      document.removeEventListener('dragover', preventGlobalDrag);
+      document.removeEventListener('drop', preventGlobalDrop);
+    };
+  }, []);
 
   return (
     <div style={{
@@ -856,7 +880,7 @@ export default function OfficialBuildManagerPage({ currentPack, onBack }) {
           <i className="fa-solid fa-cloud" style={{ color: '#818cf8', fontSize: '14px' }} />
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <h2 style={{ margin: 0, fontSize: '14px', fontWeight: 900, color: '#fff' }}>Управление сборкой</h2>
+          <h2 style={{ margin: 0, fontSize: '14px', fontWeight: 900, color: '#fff' }}>{lang === 'ru' ? 'Управление сборкой' : 'Pack Management'}</h2>
           <p style={{ margin: '1px 0 0', fontSize: '10px', color: '#52525b', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {currentPack.name} · {rootPrefix || '—'}
           </p>

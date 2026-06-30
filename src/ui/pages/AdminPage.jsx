@@ -1,31 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { getBadgeStyle } from '../utils/badgeHelper';
+import { getBadgeStyle, getBadgeText, getUserTheme } from '../utils/badgeHelper';
+import { useTranslation } from '../utils/i18n';
 import AdminModpacksSection from './AdminModpacksSection';
-
-// --- Helper to Map User Role to Theme Color ---
-function getUserTheme(user) {
-  const badge = user.badge ? user.badge.toUpperCase().trim() : '';
-  if (user.is_admin === 1 || badge === 'ADMIN' || badge === 'АДМИН' || badge === 'OWNER' || badge === 'СОЗДАТЕЛЬ') {
-    return { color: '#ef4444', icon: 'fa-shield-halved', label: 'Администрация' };
-  }
-  if (badge === 'DEV' || badge === 'DEVELOPER' || badge === 'РАЗРАБОТЧИК') {
-    return { color: '#3b82f6', icon: 'fa-code', label: 'Разработчик' };
-  }
-  if (badge === 'VIP' || badge === 'ВИП' || badge === 'GOLD' || badge === 'PREMIUM' || badge === 'PREM' || badge === 'ПРЕМИУМ') {
-    return { color: '#f59e0b', icon: 'fa-gem', label: 'VIP' };
-  }
-  if (badge === 'YOUTUBE' || badge === 'YT' || badge === 'MEDIA') {
-    return { color: '#ff0000', icon: 'fa-play', label: 'Медиа' };
-  }
-  if (badge === 'SPONSOR' || badge === 'СПОНСОР') {
-    return { color: '#ec4899', icon: 'fa-heart', label: 'Спонсор' };
-  }
-  if (badge === 'HELPER' || badge === 'ХЕЛПЕР' || badge === 'MOD' || badge === 'MODER' || badge === 'МОДЕРАТОР') {
-    return { color: '#8b5cf6', icon: 'fa-user-shield', label: 'Модерация' };
-  }
-  return { color: '#10b981', icon: 'fa-user', label: 'Игрок' };
-}
 
 // --- Minecraft Head Avatar (Canvas) ---
 function MinecraftAvatar({ skinDataUrl, size = 36, authServerUrl, borderColor = 'rgba(167, 139, 250, 0.3)' }) {
@@ -115,6 +92,7 @@ function SummaryCard({ title, value, icon, color }) {
 
 // --- Quick Copy UUID Button ---
 function QuickCopyButton({ text }) {
+  const { lang } = useTranslation();
   const [copied, setCopied] = useState(false);
   const handleCopy = (e) => {
     e.stopPropagation();
@@ -123,7 +101,7 @@ function QuickCopyButton({ text }) {
     setTimeout(() => setCopied(false), 2000);
   };
   return (
-    <button onClick={handleCopy} title="Копировать UUID" style={{
+    <button onClick={handleCopy} title={lang === 'ru' ? "Копировать UUID" : "Copy UUID"} style={{
       background: copied ? 'rgba(16,185,129,0.1)' : 'rgba(255,255,255,0.03)',
       border: `1px solid ${copied ? 'rgba(16,185,129,0.2)' : 'rgba(255,255,255,0.06)'}`,
       color: copied ? '#34d399' : '#71717a',
@@ -136,7 +114,7 @@ function QuickCopyButton({ text }) {
   );
 }
 
-export default function AdminPage({ profile, active, onProfileUpdate, onModpacksUpdate, onManageMods }) {
+export default function AdminPage({ profile, active, onProfileUpdate, onModpacksUpdate, onManageMods, badges = [], onBadgesUpdate }) {
   const [adminTab, setAdminTab] = useState('users');
   const [users, setUsers] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -154,10 +132,108 @@ export default function AdminPage({ profile, active, onProfileUpdate, onModpacks
   const [createUsername, setCreateUsername] = useState('');
   const [createPassword, setCreatePassword] = useState('');
   
+  // Badges CRUD states
+  const [editingBadge, setEditingBadge] = useState(null);
+  const [showBadgeModal, setShowBadgeModal] = useState(false);
+  const [badgeCode, setBadgeCode] = useState('');
+  const [badgeText, setBadgeText] = useState('');
+  const [badgeGradStart, setBadgeGradStart] = useState('#a78bfa');
+  const [badgeGradEnd, setBadgeGradEnd] = useState('#10b981');
+  const [badgeBorder, setBadgeBorder] = useState('rgba(167, 139, 250, 0.35)');
+  const [badgeLpGroup, setBadgeLpGroup] = useState('');
+  const [badgeLpPrefix, setBadgeLpPrefix] = useState('');
+  const [badgeLpPriority, setBadgeLpPriority] = useState('80');
+
   const [actionLoading, setActionLoading] = useState(false);
   const [createError, setCreateError] = useState(null);
   const [authServerUrl, setAuthServerUrl] = useState('https://mcauth.diverlin.ru');
   const [searchFocused, setSearchFocused] = useState(false);
+  const { lang } = useTranslation();
+
+  const handleOpenCreateBadge = () => {
+    setEditingBadge(null);
+    setBadgeCode('');
+    setBadgeText('');
+    setBadgeGradStart('#a78bfa');
+    setBadgeGradEnd('#10b981');
+    setBadgeBorder('rgba(167, 139, 250, 0.35)');
+    setBadgeLpGroup('');
+    setBadgeLpPrefix('');
+    setBadgeLpPriority('80');
+    setShowBadgeModal(true);
+  };
+
+  const handleOpenEditBadge = (b) => {
+    setEditingBadge(b);
+    setBadgeCode(b.code);
+    setBadgeText(b.text);
+    setBadgeGradStart(b.gradient_start);
+    setBadgeGradEnd(b.gradient_end);
+    setBadgeBorder(b.border_color);
+    setBadgeLpGroup(b.lp_group || '');
+    setBadgeLpPrefix(b.lp_prefix || '');
+    setBadgeLpPriority(b.lp_priority ? b.lp_priority.toString() : '80');
+    setShowBadgeModal(true);
+  };
+
+  const handleSaveBadge = async (e) => {
+    e.preventDefault();
+    if (!badgeCode.trim() || !badgeText.trim() || !badgeGradStart.trim() || !badgeGradEnd.trim() || !badgeBorder.trim()) return;
+    setActionLoading(true);
+    try {
+      const badgeData = {
+        code: badgeCode.toUpperCase().trim(),
+        text: badgeText.trim(),
+        gradient_start: badgeGradStart.trim(),
+        gradient_end: badgeGradEnd.trim(),
+        border_color: badgeBorder.trim(),
+        lp_group: badgeLpGroup.trim() || null,
+        lp_prefix: badgeLpPrefix.trim() || null,
+        lp_priority: parseInt(badgeLpPriority, 10) || 80
+      };
+      let res;
+      if (editingBadge) {
+        res = await window.electronAPI.updateAdminBadge(editingBadge.id, badgeData);
+      } else {
+        res = await window.electronAPI.createAdminBadge(badgeData);
+      }
+
+      if (res.success) {
+        if (onBadgesUpdate) onBadgesUpdate();
+        setShowBadgeModal(false);
+        setEditingBadge(null);
+      } else {
+        alert(res.error || (lang === 'ru' ? 'Ошибка сохранения бейджа' : 'Error saving badge'));
+      }
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleDeleteBadge = async (b) => {
+    const confirmMsg = lang === 'ru' 
+      ? `Вы уверены, что хотите удалить бейдж "${b.text}"? Он будет снят со всех игроков.` 
+      : `Are you sure you want to delete badge "${b.text}"? It will be removed from all players.`;
+    
+    if (window.confirm(confirmMsg)) {
+      setActionLoading(true);
+      try {
+        const res = await window.electronAPI.deleteAdminBadge(b.id);
+        if (res.success) {
+          if (onBadgesUpdate) onBadgesUpdate();
+        } else {
+          alert(res.error || 'Error deleting badge');
+        }
+      } catch (err) {
+        alert(err.message);
+      } finally {
+        setActionLoading(false);
+      }
+    }
+  };
+
 
   const fetchUsers = async () => {
     setLoading(true);
@@ -167,7 +243,7 @@ export default function AdminPage({ profile, active, onProfileUpdate, onModpacks
       if (res.success) {
         setUsers(res.users || []);
       } else {
-        setError(res.error || 'Не удалось загрузить список пользователей');
+        setError(res.error || (lang === 'ru' ? 'Не удалось загрузить список пользователей' : 'Failed to load users list'));
       }
     } catch (err) {
       setError(err.message);
@@ -226,7 +302,7 @@ export default function AdminPage({ profile, active, onProfileUpdate, onModpacks
         
         handleCloseEdit();
       } else {
-        alert(res.error || 'Ошибка при обновлении пользователя');
+        alert(res.error || (lang === 'ru' ? 'Ошибка при обновлении пользователя' : 'Error updating user'));
       }
     } catch (err) {
       alert(err.message);
@@ -237,10 +313,10 @@ export default function AdminPage({ profile, active, onProfileUpdate, onModpacks
 
   const handleDeleteUser = async (user) => {
     if (user.id === profile.id) {
-      alert('Вы не можете удалить самого себя!');
+      alert(lang === 'ru' ? 'Вы не можете удалить самого себя!' : 'You cannot delete yourself!');
       return;
     }
-    if (!confirm(`Вы действительно хотите удалить пользователя ${user.username}?`)) {
+    if (!confirm(lang === 'ru' ? `Вы действительно хотите удалить пользователя ${user.username}?` : `Are you sure you want to delete user ${user.username}?`)) {
       return;
     }
 
@@ -250,7 +326,7 @@ export default function AdminPage({ profile, active, onProfileUpdate, onModpacks
       if (res.success) {
         setUsers(prev => prev.filter(u => u.id !== user.id));
       } else {
-        alert(res.error || 'Ошибка при удалении пользователя');
+        alert(res.error || (lang === 'ru' ? 'Ошибка при удалении пользователя' : 'Error deleting user'));
       }
     } catch (err) {
       alert(err.message);
@@ -262,11 +338,11 @@ export default function AdminPage({ profile, active, onProfileUpdate, onModpacks
   const handleCreateUser = async (e) => {
     e.preventDefault();
     if (!createUsername.trim() || !createPassword.trim()) {
-      setCreateError('Заполните все поля');
+      setCreateError(lang === 'ru' ? 'Заполните все поля' : 'Please fill in all fields');
       return;
     }
     if (createPassword.length < 4) {
-      setCreateError('Пароль должен быть не менее 4 символов');
+      setCreateError(lang === 'ru' ? 'Пароль должен быть не менее 4 символов' : 'Password must be at least 4 characters');
       return;
     }
 
@@ -280,7 +356,7 @@ export default function AdminPage({ profile, active, onProfileUpdate, onModpacks
         setCreatePassword('');
         setShowCreateModal(false);
       } else {
-        setCreateError(res.error || 'Ошибка создания пользователя');
+        setCreateError(res.error || (lang === 'ru' ? 'Ошибка создания пользователя' : 'Error creating user'));
       }
     } catch (err) {
       setCreateError(err.message);
@@ -345,7 +421,7 @@ export default function AdminPage({ profile, active, onProfileUpdate, onModpacks
             textShadow: '0 4px 14px rgba(0,0,0,0.6)',
             fontFamily: 'Montserrat'
           }}>
-            Админ-панель
+            {lang === 'ru' ? 'Админ-панель' : 'Admin Panel'}
           </h1>
 
           {/* Табы */}
@@ -362,7 +438,7 @@ export default function AdminPage({ profile, active, onProfileUpdate, onModpacks
               }}
             >
               <i className="fa-solid fa-users" style={{ marginRight: '6px' }} />
-              Игроки
+              {lang === 'ru' ? 'Игроки' : 'Players'}
             </motion.button>
             <motion.button
               whileTap={{ scale: 0.95 }}
@@ -376,7 +452,21 @@ export default function AdminPage({ profile, active, onProfileUpdate, onModpacks
               }}
             >
               <i className="fa-solid fa-cubes" style={{ marginRight: '6px' }} />
-              Сборки
+              {lang === 'ru' ? 'Сборки' : 'Packs'}
+            </motion.button>
+            <motion.button
+              whileTap={{ scale: 0.95 }}
+              onClick={() => setAdminTab('badges')}
+              style={{
+                padding: '6px 14px', borderRadius: '9px', border: 'none', cursor: 'pointer',
+                fontSize: '12px', fontWeight: 800, fontFamily: 'Montserrat',
+                background: adminTab === 'badges' ? 'rgba(255,255,255,0.1)' : 'transparent',
+                color: adminTab === 'badges' ? '#fff' : '#71717a',
+                transition: 'all 0.2s'
+              }}
+            >
+              <i className="fa-solid fa-tag" style={{ marginRight: '6px' }} />
+              {lang === 'ru' ? 'Бейджи' : 'Badges'}
             </motion.button>
           </div>
         </div>
@@ -394,7 +484,7 @@ export default function AdminPage({ profile, active, onProfileUpdate, onModpacks
                 display: 'flex', alignItems: 'center', gap: '6px',
                 boxShadow: '0 4px 12px rgba(16, 185, 129, 0.15)'
               }}>
-              <i className="fa-solid fa-user-plus" /> Создать игрока
+              <i className="fa-solid fa-user-plus" /> {lang === 'ru' ? 'Создать игрока' : 'Create Player'}
             </motion.button>
 
             <button onClick={fetchUsers} disabled={loading}
@@ -404,7 +494,7 @@ export default function AdminPage({ profile, active, onProfileUpdate, onModpacks
                 fontSize: '12px', fontWeight: 800, fontFamily: 'Montserrat',
                 display: 'flex', alignItems: 'center', gap: '6px'
               }}>
-              <i className={`fa-solid fa-arrows-rotate ${loading ? 'fa-spin' : ''}`} /> Обновить
+              <i className={`fa-solid fa-arrows-rotate ${loading ? 'fa-spin' : ''}`} /> {lang === 'ru' ? 'Обновить' : 'Refresh'}
             </button>
           </div>
         )}
@@ -415,10 +505,10 @@ export default function AdminPage({ profile, active, onProfileUpdate, onModpacks
           {/* Metrics Summary Row */}
           {!loading && !error && (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', marginBottom: '16px' }}>
-              <SummaryCard title="Всего аккаунтов" value={totalCount} icon="fa-users" color="#3b82f6" />
-              <SummaryCard title="Администрация" value={adminCount} icon="fa-shield-halved" color="#ef4444" />
-              <SummaryCard title="С бэйджами" value={badgedCount} icon="fa-gem" color="#f59e0b" />
-              <SummaryCard title="Обычные игроки" value={regularCount} icon="fa-user" color="#10b981" />
+              <SummaryCard title={lang === 'ru' ? "Всего аккаунтов" : "Total Accounts"} value={totalCount} icon="fa-users" color="#3b82f6" />
+              <SummaryCard title={lang === 'ru' ? "Администрация" : "Administration"} value={adminCount} icon="fa-shield-halved" color="#ef4444" />
+              <SummaryCard title={lang === 'ru' ? "С бэйджами" : "Badged Users"} value={badgedCount} icon="fa-gem" color="#f59e0b" />
+              <SummaryCard title={lang === 'ru' ? "Обычные игроки" : "Regular Players"} value={regularCount} icon="fa-user" color="#10b981" />
             </div>
           )}
 
@@ -436,7 +526,7 @@ export default function AdminPage({ profile, active, onProfileUpdate, onModpacks
                 <i className="fa-solid fa-magnifying-glass" style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: searchFocused ? '#a78bfa' : '#71717a', fontSize: '14px', transition: 'color 0.2s' }} />
                 <input 
                   type="text" 
-                  placeholder="Поиск игрока по нику или UUID..." 
+                  placeholder={lang === 'ru' ? 'Поиск игрока по нику или UUID...' : 'Search player by nickname or UUID...'} 
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   onFocus={() => setSearchFocused(true)}
@@ -452,7 +542,12 @@ export default function AdminPage({ profile, active, onProfileUpdate, onModpacks
               {/* Quick Filters Row */}
               <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                 {['all', 'admins', 'badged', 'citizens'].map(f => {
-                  const labels = { all: 'Все', admins: 'Администрация', badged: 'С бэйджами', citizens: 'Без статуса' };
+                  const labels = {
+                    all: lang === 'ru' ? 'Все' : 'All',
+                    admins: lang === 'ru' ? 'Администрация' : 'Administration',
+                    badged: lang === 'ru' ? 'С бэйджами' : 'Badged',
+                    citizens: lang === 'ru' ? 'Без статуса' : 'No Status'
+                  };
                   const icons = { all: 'fa-globe', admins: 'fa-shield-halved', badged: 'fa-gem', citizens: 'fa-user' };
                   const colors = { all: '#3b82f6', admins: '#ef4444', badged: '#f59e0b', citizens: '#10b981' };
                   const active = listFilter === f;
@@ -494,7 +589,7 @@ export default function AdminPage({ profile, active, onProfileUpdate, onModpacks
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flexGrow: 1, gap: '15px' }}>
                   <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1.5, ease: "linear" }} 
                     style={{ width: '36px', height: '36px', border: '3px solid rgba(167, 139, 250, 0.1)', borderTopColor: '#a78bfa', borderRadius: '50%' }} />
-                  <span style={{ fontSize: '13px', color: '#a1a1aa', fontWeight: 600, fontFamily: 'Montserrat' }}>Загрузка списка пользователей...</span>
+                  <span style={{ fontSize: '13px', color: '#a1a1aa', fontWeight: 600, fontFamily: 'Montserrat' }}>{lang === 'ru' ? 'Загрузка списка пользователей...' : 'Loading users list...'}</span>
                 </div>
               ) : error ? (
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flexGrow: 1, gap: '10px', color: '#ef4444' }}>
@@ -503,13 +598,13 @@ export default function AdminPage({ profile, active, onProfileUpdate, onModpacks
                 </div>
               ) : filteredUsers.length === 0 ? (
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flexGrow: 1, color: '#71717a' }}>
-                  <span style={{ fontSize: '13px', fontWeight: 600, fontFamily: 'Montserrat' }}>Пользователи не найдены</span>
+                  <span style={{ fontSize: '13px', fontWeight: 600, fontFamily: 'Montserrat' }}>{lang === 'ru' ? 'Пользователи не найдены' : 'No users found'}</span>
                 </div>
               ) : (
                 <motion.div layout style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   <AnimatePresence mode="popLayout">
                     {filteredUsers.map(user => {
-                      const theme = getUserTheme(user);
+                      const theme = getUserTheme(user, lang);
                       return (
                         <motion.div 
                           layout
@@ -577,7 +672,7 @@ export default function AdminPage({ profile, active, onProfileUpdate, onModpacks
                                 color: '#60a5fa', width: '32px', height: '32px', borderRadius: '8px', cursor: 'pointer',
                                 display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s',
                                 fontSize: '11px'
-                              }} title="Редактировать">
+                              }} title={lang === 'ru' ? 'Редактировать' : 'Edit'}>
                               <i className="fa-solid fa-pen" />
                             </button>
                             
@@ -587,7 +682,7 @@ export default function AdminPage({ profile, active, onProfileUpdate, onModpacks
                                 color: '#f87171', width: '32px', height: '32px', borderRadius: '8px', cursor: 'pointer',
                                 display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s',
                                 fontSize: '11px'
-                              }} title="Удалить">
+                              }} title={lang === 'ru' ? 'Удалить' : 'Delete'}>
                               <i className="fa-solid fa-trash-can" />
                             </button>
                           </div>
@@ -600,11 +695,128 @@ export default function AdminPage({ profile, active, onProfileUpdate, onModpacks
             </div>
           </div>
         </>
-      ) : (
+      ) : adminTab === 'packs' ? (
         <AdminModpacksSection 
           onModpacksUpdate={onModpacksUpdate}
           onManageMods={onManageMods}
         />
+      ) : (
+        <div style={{ ...glassCard, flexGrow: 1, padding: '20px', display: 'flex', flexDirection: 'column', overflow: 'hidden', gap: '15px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              <h2 style={{ fontSize: '18px', fontWeight: 900, color: '#fff', margin: 0, fontFamily: 'Montserrat' }}>
+                {lang === 'ru' ? 'Управление бейджами' : 'Badge Management'}
+              </h2>
+              <p style={{ fontSize: '11px', color: '#71717a', margin: '4px 0 0 0', fontWeight: 600 }}>
+                {lang === 'ru' ? 'Создавайте кастомные бейджы и настраивайте их отображение на сервере' : 'Create custom badges and configure their server display'}
+              </p>
+            </div>
+            <motion.button 
+              whileHover={{ scale: 1.04, boxShadow: '0 0 15px rgba(16,185,129,0.25)' }}
+              whileTap={{ scale: 0.96 }}
+              onClick={handleOpenCreateBadge}
+              style={{
+                background: 'linear-gradient(135deg, #10b981, #059669)', border: 'none',
+                color: '#fff', padding: '9px 16px', borderRadius: '12px', cursor: 'pointer',
+                fontSize: '12px', fontWeight: 800, fontFamily: 'Montserrat',
+                display: 'flex', alignItems: 'center', gap: '6px',
+                boxShadow: '0 4px 12px rgba(16, 185, 129, 0.15)'
+              }}>
+              <i className="fa-solid fa-plus" /> {lang === 'ru' ? 'Создать бейдж' : 'Create Badge'}
+            </motion.button>
+          </div>
+
+          <div style={{ flexGrow: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px', paddingRight: '4px' }}>
+            {badges.length === 0 ? (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flexGrow: 1, color: '#71717a' }}>
+                <span style={{ fontSize: '13px', fontWeight: 600, fontFamily: 'Montserrat' }}>
+                  {lang === 'ru' ? 'Нет созданных бейджей' : 'No badges created'}
+                </span>
+              </div>
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '12px', paddingBottom: '10px' }}>
+                {badges.map(b => (
+                  <motion.div
+                    key={b.id}
+                    layout
+                    style={{
+                      background: 'rgba(10, 10, 16, 0.45)',
+                      border: '1px solid rgba(255, 255, 255, 0.05)',
+                      borderRadius: '16px',
+                      padding: '16px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '12px',
+                      position: 'relative'
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                        <span style={getBadgeStyle(b.code)}>{b.text}</span>
+                        <span style={{ fontSize: '11px', color: '#71717a', fontWeight: 700 }}>({b.code})</span>
+                      </div>
+                      <div style={{ display: 'flex', gap: '6px' }}>
+                        <button 
+                          onClick={() => handleOpenEditBadge(b)}
+                          style={{
+                            background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)',
+                            color: '#a78bfa', width: '28px', height: '28px', borderRadius: '8px',
+                            cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            fontSize: '11px', transition: 'all 0.2s'
+                          }}
+                          title={lang === 'ru' ? 'Редактировать' : 'Edit'}
+                        >
+                          <i className="fa-solid fa-pencil" />
+                        </button>
+                        <button 
+                          onClick={() => handleDeleteBadge(b)}
+                          style={{
+                            background: 'rgba(239,68,68,0.05)', border: '1px solid rgba(239,68,68,0.15)',
+                            color: '#ef4444', width: '28px', height: '28px', borderRadius: '8px',
+                            cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            fontSize: '11px', transition: 'all 0.2s'
+                          }}
+                          title={lang === 'ru' ? 'Удалить' : 'Delete'}
+                        >
+                          <i className="fa-solid fa-trash-can" />
+                        </button>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '12px', color: '#a1a1aa' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span>{lang === 'ru' ? 'Градиент:' : 'Gradient:'}</span>
+                        <span style={{ fontWeight: 700, color: '#fff' }}>
+                          <span style={{ color: b.gradient_start }}>■</span> {b.gradient_start} → <span style={{ color: b.gradient_end }}>■</span> {b.gradient_end}
+                        </span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span>{lang === 'ru' ? 'Рамка:' : 'Border:'}</span>
+                        <span style={{ fontWeight: 700, color: '#fff' }}>{b.border_color}</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid rgba(255,255,255,0.04)', paddingTop: '6px', marginTop: '2px' }}>
+                        <span>{lang === 'ru' ? 'Группа LuckPerms:' : 'LuckPerms Group:'}</span>
+                        <span style={{ fontWeight: 700, color: b.lp_group ? '#3b82f6' : '#71717a' }}>{b.lp_group || (lang === 'ru' ? 'Нет' : 'None')}</span>
+                      </div>
+                      {b.lp_group && (
+                        <>
+                          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                            <span>{lang === 'ru' ? 'Префикс:' : 'Prefix:'}</span>
+                            <span style={{ fontWeight: 700, color: '#fff', fontFamily: 'monospace' }}>{b.lp_prefix || (lang === 'ru' ? 'Пусто' : 'Empty')}</span>
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                            <span>{lang === 'ru' ? 'Приоритет:' : 'Priority:'}</span>
+                            <span style={{ fontWeight: 700, color: '#fff' }}>{b.lp_priority}</span>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
       )}
 
       {/* Edit User Modal */}
@@ -629,30 +841,38 @@ export default function AdminPage({ profile, active, onProfileUpdate, onModpacks
                 boxShadow: '0 25px 50px rgba(0,0,0,0.8)'
               }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '10px' }}>
-                <span style={{ fontSize: '15px', fontWeight: 800, fontFamily: 'Montserrat' }}>Редактирование</span>
+                <span style={{ fontSize: '15px', fontWeight: 800, fontFamily: 'Montserrat' }}>{lang === 'ru' ? 'Редактирование' : 'Editing'}</span>
                 <span style={{ fontSize: '13px', color: '#a78bfa', fontWeight: 700, fontFamily: 'Montserrat' }}>{selectedUser.username}</span>
               </div>
 
               {/* Badge Field */}
               <div>
                 <label style={{ display: 'block', color: '#a1a1aa', fontSize: '10px', textTransform: 'uppercase', fontWeight: 800, marginBottom: '6px', letterSpacing: '1px' }}>
-                  Бэйдж (префикс перед ником)
+                  {lang === 'ru' ? 'Бэйдж (префикс перед ником)' : 'Badge (prefix before nickname)'}
                 </label>
-                <input 
-                  type="text" 
-                  placeholder="Например: VIP, Dev, Admin (пусто = без бэйджа)"
+                <select 
                   value={badgeVal}
                   onChange={(e) => setBadgeVal(e.target.value)}
-                  style={inputStyle}
-                  maxLength={12}
-                />
+                  style={{
+                    ...inputStyle,
+                    background: 'rgba(10, 10, 16, 0.9)',
+                    color: '#fff',
+                    cursor: 'pointer',
+                    width: '100%'
+                  }}
+                >
+                  <option value="">{lang === 'ru' ? 'Без бэйджа' : 'No Badge'}</option>
+                  {badges.map(b => (
+                    <option key={b.id} value={b.code}>{b.text} ({b.code})</option>
+                  ))}
+                </select>
               </div>
 
               {/* Admin Toggle */}
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0' }}>
                 <div>
-                  <span style={{ display: 'block', fontSize: '13px', fontWeight: 700, fontFamily: 'Montserrat' }}>Права администратора</span>
-                  <span style={{ display: 'block', fontSize: '10px', color: '#71717a', marginTop: '2px' }}>Доступ в эту панель</span>
+                  <span style={{ display: 'block', fontSize: '13px', fontWeight: 700, fontFamily: 'Montserrat' }}>{lang === 'ru' ? 'Права администратора' : 'Administrator Rights'}</span>
+                  <span style={{ display: 'block', fontSize: '10px', color: '#71717a', marginTop: '2px' }}>{lang === 'ru' ? 'Доступ в эту панель' : 'Access to this panel'}</span>
                 </div>
                 <label style={{
                   position: 'relative', display: 'inline-block', width: '44px', height: '24px', cursor: 'pointer'
@@ -686,7 +906,7 @@ export default function AdminPage({ profile, active, onProfileUpdate, onModpacks
                     background: 'transparent', color: '#a1a1aa', fontWeight: 700, fontSize: '12px',
                     cursor: 'pointer', fontFamily: 'Montserrat'
                   }}>
-                  Отмена
+                  {lang === 'ru' ? 'Отмена' : 'Cancel'}
                 </button>
                 <button type="submit" disabled={actionLoading}
                   style={{
@@ -695,7 +915,7 @@ export default function AdminPage({ profile, active, onProfileUpdate, onModpacks
                     fontWeight: 800, fontSize: '12px', cursor: 'pointer', fontFamily: 'Montserrat',
                     boxShadow: '0 4px 10px rgba(16, 185, 129, 0.2)'
                   }}>
-                  {actionLoading ? 'Сохранение...' : 'Сохранить'}
+                  {actionLoading ? (lang === 'ru' ? 'Сохранение...' : 'Saving...') : (lang === 'ru' ? 'Сохранить' : 'Save')}
                 </button>
               </div>
             </motion.form>
@@ -725,18 +945,18 @@ export default function AdminPage({ profile, active, onProfileUpdate, onModpacks
                 boxShadow: '0 25px 50px rgba(0,0,0,0.8)'
               }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '10px' }}>
-                <span style={{ fontSize: '15px', fontWeight: 800, fontFamily: 'Montserrat' }}>Создание игрока</span>
+                <span style={{ fontSize: '15px', fontWeight: 800, fontFamily: 'Montserrat' }}>{lang === 'ru' ? 'Создание игрока' : 'Create Player'}</span>
                 <i className="fa-solid fa-user-plus" style={{ color: '#10b981' }} />
               </div>
 
               {/* Username field */}
               <div>
                 <label style={{ display: 'block', color: '#a1a1aa', fontSize: '10px', textTransform: 'uppercase', fontWeight: 800, marginBottom: '6px', letterSpacing: '1px' }}>
-                  Никнейм игрока
+                  {lang === 'ru' ? 'Никнейм игрока' : 'Player Username'}
                 </label>
                 <input 
                   type="text" 
-                  placeholder="Введите ник..."
+                  placeholder={lang === 'ru' ? 'Введите ник...' : 'Enter username...'}
                   value={createUsername}
                   onChange={(e) => setCreateUsername(e.target.value)}
                   style={inputStyle}
@@ -747,11 +967,11 @@ export default function AdminPage({ profile, active, onProfileUpdate, onModpacks
               {/* Password field */}
               <div>
                 <label style={{ display: 'block', color: '#a1a1aa', fontSize: '10px', textTransform: 'uppercase', fontWeight: 800, marginBottom: '6px', letterSpacing: '1px' }}>
-                  Пароль
+                  {lang === 'ru' ? 'Пароль' : 'Password'}
                 </label>
                 <input 
                   type="password" 
-                  placeholder="Минимум 4 символа"
+                  placeholder={lang === 'ru' ? 'Минимум 4 символа' : 'Minimum 4 characters'}
                   value={createPassword}
                   onChange={(e) => setCreatePassword(e.target.value)}
                   style={inputStyle}
@@ -780,7 +1000,7 @@ export default function AdminPage({ profile, active, onProfileUpdate, onModpacks
                     background: 'transparent', color: '#a1a1aa', fontWeight: 700, fontSize: '12px',
                     cursor: 'pointer', fontFamily: 'Montserrat'
                   }}>
-                  Отмена
+                  {lang === 'ru' ? 'Отмена' : 'Cancel'}
                 </button>
                 <button type="submit" disabled={actionLoading}
                   style={{
@@ -789,7 +1009,211 @@ export default function AdminPage({ profile, active, onProfileUpdate, onModpacks
                     fontWeight: 800, fontSize: '12px', cursor: 'pointer', fontFamily: 'Montserrat',
                     boxShadow: '0 4px 10px rgba(16, 185, 129, 0.2)'
                   }}>
-                  {actionLoading ? 'Создание...' : 'Создать'}
+                  {actionLoading ? (lang === 'ru' ? 'Создание...' : 'Creating...') : (lang === 'ru' ? 'Создать' : 'Create')}
+                </button>
+              </div>
+            </motion.form>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Create/Edit Badge Modal */}
+      <AnimatePresence>
+        {showBadgeModal && (
+          <div style={{
+            position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+            background: 'rgba(5, 5, 8, 0.65)', backdropFilter: 'blur(10px)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100,
+            borderRadius: '24px'
+          }}>
+            <motion.form 
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              onSubmit={handleSaveBadge}
+              style={{
+                ...glassCard, padding: '25px', width: '380px',
+                background: 'rgba(15, 15, 22, 0.96)',
+                border: '1px solid rgba(167, 139, 250, 0.25)',
+                display: 'flex', flexDirection: 'column', gap: '12px',
+                boxShadow: '0 25px 50px rgba(0,0,0,0.8)',
+                maxHeight: '90%', overflowY: 'auto'
+              }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '10px' }}>
+                <span style={{ fontSize: '15px', fontWeight: 800, fontFamily: 'Montserrat' }}>
+                  {editingBadge ? (lang === 'ru' ? 'Редактировать бейдж' : 'Edit Badge') : (lang === 'ru' ? 'Создать бейдж' : 'Create Badge')}
+                </span>
+                <i className="fa-solid fa-tag" style={{ color: '#a78bfa' }} />
+              </div>
+
+              {/* Badge Code field */}
+              <div>
+                <label style={{ display: 'block', color: '#a1a1aa', fontSize: '10px', textTransform: 'uppercase', fontWeight: 800, marginBottom: '4px', letterSpacing: '1px' }}>
+                  {lang === 'ru' ? 'Код бейджа (Уникальный, латиница)' : 'Badge Code (Unique, English)'}
+                </label>
+                <input 
+                  type="text" 
+                  placeholder="e.g. VIP"
+                  value={badgeCode}
+                  onChange={(e) => setBadgeCode(e.target.value.toUpperCase().replace(/[^A-Z0-9_]/g, ''))}
+                  style={inputStyle}
+                  disabled={!!editingBadge}
+                  required
+                />
+              </div>
+
+              {/* Badge Text field */}
+              <div>
+                <label style={{ display: 'block', color: '#a1a1aa', fontSize: '10px', textTransform: 'uppercase', fontWeight: 800, marginBottom: '4px', letterSpacing: '1px' }}>
+                  {lang === 'ru' ? 'Текст отображения' : 'Display Text'}
+                </label>
+                <input 
+                  type="text" 
+                  placeholder="e.g. VIP"
+                  value={badgeText}
+                  onChange={(e) => setBadgeText(e.target.value)}
+                  style={inputStyle}
+                  required
+                />
+              </div>
+
+              {/* Gradient Colors */}
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <div style={{ flex: 1 }}>
+                  <label style={{ display: 'block', color: '#a1a1aa', fontSize: '10px', textTransform: 'uppercase', fontWeight: 800, marginBottom: '4px', letterSpacing: '1px' }}>
+                    {lang === 'ru' ? 'Начало градиента' : 'Gradient Start'}
+                  </label>
+                  <div style={{ display: 'flex', gap: '6px' }}>
+                    <input 
+                      type="color" 
+                      value={badgeGradStart}
+                      onChange={(e) => {
+                        setBadgeGradStart(e.target.value);
+                        const hex = e.target.value;
+                        const r = parseInt(hex.slice(1, 3), 16);
+                        const g = parseInt(hex.slice(3, 5), 16);
+                        const b = parseInt(hex.slice(5, 7), 16);
+                        setBadgeBorder(`rgba(${r}, ${g}, ${b}, 0.35)`);
+                      }}
+                      style={{ width: '32px', height: '32px', padding: 0, border: 'none', background: 'transparent', cursor: 'pointer' }}
+                    />
+                    <input 
+                      type="text" 
+                      value={badgeGradStart}
+                      onChange={(e) => setBadgeGradStart(e.target.value)}
+                      style={{ ...inputStyle, flex: 1, padding: '4px 8px' }}
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div style={{ flex: 1 }}>
+                  <label style={{ display: 'block', color: '#a1a1aa', fontSize: '10px', textTransform: 'uppercase', fontWeight: 800, marginBottom: '4px', letterSpacing: '1px' }}>
+                    {lang === 'ru' ? 'Конец градиента' : 'Gradient End'}
+                  </label>
+                  <div style={{ display: 'flex', gap: '6px' }}>
+                    <input 
+                      type="color" 
+                      value={badgeGradEnd}
+                      onChange={(e) => setBadgeGradEnd(e.target.value)}
+                      style={{ width: '32px', height: '32px', padding: 0, border: 'none', background: 'transparent', cursor: 'pointer' }}
+                    />
+                    <input 
+                      type="text" 
+                      value={badgeGradEnd}
+                      onChange={(e) => setBadgeGradEnd(e.target.value)}
+                      style={{ ...inputStyle, flex: 1, padding: '4px 8px' }}
+                      required
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Border Color */}
+              <div>
+                <label style={{ display: 'block', color: '#a1a1aa', fontSize: '10px', textTransform: 'uppercase', fontWeight: 800, marginBottom: '4px', letterSpacing: '1px' }}>
+                  {lang === 'ru' ? 'Цвет рамки (CSS)' : 'Border Color (CSS)'}
+                </label>
+                <input 
+                  type="text" 
+                  placeholder="rgba(255,255,255,0.15)"
+                  value={badgeBorder}
+                  onChange={(e) => setBadgeBorder(e.target.value)}
+                  style={inputStyle}
+                  required
+                />
+              </div>
+
+              {/* LuckPerms Settings Header */}
+              <div style={{ fontSize: '11px', fontWeight: 800, color: '#a78bfa', textTransform: 'uppercase', letterSpacing: '0.8px', borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '10px', marginTop: '5px' }}>
+                {lang === 'ru' ? 'Синхронизация с сервером (LuckPerms)' : 'Server Sync Settings (LuckPerms)'}
+              </div>
+
+              {/* LP Group */}
+              <div>
+                <label style={{ display: 'block', color: '#a1a1aa', fontSize: '10px', textTransform: 'uppercase', fontWeight: 800, marginBottom: '4px', letterSpacing: '1px' }}>
+                  {lang === 'ru' ? 'Группа в LuckPerms (пусто = без синхронизации)' : 'LuckPerms Group (empty = no sync)'}
+                </label>
+                <input 
+                  type="text" 
+                  placeholder="e.g. vip"
+                  value={badgeLpGroup}
+                  onChange={(e) => setBadgeLpGroup(e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, ''))}
+                  style={inputStyle}
+                />
+              </div>
+
+              {badgeLpGroup && (
+                <>
+                  {/* LP Prefix */}
+                  <div>
+                    <label style={{ display: 'block', color: '#a1a1aa', fontSize: '10px', textTransform: 'uppercase', fontWeight: 800, marginBottom: '4px', letterSpacing: '1px' }}>
+                      {lang === 'ru' ? 'Префикс группы в Minecraft' : 'Minecraft Prefix for Group'}
+                    </label>
+                    <input 
+                      type="text" 
+                      placeholder="e.g. &#0096c7&l[&#00f5d4&lVIP&#0096c7&l]&r "
+                      value={badgeLpPrefix}
+                      onChange={(e) => setBadgeLpPrefix(e.target.value)}
+                      style={inputStyle}
+                    />
+                  </div>
+
+                  {/* LP Priority */}
+                  <div>
+                    <label style={{ display: 'block', color: '#a1a1aa', fontSize: '10px', textTransform: 'uppercase', fontWeight: 800, marginBottom: '4px', letterSpacing: '1px' }}>
+                      {lang === 'ru' ? 'Приоритет префикса (выше = важнее)' : 'Prefix Priority (higher = higher priority)'}
+                    </label>
+                    <input 
+                      type="number" 
+                      value={badgeLpPriority}
+                      onChange={(e) => setBadgeLpPriority(e.target.value)}
+                      style={inputStyle}
+                      min="0"
+                      max="1000"
+                    />
+                  </div>
+                </>
+              )}
+
+              {/* Buttons */}
+              <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
+                <button type="button" onClick={() => setShowBadgeModal(false)} disabled={actionLoading}
+                  style={{
+                    flex: 1, padding: '10px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.1)',
+                    background: 'transparent', color: '#a1a1aa', fontWeight: 700, fontSize: '12px',
+                    cursor: 'pointer', fontFamily: 'Montserrat'
+                  }}>
+                  {lang === 'ru' ? 'Отмена' : 'Cancel'}
+                </button>
+                <button type="submit" disabled={actionLoading}
+                  style={{
+                    flex: 1, padding: '10px', borderRadius: '10px', border: 'none',
+                    background: 'linear-gradient(135deg, #10b981, #059669)', color: '#fff',
+                    fontWeight: 800, fontSize: '12px', cursor: 'pointer', fontFamily: 'Montserrat',
+                    boxShadow: '0 4px 10px rgba(16, 185, 129, 0.2)'
+                  }}>
+                  {actionLoading ? (lang === 'ru' ? 'Сохранение...' : 'Saving...') : (lang === 'ru' ? 'Сохранить' : 'Save')}
                 </button>
               </div>
             </motion.form>

@@ -1,25 +1,30 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useTranslation } from '../utils/i18n';
 
 const CATEGORIES = [
-  { id: '', name: 'Все', icon: 'fa-globe' },
-  { id: 'optimization', name: 'Оптимизация', icon: 'fa-bolt' },
-  { id: 'magic', name: 'Магия', icon: 'fa-wand-magic-sparkles' },
-  { id: 'technology', name: 'Технологии', icon: 'fa-microchip' },
-  { id: 'adventure', name: 'Приключения', icon: 'fa-map' },
-  { id: 'decoration', name: 'Декор', icon: 'fa-couch' },
-  { id: 'library', name: 'Библиотеки', icon: 'fa-book' },
-  { id: 'worldgen', name: 'Генерация', icon: 'fa-earth-americas' }
+  { id: '', nameKey: 'mods_category_all', icon: 'fa-globe' },
+  { id: 'optimization', nameKey: 'mods_category_opt', icon: 'fa-bolt' },
+  { id: 'magic', nameKey: 'mods_category_magic', icon: 'fa-wand-magic-sparkles' },
+  { id: 'technology', nameKey: 'mods_category_tech', icon: 'fa-microchip' },
+  { id: 'adventure', nameKey: 'mods_category_adv', icon: 'fa-map' },
+  { id: 'decoration', nameKey: 'mods_category_dec', icon: 'fa-couch' },
+  { id: 'library', nameKey: 'mods_category_lib', icon: 'fa-book' },
+  { id: 'worldgen', nameKey: 'mods_category_gen', icon: 'fa-earth-americas' }
 ];
 
 const SORT_OPTIONS = [
-  { id: 'popular', name: 'Популярные', icon: 'fa-fire' },
-  { id: 'downloads', name: 'Скачиваемые', icon: 'fa-download' },
-  { id: 'updated', name: 'Обновлённые', icon: 'fa-calendar' },
-  { id: 'name', name: 'А-Я', icon: 'fa-sort-alpha-down' }
+  { id: 'popular', nameKey: 'mods_sort_pop', icon: 'fa-fire' },
+  { id: 'downloads', nameKey: 'mods_sort_dl', icon: 'fa-download' },
+  { id: 'updated', nameKey: 'mods_sort_upd', icon: 'fa-calendar' },
+  { id: 'name', nameKey: 'mods_sort_alpha', icon: 'fa-sort-alpha-down' }
 ];
 
 export default function ModsPage({ currentPack, onBack }) {
+  const { lang, t } = useTranslation();
+  const [source, setSource] = useState('curse'); // 'curse' | 'modrinth'
+  const [projectType, setProjectType] = useState('mod'); // 'mod' | 'resourcepack' | 'shader'
+  
   const [mods, setMods] = useState([]);
   const [installedMods, setInstalledMods] = useState([]);
   const [search, setSearch] = useState('');
@@ -49,11 +54,11 @@ export default function ModsPage({ currentPack, onBack }) {
 
   const fetchInstalledMods = useCallback(async () => {
     if (!currentPack || !currentPack.clientDir) return;
-    const res = await window.electronAPI.getInstalledMods(currentPack.clientDir);
+    const res = await window.electronAPI.getInstalledMods(currentPack.clientDir, projectType);
     if (res.success) {
       setInstalledMods(res.mods);
     }
-  }, [currentPack]);
+  }, [currentPack, projectType]);
 
   const getSortParams = (sortKey) => {
     if (sortKey === 'downloads') return { sortField: 6, sortOrder: 'desc' };
@@ -72,18 +77,32 @@ export default function ModsPage({ currentPack, onBack }) {
       const offset = isLoadMore ? (page + 1) * 12 : 0;
       const { sortField, sortOrder } = getSortParams(sortBy);
       
-      const res = await window.electronAPI.searchCurse(queryStr, {
-        mcVersion: currentPack.mcVersion,
-        loader: loader,
-        category: activeCategory,
-        limit: 12,
-        offset: offset,
-        sortField,
-        sortOrder
-      });
+      let res;
+      if (source === 'curse') {
+        res = await window.electronAPI.searchCurse(queryStr, {
+          mcVersion: currentPack.mcVersion,
+          loader: loader,
+          category: activeCategory,
+          limit: 12,
+          offset: offset,
+          sortField,
+          sortOrder
+        });
+      } else {
+        res = await window.electronAPI.searchModrinth(queryStr, {
+          mcVersion: currentPack.mcVersion,
+          loader: loader,
+          category: activeCategory,
+          limit: 12,
+          offset: offset,
+          sortField,
+          sortOrder,
+          projectType
+        });
+      }
       
       if (!res.success) {
-        throw new Error(res.error || 'Не удалось загрузить список модов');
+        throw new Error(res.error || t('error'));
       }
       
       const data = res.data;
@@ -100,7 +119,7 @@ export default function ModsPage({ currentPack, onBack }) {
     } finally {
       setLoading(false);
     }
-  }, [search, activeCategory, sortBy, page, loader, currentPack]);
+  }, [search, activeCategory, sortBy, page, loader, currentPack, source, projectType, t]);
 
   useEffect(() => {
     fetchInstalledMods();
@@ -111,21 +130,21 @@ export default function ModsPage({ currentPack, onBack }) {
       searchMods(false);
     }, 500);
     return () => clearTimeout(delayDebounceFn);
-  }, [search, activeCategory, sortBy]);
+  }, [search, activeCategory, sortBy, source, projectType]);
 
   const getInstalledMap = useCallback(() => {
     if (!currentPack?.id) return {};
     try {
-      return JSON.parse(localStorage.getItem(`installed_map_${currentPack.id}`) || '{}');
+      return JSON.parse(localStorage.getItem(`installed_map_${currentPack.id}_${projectType}`) || '{}');
     } catch {
       return {};
     }
-  }, [currentPack]);
+  }, [currentPack, projectType]);
 
   const saveInstalledMap = useCallback((map) => {
     if (!currentPack?.id) return;
-    localStorage.setItem(`installed_map_${currentPack.id}`, JSON.stringify(map));
-  }, [currentPack]);
+    localStorage.setItem(`installed_map_${currentPack.id}_${projectType}`, JSON.stringify(map));
+  }, [currentPack, projectType]);
 
   const getInstalledFileName = useCallback((mod) => {
     if (!mod) return null;
@@ -166,27 +185,29 @@ export default function ModsPage({ currentPack, onBack }) {
       const installedFile = getInstalledFileName(mod);
       
       if (installedFile) {
-        const resDel = await window.electronAPI.deleteMod(currentPack.clientDir, installedFile);
+        const resDel = await window.electronAPI.deleteMod(currentPack.clientDir, installedFile, projectType);
         if (!resDel.success) throw new Error(resDel.error);
         
         const map = getInstalledMap();
         delete map[mod.id];
         saveInstalledMap(map);
       } else {
-        const res = await window.electronAPI.getCurseVersions(mod.id, [loader], [currentPack.mcVersion]);
+        const res = source === 'curse'
+          ? await window.electronAPI.getCurseVersions(mod.id, [loader], [currentPack.mcVersion])
+          : await window.electronAPI.getModrinthVersions(mod.id, [loader], [currentPack.mcVersion]);
         if (!res.success) {
-          throw new Error(res.error || 'Не удалось получить версии мода');
+          throw new Error(res.error || t('mods_no_versions'));
         }
         
         const versions = res.data;
         if (!versions || versions.length === 0) {
-          throw new Error('Нет совместимых версий файла для вашей версии Minecraft!');
+          throw new Error(t('mods_no_versions'));
         }
         
         const latestVersion = versions[0];
         const file = latestVersion.files.find(f => f.primary) || latestVersion.files[0];
         
-        const resDl = await window.electronAPI.downloadMod(file.url, currentPack.clientDir, file.filename);
+        const resDl = await window.electronAPI.downloadMod(file.url, currentPack.clientDir, file.filename, projectType);
         if (!resDl.success) throw new Error(resDl.error);
 
         const map = getInstalledMap();
@@ -196,7 +217,7 @@ export default function ModsPage({ currentPack, onBack }) {
       
       await fetchInstalledMods();
     } catch (err) {
-      alert(`Ошибка: ${err.message}`);
+      alert(`${t('error')}: ${err.message}`);
     } finally {
       setInstallingTarget(null);
     }
@@ -206,9 +227,9 @@ export default function ModsPage({ currentPack, onBack }) {
     setInstallingTarget(mod.slug);
     try {
       const file = versionFile.files[0];
-      if (!file) throw new Error('Файл не содержит ссылку для скачивания');
+      if (!file) throw new Error(t('error'));
       
-      const resDl = await window.electronAPI.downloadMod(file.url, currentPack.clientDir, file.filename);
+      const resDl = await window.electronAPI.downloadMod(file.url, currentPack.clientDir, file.filename, projectType);
       if (!resDl.success) throw new Error(resDl.error);
       
       const map = getInstalledMap();
@@ -217,7 +238,7 @@ export default function ModsPage({ currentPack, onBack }) {
       
       await fetchInstalledMods();
     } catch (err) {
-      alert(`Ошибка при установке версии: ${err.message}`);
+      alert(`${t('error')}: ${err.message}`);
     } finally {
       setInstallingTarget(null);
     }
@@ -226,7 +247,7 @@ export default function ModsPage({ currentPack, onBack }) {
   const handleUninstallVersion = async (mod, fileName) => {
     setInstallingTarget(mod.slug);
     try {
-      const resDel = await window.electronAPI.deleteMod(currentPack.clientDir, fileName);
+      const resDel = await window.electronAPI.deleteMod(currentPack.clientDir, fileName, projectType);
       if (!resDel.success) throw new Error(resDel.error);
       
       const map = getInstalledMap();
@@ -235,7 +256,7 @@ export default function ModsPage({ currentPack, onBack }) {
       
       await fetchInstalledMods();
     } catch (err) {
-      alert(`Ошибка при удалении версии: ${err.message}`);
+      alert(`${t('error')}: ${err.message}`);
     } finally {
       setInstallingTarget(null);
     }
@@ -252,11 +273,15 @@ export default function ModsPage({ currentPack, onBack }) {
     
     try {
       const [projRes, versionsRes] = await Promise.all([
-        window.electronAPI.getCurseProject(mod.id),
-        window.electronAPI.getCurseVersions(mod.id, [loader], [currentPack.mcVersion])
+        source === 'curse'
+          ? window.electronAPI.getCurseProject(mod.id)
+          : window.electronAPI.getModrinthProject(mod.id),
+        source === 'curse'
+          ? window.electronAPI.getCurseVersions(mod.id, [loader], [currentPack.mcVersion])
+          : window.electronAPI.getModrinthVersions(mod.id, [loader], [currentPack.mcVersion])
       ]);
       
-      if (!projRes.success) throw new Error(projRes.error || 'Не удалось загрузить детали мода');
+      if (!projRes.success) throw new Error(projRes.error || (lang === 'ru' ? 'Не удалось загрузить детали мода' : 'Failed to load details'));
       setSelectedModData(projRes.data);
       if (versionsRes.success) {
         setVersionsList(versionsRes.data);
@@ -306,9 +331,13 @@ export default function ModsPage({ currentPack, onBack }) {
       <div style={{ padding: '40px', color: '#fff', textAlign: 'center', height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
         <div style={{ background: 'rgba(10, 10, 16, 0.5)', backdropFilter: 'blur(24px)', border: '1px solid rgba(255,255,255,0.07)', padding: '40px 30px', borderRadius: '20px', maxWidth: '500px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
           <i className="fa-solid fa-triangle-exclamation" style={{ fontSize: '48px', color: '#ef4444', marginBottom: '20px' }}></i>
-          <h2 style={{ fontSize: '20px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '10px' }}>Сборка не поддерживает моды</h2>
+          <h2 style={{ fontSize: '20px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '10px' }}>
+            {lang === 'ru' ? 'Сборка не поддерживает моды' : 'Pack does not support mods'}
+          </h2>
           <p style={{ color: '#a1a1aa', fontSize: '14px', lineHeight: '1.6', margin: '0 0 24px' }}>
-            Vanilla-сборки не поддерживают модификации. Выберите или создайте сборку на базе Fabric, Forge или NeoForge в настройках.
+            {lang === 'ru' 
+              ? 'Vanilla-сборки не поддерживают модификации. Выберите или создайте сборку на базе Fabric, Forge или NeoForge в настройках.'
+              : 'Vanilla modpacks do not support modifications. Choose or create a pack based on Fabric, Forge or NeoForge in the settings.'}
           </p>
           <motion.button 
             whileHover={{ scale: 1.03, background: 'rgba(16, 185, 129, 0.2)' }}
@@ -317,7 +346,7 @@ export default function ModsPage({ currentPack, onBack }) {
             style={{ padding: '12px 24px', background: 'rgba(16, 185, 129, 0.1)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.3)', borderRadius: '11px', cursor: 'pointer', fontWeight: 800, fontSize: '13px', textTransform: 'uppercase', letterSpacing: '1.6px' }}
           >
             <i className="fa-solid fa-arrow-left" style={{ marginRight: '8px' }}></i>
-            Вернуться к сборке
+            {lang === 'ru' ? 'Вернуться к сборке' : 'Return to pack'}
           </motion.button>
         </div>
       </div>
@@ -476,12 +505,148 @@ export default function ModsPage({ currentPack, onBack }) {
 
                 <div>
                   <h2 style={{ margin: 0, fontSize: '20px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '1.6px' }}>
-                    Менеджер Модов
+                    {source === 'curse' 
+                      ? t('tab_mods') 
+                      : (projectType === 'mod' 
+                        ? (lang === 'ru' ? 'Моды Modrinth' : 'Modrinth Mods') 
+                        : (projectType === 'resourcepack' 
+                          ? t('mods_type_rp') 
+                          : t('mods_type_shaders')))}
                   </h2>
                   <div style={{ display: 'flex', gap: '8px', fontSize: '10px', color: '#10b981', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '1px', marginTop: '2px' }}>
-                    <span>Установлено локально: {installedMods.length}</span>
+                    <span>{t('mods_installed')}: {installedMods.length}</span>
                   </div>
                 </div>
+              </div>
+
+              {/* Source & Content Type selectors */}
+              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
+                {/* Source selection */}
+                <div style={{ display: 'flex', background: 'rgba(255, 255, 255, 0.03)', border: '1px solid rgba(255, 255, 255, 0.05)', borderRadius: '12px', padding: '3px' }}>
+                  <button
+                    onClick={() => {
+                      setSource('curse');
+                      setProjectType('mod');
+                      setMods([]);
+                      setPage(0);
+                    }}
+                    style={{
+                      padding: '6px 12px',
+                      background: source === 'curse' ? 'rgba(245, 158, 11, 0.15)' : 'transparent',
+                      color: source === 'curse' ? '#fbbf24' : '#a1a1aa',
+                      border: 'none',
+                      borderRadius: '9px',
+                      cursor: 'pointer',
+                      fontSize: '11px',
+                      fontWeight: 800,
+                      fontFamily: 'Montserrat',
+                      textTransform: 'uppercase',
+                      transition: '0.2s',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '5px'
+                    }}
+                  >
+                    <i className="fa-solid fa-fire" /> CurseForge
+                  </button>
+                  <button
+                    onClick={() => {
+                      setSource('modrinth');
+                      setMods([]);
+                      setPage(0);
+                    }}
+                    style={{
+                      padding: '6px 12px',
+                      background: source === 'modrinth' ? 'rgba(16, 185, 129, 0.15)' : 'transparent',
+                      color: source === 'modrinth' ? '#10b981' : '#a1a1aa',
+                      border: 'none',
+                      borderRadius: '9px',
+                      cursor: 'pointer',
+                      fontSize: '11px',
+                      fontWeight: 800,
+                      fontFamily: 'Montserrat',
+                      textTransform: 'uppercase',
+                      transition: '0.2s',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '5px'
+                    }}
+                  >
+                    <i className="fa-solid fa-leaf" /> Modrinth
+                  </button>
+                </div>
+
+                {/* Content Type selection */}
+                {source === 'modrinth' && (
+                  <div style={{ display: 'flex', background: 'rgba(255, 255, 255, 0.03)', border: '1px solid rgba(255, 255, 255, 0.05)', borderRadius: '12px', padding: '3px' }}>
+                    <button
+                      onClick={() => {
+                        setProjectType('mod');
+                        setMods([]);
+                        setPage(0);
+                      }}
+                      style={{
+                        padding: '6px 12px',
+                        background: projectType === 'mod' ? 'rgba(16, 185, 129, 0.15)' : 'transparent',
+                        color: projectType === 'mod' ? '#10b981' : '#a1a1aa',
+                        border: 'none',
+                        borderRadius: '9px',
+                        cursor: 'pointer',
+                        fontSize: '11px',
+                        fontWeight: 800,
+                        fontFamily: 'Montserrat',
+                        textTransform: 'uppercase',
+                        transition: '0.2s'
+                      }}
+                    >
+                      {t('mods_type_mods')}
+                    </button>
+                    <button
+                      onClick={() => {
+                        setProjectType('resourcepack');
+                        setMods([]);
+                        setPage(0);
+                      }}
+                      style={{
+                        padding: '6px 12px',
+                        background: projectType === 'resourcepack' ? 'rgba(16, 185, 129, 0.15)' : 'transparent',
+                        color: projectType === 'resourcepack' ? '#10b981' : '#a1a1aa',
+                        border: 'none',
+                        borderRadius: '9px',
+                        cursor: 'pointer',
+                        fontSize: '11px',
+                        fontWeight: 800,
+                        fontFamily: 'Montserrat',
+                        textTransform: 'uppercase',
+                        transition: '0.2s'
+                      }}
+                    >
+                      {lang === 'ru' ? 'Ресурспаки' : 'Packs'}
+                    </button>
+                    <button
+                      onClick={() => {
+                        setProjectType('shader');
+                        setMods([]);
+                        setPage(0);
+                      }}
+                      style={{
+                        padding: '6px 12px',
+                        background: projectType === 'shader' ? 'rgba(16, 185, 129, 0.15)' : 'transparent',
+                        color: projectType === 'shader' ? '#10b981' : '#a1a1aa',
+                        border: 'none',
+                        borderRadius: '9px',
+                        cursor: 'pointer',
+                        fontSize: '11px',
+                        fontWeight: 800,
+                        fontFamily: 'Montserrat',
+                        textTransform: 'uppercase',
+                        transition: '0.2s'
+                      }}
+                    >
+                      {t('mods_type_shaders')}
+                    </button>
+                  </div>
+                )}
               </div>
 
               {/* Search input & Folder opener */}
@@ -492,7 +657,13 @@ export default function ModsPage({ currentPack, onBack }) {
                   <i className="fa-solid fa-magnifying-glass" style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: 'rgba(255,255,255,0.4)', fontSize: '13px' }}></i>
                   <input 
                     type="text" 
-                    placeholder="Поиск модов..." 
+                    placeholder={
+                      projectType === 'mod' 
+                        ? t('mods_search_placeholder') 
+                        : (projectType === 'resourcepack' 
+                          ? (lang === 'ru' ? 'Поиск ресурс-паков...' : 'Search resource packs...') 
+                          : (lang === 'ru' ? 'Поиск шейдеров...' : 'Search shaders...'))
+                    }
                     value={search}
                     onChange={(e) => {
                       setSearch(e.target.value);
@@ -540,7 +711,7 @@ export default function ModsPage({ currentPack, onBack }) {
                   style={secondaryButtonStyle}
                 >
                   <i className="fa-regular fa-folder-open" style={{ color: '#34d399' }}></i>
-                  Открыть Папку
+                  {lang === 'ru' ? 'Открыть Папку' : 'Open Folder'}
                 </motion.button>
               </div>
 
@@ -585,7 +756,7 @@ export default function ModsPage({ currentPack, onBack }) {
                     }}
                   >
                     <i className={`fa-solid ${cat.icon}`} style={{ fontSize: '10px' }}></i>
-                    {cat.name}
+                    {t(cat.nameKey)}
                   </button>
                 );
               })}
@@ -603,7 +774,9 @@ export default function ModsPage({ currentPack, onBack }) {
               marginBottom: '18px', 
               flexShrink: 0 
             }}>
-              <span style={{ fontSize: '10px', color: '#71717a', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '1px' }}>Сортировка по:</span>
+              <span style={{ fontSize: '10px', color: '#71717a', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '1px' }}>
+                {lang === 'ru' ? 'Сортировка по:' : 'Sort by:'}
+              </span>
               <div style={{ display: 'flex', gap: '6px' }}>
                 {SORT_OPTIONS.map(opt => {
                   const isSelected = sortBy === opt.id;
@@ -713,7 +886,7 @@ export default function ModsPage({ currentPack, onBack }) {
                             borderRadius: '6px', 
                             textTransform: 'uppercase' 
                           }}>
-                            Установлен
+                            {lang === 'ru' ? 'Установлен' : 'Installed'}
                           </span>
                         )}
                       </div>
@@ -767,9 +940,9 @@ export default function ModsPage({ currentPack, onBack }) {
                           {installingTarget === mod.slug ? (
                             <i className="fa-solid fa-spinner fa-spin"></i>
                           ) : isInstalled ? (
-                            <><i className="fa-solid fa-trash"></i> Удалить</>
+                            <><i className="fa-solid fa-trash"></i> {t('mods_uninstall_btn')}</>
                           ) : (
-                            <><i className="fa-solid fa-download"></i> Скачать</>
+                            <><i className="fa-solid fa-download"></i> {t('mods_install_btn')}</>
                           )}
                         </motion.button>
                       </div>
@@ -818,7 +991,7 @@ export default function ModsPage({ currentPack, onBack }) {
                     onClick={() => searchMods(true)}
                     style={secondaryButtonStyle}
                   >
-                    Загрузить ещё
+                    {lang === 'ru' ? 'Загрузить ещё' : 'Load More'}
                   </motion.button>
                 </div>
               )}
@@ -827,8 +1000,14 @@ export default function ModsPage({ currentPack, onBack }) {
               {!loading && mods.length === 0 && !error && (
                 <div style={{ textAlign: 'center', padding: '60px 40px', color: '#71717a' }}>
                   <i className="fa-solid fa-ghost" style={{ fontSize: '36px', marginBottom: '12px', opacity: 0.3 }}></i>
-                  <h3 style={{ fontSize: '15px', fontWeight: 800, color: '#a1a1aa', margin: '0 0 4px' }}>Ничего не найдено</h3>
-                  <p style={{ fontSize: '12px', margin: 0 }}>Попробуйте изменить поисковый запрос или фильтр категории.</p>
+                  <h3 style={{ fontSize: '15px', fontWeight: 800, color: '#a1a1aa', margin: '0 0 4px' }}>
+                    {lang === 'ru' ? 'Ничего не найдено' : 'Nothing found'}
+                  </h3>
+                  <p style={{ fontSize: '12px', margin: 0 }}>
+                    {lang === 'ru' 
+                      ? 'Попробуйте изменить поисковый запрос или фильтр категории.'
+                      : 'Try changing the search query or category filter.'}
+                  </p>
                 </div>
               )}
 
@@ -869,14 +1048,18 @@ export default function ModsPage({ currentPack, onBack }) {
               >
                 <i className="fa-solid fa-arrow-left"></i>
               </motion.button>
-              <span style={{ fontSize: '12px', fontWeight: 800, color: '#a1a1aa', textTransform: 'uppercase', letterSpacing: '1px' }}>Назад к списку модов</span>
+              <span style={{ fontSize: '12px', fontWeight: 800, color: '#a1a1aa', textTransform: 'uppercase', letterSpacing: '1px' }}>
+                {lang === 'ru' ? 'Назад к списку модов' : 'Back to mods list'}
+              </span>
             </div>
 
             {detailsLoading ? (
               <div style={{ flexGrow: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', color: '#10b981' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
                   <i className="fa-solid fa-circle-notch fa-spin" style={{ fontSize: '36px' }}></i>
-                  <span style={{ fontSize: '13px', color: '#a1a1aa', fontWeight: 600 }}>Загрузка деталей мода...</span>
+                  <span style={{ fontSize: '13px', color: '#a1a1aa', fontWeight: 600 }}>
+                    {lang === 'ru' ? 'Загрузка деталей мода...' : 'Loading mod details...'}
+                  </span>
                 </div>
               </div>
             ) : selectedModData ? (
@@ -908,12 +1091,12 @@ export default function ModsPage({ currentPack, onBack }) {
                     <div style={{ margin: '6px 0 0', fontSize: '13px', color: '#71717a', display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
                       <span style={{ color: '#10b981', fontWeight: 800 }}>
                         <i className="fa-solid fa-user" style={{ marginRight: '6px', fontSize: '11px' }}></i>
-                        {selectedMod?.author || 'Разработчик'}
+                        {selectedMod?.author || (lang === 'ru' ? 'Разработчик' : 'Author')}
                       </span>
                       <span>•</span>
                       <span style={{ display: 'flex', alignItems: 'center', gap: '5px', color: '#a1a1aa', fontWeight: 600 }}>
                         <i className="fa-solid fa-download" style={{ fontSize: '11px' }}></i> 
-                        {selectedModData.downloads?.toLocaleString()} скачиваний
+                        {selectedModData.downloads?.toLocaleString()} {t('mods_downloads')}
                       </span>
                     </div>
                   </div>
@@ -931,11 +1114,11 @@ export default function ModsPage({ currentPack, onBack }) {
                     }}
                   >
                     {installingTarget === selectedModData.slug ? (
-                      <><i className="fa-solid fa-circle-notch fa-spin"></i> Обработка</>
+                      <><i className="fa-solid fa-circle-notch fa-spin"></i> {lang === 'ru' ? 'Обработка' : 'Processing'}</>
                     ) : getInstalledFileName(selectedModData) ? (
-                      <><i className="fa-solid fa-trash"></i> Удалить модификацию</>
+                      <><i className="fa-solid fa-trash"></i> {t('mods_uninstall_btn')} {projectType === 'mod' ? (lang === 'ru' ? 'модификацию' : 'mod') : (projectType === 'resourcepack' ? (lang === 'ru' ? 'ресурс-пак' : 'pack') : (lang === 'ru' ? 'шейдер' : 'shader'))}</>
                     ) : (
-                      <><i className="fa-solid fa-download"></i> Установить мод</>
+                      <><i className="fa-solid fa-download"></i> {t('mods_install_btn')} {projectType === 'mod' ? (lang === 'ru' ? 'мод' : 'mod') : (projectType === 'resourcepack' ? (lang === 'ru' ? 'ресурс-пак' : 'pack') : (lang === 'ru' ? 'шейдер' : 'shader'))}</>
                     )}
                   </motion.button>
                 </div>
@@ -959,10 +1142,10 @@ export default function ModsPage({ currentPack, onBack }) {
                     flexShrink: 0 
                   }}>
                     {[
-                      { id: 'description', name: 'Описание', icon: 'fa-align-left' },
-                      { id: 'versions', name: `Совместимые версии (${versionsList.length})`, icon: 'fa-code-branch' },
-                      { id: 'dependencies', name: `Зависимости (${selectedModData.dependencies?.length || 0})`, icon: 'fa-puzzle-piece' },
-                      { id: 'gallery', name: 'Скриншоты', icon: 'fa-images' }
+                      { id: 'description', name: t('mods_description'), icon: 'fa-align-left' },
+                      { id: 'versions', name: `${lang === 'ru' ? 'Совместимые версии' : 'Compatible Versions'} (${versionsList.length})`, icon: 'fa-code-branch' },
+                      { id: 'dependencies', name: `${t('mods_dependencies')} (${selectedModData.dependencies?.length || 0})`, icon: 'fa-puzzle-piece' },
+                      { id: 'gallery', name: t('mods_gallery'), icon: 'fa-images' }
                     ].map(tab => {
                       const isActive = selectedTab === tab.id;
                       return (
@@ -1023,14 +1206,18 @@ export default function ModsPage({ currentPack, onBack }) {
                         {versionsList.length === 0 ? (
                           <div style={{ textAlign: 'center', padding: '40px 0', color: '#71717a', fontSize: '13px' }}>
                             <i className="fa-solid fa-ban" style={{ fontSize: '20px', marginBottom: '8px' }}></i>
-                            <div>Нет файлов под вашу версию Minecraft ({currentPack.mcVersion})</div>
+                            <div>{t('mods_no_versions')} ({currentPack.mcVersion})</div>
                           </div>
                         ) : (
                           versionsList.map(v => {
                             const isCurrentFileInstalled = installedMods.includes(v.fileName);
-                            const releaseTypeLabel = v.releaseType === 1 ? 'Релиз' : v.releaseType === 2 ? 'Бета' : 'Альфа';
+                            const releaseTypeLabel = v.releaseType === 1 
+                              ? (lang === 'ru' ? 'Релиз' : 'Release') 
+                              : v.releaseType === 2 
+                                ? (lang === 'ru' ? 'Бета' : 'Beta') 
+                                : (lang === 'ru' ? 'Альфа' : 'Alpha');
                             const releaseTypeColor = v.releaseType === 1 ? '#10b981' : v.releaseType === 2 ? '#3b82f6' : '#f59e0b';
-                            const formattedDate = v.fileDate ? new Date(v.fileDate).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Неизвестно';
+                            const formattedDate = v.fileDate ? new Date(v.fileDate).toLocaleDateString(lang === 'ru' ? 'ru-RU' : 'en-US', { day: 'numeric', month: 'short', year: 'numeric' }) : (lang === 'ru' ? 'Неизвестно' : 'Unknown');
                             
                             return (
                               <div 
@@ -1080,7 +1267,7 @@ export default function ModsPage({ currentPack, onBack }) {
                                     letterSpacing: '0.5px'
                                   }}
                                 >
-                                  {isCurrentFileInstalled ? 'Удалить' : 'Скачать'}
+                                  {isCurrentFileInstalled ? t('mods_uninstall_btn') : t('mods_install_btn')}
                                 </motion.button>
                               </div>
                             );
@@ -1095,7 +1282,7 @@ export default function ModsPage({ currentPack, onBack }) {
                         {!selectedModData.dependencies || selectedModData.dependencies.length === 0 ? (
                           <div style={{ textAlign: 'center', padding: '40px 0', color: '#71717a', fontSize: '13px' }}>
                             <i className="fa-solid fa-circle-check" style={{ fontSize: '24px', color: '#10b981', marginBottom: '8px' }}></i>
-                            <div>Дополнительные библиотеки не требуются</div>
+                            <div>{lang === 'ru' ? 'Дополнительные библиотеки не требуются' : 'No dependencies required'}</div>
                           </div>
                         ) : (
                           selectedModData.dependencies.map(dep => {
@@ -1140,7 +1327,7 @@ export default function ModsPage({ currentPack, onBack }) {
                                   borderRadius: '6px',
                                   textTransform: 'uppercase'
                                 }}>
-                                  {isRequired ? 'Обязательно' : 'Опционально'}
+                                  {isRequired ? (lang === 'ru' ? 'Обязательно' : 'Required') : (lang === 'ru' ? 'Опционально' : 'Optional')}
                                 </span>
                               </div>
                             );
@@ -1155,7 +1342,7 @@ export default function ModsPage({ currentPack, onBack }) {
                         {!selectedModData.gallery || selectedModData.gallery.length === 0 ? (
                           <div style={{ textAlign: 'center', padding: '40px 0', color: '#71717a', fontSize: '13px' }}>
                             <i className="fa-solid fa-image" style={{ fontSize: '24px', marginBottom: '8px' }}></i>
-                            <div>Изображения отсутствуют</div>
+                            <div>{lang === 'ru' ? 'Изображения отсутствуют' : 'No images available'}</div>
                           </div>
                         ) : (
                           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '14px' }}>
@@ -1189,7 +1376,7 @@ export default function ModsPage({ currentPack, onBack }) {
             ) : (
               <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', color: '#71717a' }}>
                 <i className="fa-solid fa-circle-exclamation" style={{ fontSize: '24px', marginBottom: '8px' }}></i>
-                <span>Ошибка загрузки данных</span>
+                <span>{lang === 'ru' ? 'Ошибка загрузки данных' : 'Error loading details'}</span>
               </div>
             )}
           </motion.div>
@@ -1256,7 +1443,7 @@ export default function ModsPage({ currentPack, onBack }) {
           )}
           
           <div style={{ marginTop: '14px', color: '#71717a', fontSize: '11px', fontWeight: 600 }}>
-            Кликните в любом месте для закрытия
+            {lang === 'ru' ? 'Кликните в любом месте для закрытия' : 'Click anywhere to close'}
           </div>
         </div>
       )}

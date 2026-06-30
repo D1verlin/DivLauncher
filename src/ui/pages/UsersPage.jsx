@@ -1,30 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { getBadgeStyle } from '../utils/badgeHelper';
-
-// --- Helper to Map User Badge/Role to Theme Settings ---
-function getUserTheme(user) {
-  const badge = user.badge ? user.badge.toUpperCase().trim() : '';
-  if (user.is_admin === 1 || badge === 'ADMIN' || badge === 'АДМИН' || badge === 'OWNER' || badge === 'СОЗДАТЕЛЬ') {
-    return { color: '#ef4444', icon: 'fa-shield-halved', label: 'Администрация' };
-  }
-  if (badge === 'DEV' || badge === 'DEVELOPER' || badge === 'РАЗРАБОТЧИК') {
-    return { color: '#3b82f6', icon: 'fa-code', label: 'Разработчик' };
-  }
-  if (badge === 'VIP' || badge === 'ВИП' || badge === 'GOLD' || badge === 'PREMIUM' || badge === 'PREM' || badge === 'ПРЕМИУМ') {
-    return { color: '#f59e0b', icon: 'fa-gem', label: 'VIP' };
-  }
-  if (badge === 'YOUTUBE' || badge === 'YT' || badge === 'MEDIA') {
-    return { color: '#ff0000', icon: 'fa-play', label: 'Медиа' };
-  }
-  if (badge === 'SPONSOR' || badge === 'СПОНСОР') {
-    return { color: '#ec4899', icon: 'fa-heart', label: 'Спонсор' };
-  }
-  if (badge === 'HELPER' || badge === 'ХЕЛПЕР' || badge === 'MOD' || badge === 'MODER' || badge === 'МОДЕРАТОР') {
-    return { color: '#8b5cf6', icon: 'fa-user-shield', label: 'Модерация' };
-  }
-  return { color: '#10b981', icon: 'fa-user', label: 'Игрок' };
-}
+import { getBadgeStyle, getBadgeText, getUserTheme } from '../utils/badgeHelper';
+import { useTranslation } from '../utils/i18n';
 
 // --- Minecraft Head Avatar ---
 function MinecraftAvatar({ skinDataUrl, size = 56, authServerUrl, borderColor = 'rgba(167, 139, 250, 0.3)' }) {
@@ -79,8 +56,8 @@ function MinecraftAvatar({ skinDataUrl, size = 56, authServerUrl, borderColor = 
 }
 
 // --- Player Card ---
-function PlayerCard({ user, authServerUrl, onViewProfile, index }) {
-  const theme = getUserTheme(user);
+function PlayerCard({ user, authServerUrl, onViewProfile, index, lang }) {
+  const theme = getUserTheme(user, lang);
 
   // Stagger transition details
   const cardVariants = {
@@ -197,7 +174,7 @@ function PlayerCard({ user, authServerUrl, onViewProfile, index }) {
         {/* Badge */}
         {user.badge && (
           <div style={{ marginBottom: '6px', display: 'flex', justifyContent: 'center' }}>
-            <span style={getBadgeStyle(user.badge)}>{user.badge}</span>
+            <span style={getBadgeStyle(user.badge)}>{getBadgeText(user.badge)}</span>
           </div>
         )}
         
@@ -260,7 +237,7 @@ function PlayerCard({ user, authServerUrl, onViewProfile, index }) {
           </p>
         ) : (
           <span style={{ fontSize: '9.5px', color: '#52525b', fontStyle: 'italic' }}>
-            Нет статуса
+            {lang === 'ru' ? 'Нет статуса' : 'No status'}
           </span>
         )}
       </div>
@@ -288,7 +265,7 @@ function PlayerCard({ user, authServerUrl, onViewProfile, index }) {
           marginTop: 'auto'
         }}
       >
-        <span>Профиль</span>
+        <span>{lang === 'ru' ? 'Профиль' : 'Profile'}</span>
         <i className="fa-solid fa-arrow-right-to-bracket" style={{ fontSize: '10px' }} />
       </motion.div>
     </motion.div>
@@ -297,6 +274,7 @@ function PlayerCard({ user, authServerUrl, onViewProfile, index }) {
 
 // --- Users Page ---
 export default function UsersPage({ onViewProfile, active }) {
+  const { lang } = useTranslation();
   const [users, setUsers] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
@@ -312,7 +290,7 @@ export default function UsersPage({ onViewProfile, active }) {
       if (res.success) {
         setUsers(res.users || []);
       } else {
-        setError(res.error || 'Не удалось загрузить список игроков');
+        setError(res.error || (lang === 'ru' ? 'Не удалось загрузить список игроков' : 'Failed to load players list'));
       }
     } catch (err) {
       setError(err.message);
@@ -362,11 +340,11 @@ export default function UsersPage({ onViewProfile, active }) {
             textShadow: '0 4px 14px rgba(0,0,0,0.6)',
             fontFamily: 'Montserrat'
           }}>
-            Игроки
+            {lang === 'ru' ? 'Игроки' : 'Players'}
           </h1>
           {!loading && !error && (
             <span style={{ fontSize: '11px', color: '#71717a', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', marginTop: '4px', display: 'block' }}>
-              Найдено: <strong style={{ color: '#a78bfa' }}>{filteredUsers.length}</strong> {filteredUsers.length === 1 ? 'игрок' : 'игроков'}
+              {lang === 'ru' ? 'Найдено:' : 'Found:'} <strong style={{ color: '#a78bfa' }}>{filteredUsers.length}</strong> {lang === 'ru' ? (filteredUsers.length === 1 ? 'игрок' : 'игроков') : (filteredUsers.length === 1 ? 'player' : 'players')}
             </span>
           )}
         </div>
@@ -392,7 +370,7 @@ export default function UsersPage({ onViewProfile, active }) {
             transition: 'background-color 0.2s, border-color 0.2s'
           }}>
           <i className={`fa-solid fa-arrows-rotate ${loading ? 'fa-spin' : ''}`} /> 
-          <span>Обновить</span>
+          <span>{lang === 'ru' ? 'Обновить' : 'Refresh'}</span>
         </motion.button>
       </div>
 
@@ -422,7 +400,7 @@ export default function UsersPage({ onViewProfile, active }) {
             />
             <input
               type="text"
-              placeholder="Поиск игрока по нику..."
+              placeholder={lang === 'ru' ? 'Поиск игрока по нику...' : 'Search player by nickname...'}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               onFocus={() => setSearchFocused(true)}
@@ -451,7 +429,7 @@ export default function UsersPage({ onViewProfile, active }) {
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: '15px' }}>
               <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1.5, ease: "linear" }}
                 style={{ width: '38px', height: '38px', border: '3px solid rgba(167, 139, 250, 0.1)', borderTopColor: '#a78bfa', borderRadius: '50%' }} />
-              <span style={{ fontSize: '13px', color: '#a1a1aa', fontWeight: 600, fontFamily: 'Montserrat' }}>Загрузка списка игроков...</span>
+              <span style={{ fontSize: '13px', color: '#a1a1aa', fontWeight: 600, fontFamily: 'Montserrat' }}>{lang === 'ru' ? 'Загрузка списка игроков...' : 'Loading players list...'}</span>
             </div>
           ) : error ? (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: '10px', color: '#ef4444' }}>
@@ -463,7 +441,7 @@ export default function UsersPage({ onViewProfile, active }) {
                 fontSize: '12px', fontWeight: 800, fontFamily: 'Montserrat', marginTop: '8px',
                 boxShadow: '0 4px 12px rgba(239, 68, 68, 0.1)'
               }}>
-                Повторить попытку
+                {lang === 'ru' ? 'Повторить попытку' : 'Retry'}
               </button>
             </div>
           ) : filteredUsers.length === 0 ? (
@@ -487,10 +465,10 @@ export default function UsersPage({ onViewProfile, active }) {
               </div>
               <div style={{ textAlign: 'center' }}>
                 <span style={{ fontSize: '15px', fontWeight: 800, color: '#a1a1aa', fontFamily: 'Montserrat', display: 'block', marginBottom: '4px' }}>
-                  Игроки не найдены
+                  {lang === 'ru' ? 'Игроки не найдены' : 'No players found'}
                 </span>
                 <span style={{ fontSize: '11px', color: '#52525b', fontWeight: 600 }}>
-                  Попробуйте изменить параметры поиска или фильтр
+                  {lang === 'ru' ? 'Попробуйте изменить параметры поиска или фильтр' : 'Try changing the search terms or filter'}
                 </span>
               </div>
             </motion.div>
@@ -512,6 +490,7 @@ export default function UsersPage({ onViewProfile, active }) {
                     authServerUrl={authServerUrl}
                     onViewProfile={onViewProfile}
                     index={idx}
+                    lang={lang}
                   />
                 ))}
               </AnimatePresence>

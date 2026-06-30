@@ -1143,34 +1143,7 @@ storage-method: h2
       event.reply('server-log', `Создан и настроен стандартный конфиг LuckPerms (${lpStorage}).\n`);
     }
 
-    // 3. DivStatsSync (Statistics synchronization plugin)
-    const dssPath = path.join(pluginsDir, 'DivStatsSync.jar');
-    if (!fs.existsSync(dssPath)) {
-      event.reply('server-log', 'Скачивание плагина синхронизации статистики (DivStatsSync)...\n');
-      const dssUrl = pack.statsSyncPluginUrl || 'https://github.com/Diverlin/DivStatsSync/releases/latest/download/DivStatsSync.jar';
-      try {
-        await downloadFile(dssUrl, dssPath, (p) => {
-          if (p % 50 === 0) event.reply('server-log', `DivStatsSync: ${p}%\n`);
-        });
-      } catch (e) {
-        event.reply('server-log', `[ИНФО] Ссылка на плагин статистики недоступна или в процессе публикации: ${e.message}\n`);
-      }
-    }
 
-    // Configure DivStatsSync
-    const syncUrl = `${authServerUrl.replace(/\/$/, '')}/api/server/sync-stats`;
-    const serverToken = backendEnv.SERVER_TOKEN || 'SuperSecretSyncToken123';
-
-    const dssConfigDir = path.join(pluginsDir, 'DivStatsSync');
-    const dssConfigPath = path.join(dssConfigDir, 'config.yml');
-    if (!fs.existsSync(dssConfigDir)) fs.mkdirSync(dssConfigDir, { recursive: true });
-
-    const dssDefaultConfig = `
-api-url: '${syncUrl}'
-server-token: '${serverToken}'
-`;
-    fs.writeFileSync(dssConfigPath, dssDefaultConfig.trim());
-    event.reply('server-log', 'Конфигурация плагина статистики DivStatsSync обновлена.\n');
 
     // 4. LPC (Chat formatter for LuckPerms)
     const lpcPath = path.join(pluginsDir, 'LPC.jar');
@@ -1363,14 +1336,6 @@ server-token: '${serverToken}'
       event.reply('server-log', 'Запуск сервера...\n');
       serverProcess = spawn('cmd.exe', ['/c', 'chcp 65001 >nul && run.bat'], { cwd: serverRoot });
       
-      const syncInterval = setInterval(async () => {
-        if (!serverProcess) {
-          clearInterval(syncInterval);
-          return;
-        }
-        await performStatsSync(serverRoot, authServerUrl);
-      }, 30000);
-
       let onlinePlayers = new Set();
       let needsEula = false; 
 
@@ -1398,8 +1363,6 @@ server-token: '${serverToken}'
       });
 
       serverProcess.on('close', async (code) => {
-        clearInterval(syncInterval);
-        await performStatsSync(serverRoot, authServerUrl);
         event.reply('server-status', 'stopped');
         serverProcess = null;
         onlinePlayers.clear();
@@ -1468,98 +1431,4 @@ server-token: '${serverToken}'
     return null;
   };
 
-  const addDashesToUUID = (uuid) => {
-    if (uuid.includes('-')) return uuid;
-    return `${uuid.slice(0, 8)}-${uuid.slice(8, 12)}-${uuid.slice(12, 16)}-${uuid.slice(16, 20)}-${uuid.slice(20)}`;
-  };
-
-  const parseMinecraftStats = (statsJson) => {
-    const stats = {
-      playtime_seconds: 0,
-      blocks_mined: 0,
-      mobs_killed: 0,
-      deaths: 0
-    };
-    try {
-      const data = JSON.parse(statsJson);
-      const customStats = data.stats?.["minecraft:custom"] || {};
-      const playTimeTicks = customStats["minecraft:play_time"] || customStats["minecraft:time_since_death"] || 0;
-      stats.playtime_seconds = Math.floor(playTimeTicks / 20);
-      stats.deaths = customStats["minecraft:deaths"] || 0;
-      stats.mobs_killed = customStats["minecraft:mob_kills"] || 0;
-
-      const minedStats = data.stats?.["minecraft:mined"] || {};
-      let blocksMined = 0;
-      for (const key in minedStats) {
-        blocksMined += minedStats[key] || 0;
-      }
-      stats.blocks_mined = blocksMined;
-    } catch (e) {
-      console.error('[Stats Parser] Failed to parse Minecraft stats JSON:', e);
-    }
-    return stats;
-  };
-
-  const parseMinecraftAdvancements = (advancementsJson) => {
-    const achievements = [];
-    try {
-      const data = JSON.parse(advancementsJson);
-      for (const key in data) {
-        if (key === 'DataVersion') continue;
-        if (data[key] && data[key].done === true) {
-          achievements.push(key);
-        }
-      }
-    } catch (e) {
-      console.error('[Advancements Parser] Failed to parse Minecraft advancements JSON:', e);
-    }
-    return achievements;
-  };
-
-  const performStatsSync = async (serverRoot, authServerUrl) => {
-    try {
-      const user = getLoggedInUser();
-      if (!user || !user.uuid || !user.webToken) return;
-
-      const formattedUuid = addDashesToUUID(user.uuid);
-      
-      let worldFolder = 'world';
-      const propertiesPath = path.join(serverRoot, 'server.properties');
-      if (fs.existsSync(propertiesPath)) {
-        const props = fs.readFileSync(propertiesPath, 'utf8');
-        const match = props.match(/^level-name\s*=\s*(.+)$/m);
-        if (match && match[1]) {
-          worldFolder = match[1].trim();
-        }
-      }
-
-      const statsPath = path.join(serverRoot, worldFolder, 'stats', `${formattedUuid}.json`);
-      const advancementsPath = path.join(serverRoot, worldFolder, 'advancements', `${formattedUuid}.json`);
-
-      let stats = { playtime_seconds: 0, blocks_mined: 0, mobs_killed: 0, deaths: 0 };
-      let achievements = [];
-
-      if (fs.existsSync(statsPath)) {
-        const statsContent = fs.readFileSync(statsPath, 'utf8');
-        stats = parseMinecraftStats(statsContent);
-      }
-
-      if (fs.existsSync(advancementsPath)) {
-        const advancementsContent = fs.readFileSync(advancementsPath, 'utf8');
-        achievements = parseMinecraftAdvancements(advancementsContent);
-      }
-
-      if (fs.existsSync(statsPath)) {
-        await axios.post(`${authServerUrl.replace(/\/$/, '')}/api/profile/sync-stats`, {
-          ...stats,
-          achievements
-        }, {
-          headers: { 'Authorization': `Bearer ${user.webToken}` }
-        });
-        console.log(`[Stats Sync] Successfully synced local server stats for ${user.name}`);
-      }
-    } catch (e) {
-      console.error('[Stats Sync] Failed to sync local stats:', e.message);
-    }
-  };
 };

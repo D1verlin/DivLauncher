@@ -1,6 +1,9 @@
 require('dotenv').config();
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, protocol } = require('electron');
 
+protocol.registerSchemesAsPrivileged([
+  { scheme: 'local-file', privileges: { bypassCSP: true, secure: true, supportFetchAPI: true, corsEnabled: true, stream: true } }
+]);
 
 const { autoUpdater } = require('electron-updater');
 const path = require('path');
@@ -26,7 +29,7 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.js'), 
       nodeIntegration: false, 
       contextIsolation: true,
-      webSecurity: false
+      webSecurity: true
     }
   });
   
@@ -72,6 +75,18 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+  protocol.handle('local-file', (request) => {
+    const url = request.url.replace('local-file://', '');
+    const decodedPath = decodeURIComponent(url);
+    let filePath = decodedPath;
+    if (process.platform === 'win32') {
+      if (filePath.startsWith('/') && filePath.charAt(2) === ':') {
+        filePath = filePath.substring(1);
+      }
+    }
+    return { responseHeaders: { 'Access-Control-Allow-Origin': '*' }, filePath: path.normalize(filePath) };
+  });
+
   createWindow();
   setupClient(ipcMain);
   setupServer(ipcMain, mainWindow);

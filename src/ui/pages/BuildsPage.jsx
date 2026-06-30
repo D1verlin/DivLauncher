@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useTranslation } from '../utils/i18n';
 
 const glassPanelStyle = {
   background: 'rgba(15, 15, 20, 0.45)',
@@ -31,6 +32,7 @@ const searchInputStyle = {
 };
 
 export default function BuildsPage({ modpacks, currentPack, onSelect, onDelete, onEdit, onExport, onCreateClick, onImportClick }) {
+  const { t, lang } = useTranslation();
   const [search, setSearch] = useState('');
 
   const filteredPacks = modpacks.filter(pack => 
@@ -53,10 +55,10 @@ export default function BuildsPage({ modpacks, currentPack, onSelect, onDelete, 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
         <div>
           <h2 style={{ margin: 0, fontSize: '24px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '1.5px', textShadow: '0 4px 10px rgba(0,0,0,0.5)' }}>
-            Игровые Сборки
+            {t('builds_title')}
           </h2>
           <p style={{ margin: '4px 0 0 0', color: '#10b981', fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '1px' }}>
-            выберите или создайте клиент для игры
+            {t('builds_subtitle')}
           </p>
         </div>
 
@@ -66,7 +68,7 @@ export default function BuildsPage({ modpacks, currentPack, onSelect, onDelete, 
             <motion.input 
               whileFocus={{ borderColor: 'rgba(16, 185, 129, 0.5)', width: '320px', backgroundColor: 'rgba(0,0,0,0.4)' }}
               type="text" 
-              placeholder="Поиск сборок..." 
+              placeholder={t('builds_search')} 
               value={search} 
               onChange={e => setSearch(e.target.value)} 
               style={searchInputStyle} 
@@ -241,7 +243,7 @@ export default function BuildsPage({ modpacks, currentPack, onSelect, onDelete, 
                         e.stopPropagation();
                         if (onExport) onExport(pack.id);
                       }}
-                      title="Экспортировать сборку"
+                      title={t('builds_export')}
                       style={{
                         width: '28px', height: '28px', borderRadius: '8px',
                         background: 'rgba(16, 185, 129, 0.2)', border: '1px solid rgba(16, 185, 129, 0.4)',
@@ -258,7 +260,7 @@ export default function BuildsPage({ modpacks, currentPack, onSelect, onDelete, 
                         e.stopPropagation();
                         if (onEdit) onEdit(pack);
                       }}
-                      title="Редактировать оформление"
+                      title={t('builds_edit')}
                       style={{
                         width: '28px', height: '28px', borderRadius: '8px',
                         background: 'rgba(59, 130, 246, 0.2)', border: '1px solid rgba(59, 130, 246, 0.4)',
@@ -275,7 +277,7 @@ export default function BuildsPage({ modpacks, currentPack, onSelect, onDelete, 
                         e.stopPropagation();
                         onDelete(pack.id);
                       }}
-                      title="Удалить сборку"
+                      title={t('builds_delete')}
                       style={{
                         width: '28px', height: '28px', borderRadius: '8px',
                         background: 'rgba(239, 68, 68, 0.2)', border: '1px solid rgba(239, 68, 68, 0.4)',
@@ -404,7 +406,7 @@ export default function BuildsPage({ modpacks, currentPack, onSelect, onDelete, 
                       background: 'rgba(167,139,250,0.1)', border: '1px solid rgba(167,139,250,0.15)',
                       padding: '2px 6px', borderRadius: '6px', textTransform: 'uppercase'
                     }}>
-                      Кастом
+                      {t('builds_custom')}
                     </span>
                   )}
                 </div>

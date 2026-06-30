@@ -11,12 +11,15 @@ import BuildsPage from './pages/BuildsPage';
 import CreatePackPage from './pages/CreatePackPage';
 import ModsPage from './pages/ModsPage';
 import OfficialBuildManagerPage from './pages/OfficialBuildManagerPage';
+import { useTranslation } from './utils/i18n';
+import { setLoadedBadges } from './utils/badgeHelper';
 
 const MODPACKS_URL = "https://mc.diverlin.ru/DivLauncher/modpacks.json";
 const MAX_SERVER_LOG_LINES = 500;
 
 // --- КАСТОМНЫЙ CONFIRM-МОДАЛ ---
 function ConfirmModal({ title, message, onConfirm, onCancel }) {
+  const { t } = useTranslation();
   return (
     <motion.div
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
@@ -53,11 +56,11 @@ function ConfirmModal({ title, message, onConfirm, onCancel }) {
         <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
           <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={onCancel}
             style={{ flex: 1, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: '#a1a1aa', borderRadius: '12px', padding: '11px', fontWeight: 700, cursor: 'pointer', fontSize: '13px' }}>
-            Отмена
+            {t('cancel')}
           </motion.button>
           <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={onConfirm}
             style={{ flex: 1, background: 'linear-gradient(135deg, #ef4444, #dc2626)', border: 'none', color: '#fff', borderRadius: '12px', padding: '11px', fontWeight: 800, cursor: 'pointer', fontSize: '13px' }}>
-            Подтвердить
+            {t('confirm')}
           </motion.button>
         </div>
       </motion.div>
@@ -67,6 +70,7 @@ function ConfirmModal({ title, message, onConfirm, onCancel }) {
 
 // --- КАСТОМНЫЙ ALERT-МОДАЛ ---
 function AlertModal({ title, message, onClose }) {
+  const { lang } = useTranslation();
   return (
     <motion.div
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
@@ -102,7 +106,7 @@ function AlertModal({ title, message, onClose }) {
         </div>
         <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={onClose}
           style={{ width: '100%', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)', color: '#fff', borderRadius: '12px', padding: '11px', fontWeight: 700, cursor: 'pointer', fontSize: '13px' }}>
-          Понятно
+          {lang === 'ru' ? 'Понятно' : 'OK'}
         </motion.button>
       </motion.div>
     </motion.div>
@@ -111,6 +115,7 @@ function AlertModal({ title, message, onClose }) {
 
 // --- КОМПОНЕНТ АВТООБНОВЛЕНИЯ (Глассморфизм) ---
 function UpdateNotification() {
+  const { lang } = useTranslation();
   const [status, setStatus] = useState('idle'); 
   const [progress, setProgress] = useState(0);
   const [version, setVersion] = useState('');
@@ -119,7 +124,7 @@ function UpdateNotification() {
     if (!window.electronAPI) return;
 
     window.electronAPI.onUpdateAvailable((event, v) => {
-      setVersion(v || 'новую версию');
+      setVersion(v || (lang === 'ru' ? 'новую версию' : 'new version'));
       setStatus('downloading');
       setProgress(0);
     });
@@ -137,7 +142,7 @@ function UpdateNotification() {
       window.electronAPI.removeAllListeners?.('update-progress');
       window.electronAPI.removeAllListeners?.('update-downloaded');
     };
-  }, []);
+  }, [lang]);
 
   return (
     <AnimatePresence>
@@ -176,10 +181,10 @@ function UpdateNotification() {
             </div>
             <div>
               <h4 style={{ margin: 0, color: '#fff', fontSize: '15px', fontWeight: 800 }}>
-                {status === 'downloaded' ? 'Обновление готово!' : 'Загрузка обновления...'}
+                {status === 'downloaded' ? (lang === 'ru' ? 'Обновление готово!' : 'Update ready!') : (lang === 'ru' ? 'Загрузка обновления...' : 'Downloading update...')}
               </h4>
               <p style={{ margin: '4px 0 0 0', color: '#a1a1aa', fontSize: '12px', fontWeight: 600 }}>
-                Версия {version}
+                {lang === 'ru' ? 'Версия' : 'Version'} {version}
               </p>
             </div>
           </div>
@@ -187,7 +192,7 @@ function UpdateNotification() {
           {status === 'downloading' ? (
             <div style={{ marginTop: '5px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px', fontSize: '11px', color: '#e4e4e7', fontWeight: 700 }}>
-                <span>Скачивание файлов</span>
+                <span>{lang === 'ru' ? 'Скачивание файлов' : 'Downloading files'}</span>
                 <span style={{ color: '#3b82f6' }}>{progress}%</span>
               </div>
               <div style={{ width: '100%', height: '6px', background: 'rgba(0,0,0,0.5)', borderRadius: '10px', overflow: 'hidden', boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.5)' }}>
@@ -211,7 +216,7 @@ function UpdateNotification() {
                 textTransform: 'uppercase', letterSpacing: '1px'
               }}
             >
-              <i className="fa-solid fa-arrows-rotate"></i> Перезапустить
+              <i className="fa-solid fa-arrows-rotate"></i> {lang === 'ru' ? 'Перезапустить' : 'Restart'}
             </motion.button>
           )}
         </motion.div>
@@ -239,6 +244,7 @@ const pageVariants = {
 
 // --- ОСНОВНОЕ ПРИЛОЖЕНИЕ ---
 export default function App() {
+  const { lang, t } = useTranslation();
   const [currentPage, setCurrentPage] = useState('builds');
   const [viewedProfile, setViewedProfile] = useState(null);
   const [editingPack, setEditingPack] = useState(null);
@@ -249,7 +255,7 @@ export default function App() {
   const [appVersion, setAppVersion] = useState('0.0.0');
   const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
 
-  const [serverLogs, setServerLogs] = useState('Ожидание загрузки сборок...\n');
+  const [serverLogs, setServerLogs] = useState(lang === 'ru' ? 'Ожидание загрузки сборок...\n' : 'Waiting for builds to load...\n');
   const [isServerRunning, setIsServerRunning] = useState(false);
   const [serverPlayers, setServerPlayers] = useState([]);
 
@@ -258,7 +264,9 @@ export default function App() {
 
   // Auth States
   const [profile, setProfile] = useState(null);
+  const [profileCache, setProfileCache] = useState({});
   const [authLoading, setAuthLoading] = useState(true);
+  const [badges, setBadges] = useState([]);
 
   // --- МОДАЛЬНЫЕ ОКНА (замена confirm/alert) ---
   const [confirmModal, setConfirmModal] = useState(null); // { title, message, onConfirm }
@@ -291,15 +299,12 @@ export default function App() {
             if (prof.logs && Array.isArray(prof.logs)) {
               prof.logs.forEach(l => console.log("%c[MAIN] " + l, "color: #3b82f6; font-weight: 500;"));
             }
-            setProfile({
-              id: prof.id,
-              name: prof.name,
-              uuid: prof.uuid,
-              accessToken: prof.accessToken,
-              webToken: prof.webToken,
-              is_admin: prof.is_admin,
-              badge: prof.badge
-            });
+            const mappedProf = {
+              ...prof,
+              name: prof.name
+            };
+            setProfile(mappedProf);
+            setProfileCache(prev => ({ ...prev, [prof.uuid]: mappedProf }));
             localStorage.setItem('launcher_username', prof.name);
           }
         })
@@ -309,6 +314,21 @@ export default function App() {
       setAuthLoading(false);
     }
   }, []);
+
+  const fetchBadges = useCallback(() => {
+    if (window.electronAPI?.getBadges) {
+      window.electronAPI.getBadges().then(res => {
+        if (res.success && Array.isArray(res.badges)) {
+          setBadges(res.badges);
+          setLoadedBadges(res.badges);
+        }
+      }).catch(err => console.error("Failed to fetch badges:", err));
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchBadges();
+  }, [fetchBadges]);
 
   useEffect(() => {
     const handleSettingsUpdate = () => {
@@ -322,7 +342,7 @@ export default function App() {
     setLoadingError(null);
     fetch(`${MODPACKS_URL}?t=${new Date().getTime()}`, { cache: 'no-store' })
       .then(res => {
-        if (!res.ok) throw new Error(`Ошибка HTTP: ${res.status}`);
+        if (!res.ok) throw new Error(`HTTP Error: ${res.status}`);
         return res.json();
       })
       .then(async remoteData => {
@@ -342,7 +362,7 @@ export default function App() {
           const packToSelect = lastPack || combinedData[0];
 
           setCurrentPack(packToSelect);
-          setServerLogs(`Выбрана сборка: ${packToSelect.name}. Сервер готов к запуску...\n`);
+          setServerLogs(lang === 'ru' ? `Выбрана сборка: ${packToSelect.name}. Сервер готов к запуску...\n` : `Pack selected: ${packToSelect.name}. Server ready to launch...\n`);
         } else {
           setCurrentPage('builds');
         }
@@ -357,7 +377,7 @@ export default function App() {
                 const lastPack = localData.find(p => p.id === savedPackId);
                 const packToSelect = lastPack || localData[0];
                 setCurrentPack(packToSelect);
-                setServerLogs(`Оффлайн. Выбрана локальная сборка: ${packToSelect.name}.\n`);
+                setServerLogs(lang === 'ru' ? `Оффлайн. Выбрана локальная сборка: ${packToSelect.name}.\n` : `Offline. Local pack selected: ${packToSelect.name}.\n`);
               } else {
                 setCurrentPage('builds');
               }
@@ -378,9 +398,9 @@ export default function App() {
         fetchModpacks();
         setCurrentPack(newPack);
         localStorage.setItem('launcher_last_pack', newPack.id);
-        setServerLogs(`Создана и выбрана сборка: ${newPack.name}...\n`);
+        setServerLogs(lang === 'ru' ? `Создана и выбрана сборка: ${newPack.name}...\n` : `Pack created and selected: ${newPack.name}...\n`);
       } else {
-        showAlert('Ошибка сохранения', result.error || 'Не удалось сохранить сборку.');
+        showAlert(lang === 'ru' ? 'Ошибка сохранения' : 'Save Error', result.error || (lang === 'ru' ? 'Не удалось сохранить сборку.' : 'Failed to save the pack.'));
       }
     }
   };
@@ -388,8 +408,8 @@ export default function App() {
   const handleDeleteCustomPack = async (id) => {
     if (window.electronAPI && window.electronAPI.deleteCustomPack) {
       const confirmed = await showConfirm(
-        'Удалить сборку?',
-        'Все файлы и моды этой сборки будут безвозвратно удалены!'
+        lang === 'ru' ? 'Удалить сборку?' : 'Delete Pack?',
+        lang === 'ru' ? 'Все файлы и моды этой сборки будут безвозвратно удалены!' : 'All files and mods for this pack will be permanently deleted!'
       );
       if (confirmed) {
         const result = await window.electronAPI.deleteCustomPack(id);
@@ -404,7 +424,7 @@ export default function App() {
           }
           fetchModpacks();
         } else {
-          showAlert('Ошибка удаления', result.error || 'Не удалось удалить сборку.');
+          showAlert(lang === 'ru' ? 'Ошибка удаления' : 'Delete Error', result.error || (lang === 'ru' ? 'Не удалось удалить сборку.' : 'Failed to delete the pack.'));
         }
       }
     }
@@ -461,18 +481,18 @@ export default function App() {
           {loadingError ? (
             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} style={{ textAlign: 'center' }}>
               <i className="fa-solid fa-triangle-exclamation" style={{ fontSize: '50px', color: '#ef4444', marginBottom: '20px' }}></i>
-              <h2 style={{ fontSize: '24px', fontWeight: 800, marginBottom: '10px' }}>СВЯЗЬ ПОТЕРЯНА</h2>
+              <h2 style={{ fontSize: '24px', fontWeight: 800, marginBottom: '10px' }}>{lang === 'ru' ? 'СВЯЗЬ ПОТЕРЯНА' : 'CONNECTION LOST'}</h2>
               <p style={{ color: '#a1a1aa', marginBottom: '30px', maxWidth: '350px', lineHeight: '1.5' }}>
-                Не удалось загрузить данные лаунчера.<br/><span style={{ fontSize: '12px', color: '#52525b' }}>{loadingError}</span>
+                {lang === 'ru' ? 'Не удалось загрузить данные лаунчера.' : 'Failed to load launcher data.'}<br/><span style={{ fontSize: '12px', color: '#52525b' }}>{loadingError}</span>
               </p>
               <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={fetchModpacks} style={{ background: '#059669', color: '#fff', border: 'none', padding: '12px 30px', borderRadius: '30px', fontWeight: 800, cursor: 'pointer' }}>
-                ПОВТОРИТЬ ПОПЫТКУ
+                {lang === 'ru' ? 'ПОВТОРИТЬ ПОПЫТКУ' : 'RETRY'}
               </motion.button>
             </motion.div>
           ) : (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
               <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1.5, ease: "linear" }} style={{ width: '45px', height: '45px', border: '4px solid rgba(16, 185, 129, 0.1)', borderTopColor: '#10b981', borderRadius: '50%', marginBottom: '25px' }} />
-              <h2 style={{ fontSize: '18px', fontWeight: 800, letterSpacing: '3px', color: '#10b981' }}>ПОДКЛЮЧЕНИЕ...</h2>
+              <h2 style={{ fontSize: '18px', fontWeight: 800, letterSpacing: '3px', color: '#10b981' }}>{lang === 'ru' ? 'ПОДКЛЮЧЕНИЕ...' : 'CONNECTING...'}</h2>
             </motion.div>
           )}
         </div>
@@ -486,7 +506,7 @@ export default function App() {
         <TopBar />
         <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
           <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1.5, ease: "linear" }} style={{ width: '45px', height: '45px', border: '4px solid rgba(16, 185, 129, 0.1)', borderTopColor: '#10b981', borderRadius: '50%', marginBottom: '25px' }} />
-          <h2 style={{ fontSize: '18px', fontWeight: 800, letterSpacing: '3px', color: '#10b981' }}>ПРОВЕРКА СЕССИИ...</h2>
+          <h2 style={{ fontSize: '18px', fontWeight: 800, letterSpacing: '3px', color: '#10b981' }}>{lang === 'ru' ? 'ПРОВЕРКА СЕССИИ...' : 'CHECKING SESSION...'}</h2>
         </div>
       </div>
     );
@@ -505,6 +525,7 @@ export default function App() {
         <TopBar />
         <LoginPage onLoginSuccess={(prof) => {
           setProfile(prof);
+          setProfileCache(prev => ({ ...prev, [prof.uuid]: prof }));
           localStorage.setItem('launcher_username', prof.name);
         }} />
       </div>
@@ -526,13 +547,13 @@ export default function App() {
       return (
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', flexDirection: 'column', gap: '15px' }}>
           <i className="fa-solid fa-layer-group" style={{ fontSize: '48px', color: 'rgba(255,255,255,0.2)' }} />
-          <div style={{ color: '#a1a1aa', fontSize: '14px', fontWeight: 600 }}>Пожалуйста, выберите сборку на странице сборок</div>
+          <div style={{ color: '#a1a1aa', fontSize: '14px', fontWeight: 600 }}>{lang === 'ru' ? 'Пожалуйста, выберите сборку на странице сборок' : 'Please select a pack on the builds page'}</div>
           <motion.button 
             whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
             onClick={() => setCurrentPage('builds')}
             style={{ background: 'linear-gradient(135deg, #3b82f6, #2563eb)', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: '10px', cursor: 'pointer', fontWeight: 700 }}
           >
-            Перейти к сборкам
+            {lang === 'ru' ? 'Перейти к сборкам' : 'Go to Builds'}
           </motion.button>
         </div>
       );
@@ -547,7 +568,7 @@ export default function App() {
             onSelect={(pack) => {
               setCurrentPack(pack);
               localStorage.setItem('launcher_last_pack', pack.id);
-              setServerLogs(`Выбрана сборка: ${pack.name}. Сервер готов...\n`);
+              setServerLogs(lang === 'ru' ? `Выбрана сборка: ${pack.name}. Сервер готов...\n` : `Pack selected: ${pack.name}. Server ready...\n`);
               setCurrentPage('client');
             }} 
             onDelete={handleDeleteCustomPack}
@@ -555,7 +576,7 @@ export default function App() {
               if (window.electronAPI?.exportCustomPack) {
                 const result = await window.electronAPI.exportCustomPack(packId);
                 if (!result.success) {
-                  showAlert('Ошибка экспорта', result.error || 'Не удалось экспортировать сборку.');
+                  showAlert(lang === 'ru' ? 'Ошибка экспорта' : 'Export Error', result.error || (lang === 'ru' ? 'Не удалось экспортировать сборку.' : 'Failed to export the pack.'));
                 }
               }
             }}
@@ -577,7 +598,7 @@ export default function App() {
                     localStorage.setItem('launcher_last_pack', result.pack.id);
                   }
                 } else if (!result.canceled && result.error !== 'Отменено') {
-                  showAlert('Ошибка импорта', result.error || 'Не удалось импортировать сборку.');
+                  showAlert(lang === 'ru' ? 'Ошибка импорта' : 'Import Error', result.error || (lang === 'ru' ? 'Не удалось импортировать сборку.' : 'Failed to import the pack.'));
                 }
               }
             }}
@@ -626,24 +647,20 @@ export default function App() {
             active={true} 
             onViewProfile={(user) => {
               setViewedProfile({
-                id: user.id,
-                name: user.username,
-                uuid: user.uuid,
-                is_admin: user.is_admin,
-                badge: user.badge,
-                bio: user.bio,
-                skin_url: user.skin_url,
-                cape_url: user.cape_url,
-                stats: user.stats,
+                ...user,
+                name: user.username
               });
               setCurrentPage('profile');
             }} 
           />
         );
-      case 'profile':
+      case 'profile': {
+        const targetProfile = viewedProfile
+          ? (profileCache[viewedProfile.uuid] || viewedProfile)
+          : (profileCache[profile.uuid] || profile);
         return (
           <ProfilePage 
-            profile={viewedProfile || profile} 
+            profile={targetProfile} 
             isOwnProfile={!viewedProfile || viewedProfile.uuid === profile.uuid}
             onBack={() => {
               setCurrentPage('users');
@@ -652,8 +669,23 @@ export default function App() {
             onLogout={handleLogout} 
             currentPack={currentPack} 
             modpacks={modpacks} 
+            onProfileUpdate={(updatedData) => {
+              if (viewedProfile && viewedProfile.uuid !== profile.uuid) {
+                setProfileCache(prev => ({
+                  ...prev,
+                  [viewedProfile.uuid]: { ...(prev[viewedProfile.uuid] || viewedProfile), ...updatedData }
+                }));
+              } else {
+                setProfile(prev => ({ ...prev, ...updatedData }));
+                setProfileCache(prev => ({
+                  ...prev,
+                  [profile.uuid]: { ...(prev[profile.uuid] || profile), ...updatedData }
+                }));
+              }
+            }}
           />
         );
+      }
       case 'settings':
         return <SettingsPage currentPack={currentPack} />;
       case 'admin':
@@ -669,6 +701,8 @@ export default function App() {
               setCurrentPack(pack);
               setCurrentPage('mods');
             }}
+            badges={badges}
+            onBadgesUpdate={fetchBadges}
           />
         ) : null;
       default:
@@ -715,25 +749,25 @@ export default function App() {
           <div style={{ width: '60px', minWidth: '60px', background: '#11111157', backdropFilter: 'blur(20px)', borderRadius: '30px', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '20px 0', border: '1px solid rgba(255,255,255,0.05)', overflowY: 'auto' }}>
             
             <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-              <NavButton icon="fa-layer-group" active={currentPage === 'builds' || currentPage === 'create-pack'} onClick={() => { setViewedProfile(null); setCurrentPage('builds'); }} color="#f59e0b" title="Сборки" />
-              <NavButton icon="fa-gamepad" active={currentPage === 'client'} onClick={() => { setViewedProfile(null); setCurrentPage('client'); }} color="#10b981" title="Играть" />
-              <NavButton icon="fa-server" active={currentPage === 'server'} onClick={() => { setViewedProfile(null); setCurrentPage('server'); }} color="#3b82f6" title="Сервер"
+              <NavButton icon="fa-layer-group" active={currentPage === 'builds' || currentPage === 'create-pack'} onClick={() => { setViewedProfile(null); setCurrentPage('builds'); }} color="#f59e0b" title={t('tab_builds')} />
+              <NavButton icon="fa-gamepad" active={currentPage === 'client'} onClick={() => { setViewedProfile(null); setCurrentPage('client'); }} color="#10b981" title={t('client_play')} />
+              <NavButton icon="fa-server" active={currentPage === 'server'} onClick={() => { setViewedProfile(null); setCurrentPage('server'); }} color="#3b82f6" title={t('tab_server')}
                 dot={isServerRunning} dotColor="#10b981" />
-              <NavButton icon="fa-users" active={currentPage === 'users'} onClick={() => { setViewedProfile(null); setCurrentPage('users'); }} color="#6366f1" title="Игроки" />
-              <NavButton icon="fa-circle-user" active={currentPage === 'profile'} onClick={() => { setViewedProfile(null); setCurrentPage('profile'); }} color="#a78bfa" title="Профиль" />
+              <NavButton icon="fa-users" active={currentPage === 'users'} onClick={() => { setViewedProfile(null); setCurrentPage('users'); }} color="#6366f1" title={t('tab_users')} />
+              <NavButton icon="fa-circle-user" active={currentPage === 'profile'} onClick={() => { setViewedProfile(null); setCurrentPage('profile'); }} color="#a78bfa" title={t('tab_profile')} />
               {profile && profile.is_admin === 1 && (
-                <NavButton icon="fa-shield-halved" active={currentPage === 'admin'} onClick={() => { setViewedProfile(null); setCurrentPage('admin'); }} color="#ef4444" title="Админка" />
+                <NavButton icon="fa-shield-halved" active={currentPage === 'admin'} onClick={() => { setViewedProfile(null); setCurrentPage('admin'); }} color="#ef4444" title={t('tab_admin')} />
               )}
             </div>
 
             <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '15px' }}>
-              <NavButton icon="fa-right-from-bracket" active={false} onClick={handleLogout} color="#ef4444" title="Выйти из аккаунта" />
-              <NavButton icon="fa-gear" active={currentPage === 'settings'} onClick={() => setCurrentPage('settings')} color="#f59e0b" title="Настройки" />
+              <NavButton icon="fa-right-from-bracket" active={false} onClick={handleLogout} color="#ef4444" title={lang === 'ru' ? 'Выйти из аккаунта' : 'Logout'} />
+              <NavButton icon="fa-gear" active={currentPage === 'settings'} onClick={() => setCurrentPage('settings')} color="#f59e0b" title={t('tab_settings')} />
               
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', paddingBottom: '10px' }}>
                 <motion.button
                   onClick={handleManualUpdate}
-                  title="Проверить обновления"
+                  title={lang === 'ru' ? 'Проверить обновления' : 'Check for Updates'}
                   animate={isCheckingUpdate ? { rotate: 360 } : {}}
                   transition={isCheckingUpdate ? { repeat: Infinity, duration: 1, ease: "linear" } : {}}
                   style={{ background: 'transparent', border: 'none', color: isCheckingUpdate ? '#10b981' : '#52525b', cursor: 'pointer', fontSize: '14px' }}

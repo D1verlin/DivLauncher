@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useTranslation } from '../utils/i18n';
 
 export default function LoginPage({ onLoginSuccess }) {
+  const { t } = useTranslation();
   const [isRegister, setIsRegister] = useState(false);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -15,17 +17,17 @@ export default function LoginPage({ onLoginSuccess }) {
     setMessage(null);
 
     if (username.trim().length < 3) {
-      setMessage({ type: 'error', text: 'Имя пользователя должно быть не менее 3 символов' });
+      setMessage({ type: 'error', text: t('login_err_username_len') });
       return;
     }
     if (password.length < 4) {
-      setMessage({ type: 'error', text: 'Пароль должен быть не менее 4 символов' });
+      setMessage({ type: 'error', text: t('login_err_password_len') });
       return;
     }
 
     if (isRegister) {
       if (password !== confirmPassword) {
-        setMessage({ type: 'error', text: 'Пароли не совпадают' });
+        setMessage({ type: 'error', text: t('login_err_password_match') });
         return;
       }
       
@@ -36,12 +38,12 @@ export default function LoginPage({ onLoginSuccess }) {
           result.logs.forEach(l => console.log("%c[MAIN] " + l, "color: #10b981; font-weight: 500;"));
         }
         if (result.success) {
-          setMessage({ type: 'success', text: 'Регистрация успешна! Теперь вы можете войти.' });
+          setMessage({ type: 'success', text: t('login_success_reg') });
           setIsRegister(false);
           setPassword('');
           setConfirmPassword('');
         } else {
-          setMessage({ type: 'error', text: result.error || 'Ошибка регистрации' });
+          setMessage({ type: 'error', text: result.error || t('login_err_reg') });
         }
       } catch (err) {
         setMessage({ type: 'error', text: err.message });
@@ -66,13 +68,38 @@ export default function LoginPage({ onLoginSuccess }) {
             badge: result.badge
           });
         } else {
-          setMessage({ type: 'error', text: result.error || 'Неверный логин или пароль' });
+          setMessage({ type: 'error', text: result.error || t('login_err_login') });
         }
       } catch (err) {
         setMessage({ type: 'error', text: err.message });
       } finally {
         setLoading(false);
       }
+    }
+  };
+
+  const handleGoogleLogin = async () => {
+    setMessage(null);
+    setLoading(true);
+    try {
+      const result = await window.electronAPI.startGoogleAuth('login');
+      if (result.success) {
+        onLoginSuccess({
+          id: result.id,
+          name: result.name,
+          uuid: result.uuid,
+          accessToken: result.accessToken,
+          webToken: result.webToken,
+          is_admin: result.is_admin,
+          badge: result.badge
+        });
+      } else {
+        setMessage({ type: 'error', text: result.error || 'Не удалось войти через Google' });
+      }
+    } catch (err) {
+      setMessage({ type: 'error', text: err.message });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -158,7 +185,7 @@ export default function LoginPage({ onLoginSuccess }) {
             letterSpacing: '1px',
             margin: 0
           }}>
-            авторизация
+            {t('login_title')}
           </p>
         </div>
 
@@ -190,7 +217,7 @@ export default function LoginPage({ onLoginSuccess }) {
               outline: !isRegister ? '1px solid rgba(16,185,129,0.2)' : 'none'
             }}
           >
-            Вход
+            {t('login_btn_tab')}
           </button>
           <button
             onClick={() => { setIsRegister(true); setMessage(null); }}
@@ -211,17 +238,17 @@ export default function LoginPage({ onLoginSuccess }) {
               outline: isRegister ? '1px solid rgba(16,185,129,0.2)' : 'none'
             }}
           >
-            Регистрация
+            {t('login_reg_tab')}
           </button>
         </div>
 
         <form onSubmit={handleAction} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
           <div>
-            <label style={labelStyle}>Логин</label>
+            <label style={labelStyle}>{t('login_username_label')}</label>
             <motion.input
               whileFocus={{ borderColor: 'rgba(16,185,129,0.6)', boxShadow: '0 0 10px rgba(16,185,129,0.15)' }}
               type="text"
-              placeholder="Введите никнейм"
+              placeholder={t('login_username_placeholder')}
               value={username}
               onChange={e => setUsername(e.target.value)}
               style={inputStyle}
@@ -230,11 +257,11 @@ export default function LoginPage({ onLoginSuccess }) {
           </div>
 
           <div>
-            <label style={labelStyle}>Пароль</label>
+            <label style={labelStyle}>{t('login_password_label')}</label>
             <motion.input
               whileFocus={{ borderColor: 'rgba(16,185,129,0.6)', boxShadow: '0 0 10px rgba(16,185,129,0.15)' }}
               type="password"
-              placeholder="Введите пароль"
+              placeholder={t('login_password_placeholder')}
               value={password}
               onChange={e => setPassword(e.target.value)}
               style={inputStyle}
@@ -248,11 +275,11 @@ export default function LoginPage({ onLoginSuccess }) {
               animate={{ opacity: 1, height: 'auto' }}
               transition={{ duration: 0.2 }}
             >
-              <label style={labelStyle}>Подтвердите пароль</label>
+              <label style={labelStyle}>{t('login_confirm_label')}</label>
               <motion.input
                 whileFocus={{ borderColor: 'rgba(16,185,129,0.6)', boxShadow: '0 0 10px rgba(16,185,129,0.15)' }}
                 type="password"
-                placeholder="Повторите пароль"
+                placeholder={t('login_confirm_placeholder')}
                 value={confirmPassword}
                 onChange={e => setConfirmPassword(e.target.value)}
                 style={inputStyle}
@@ -314,14 +341,49 @@ export default function LoginPage({ onLoginSuccess }) {
             {loading ? (
               <>
                 <motion.i className="fa-solid fa-circle-notch" animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1, ease: 'linear' }} />
-                Загрузка...
+                {t('login_loading')}
               </>
             ) : (
               <>
                 <i className={`fa-solid ${isRegister ? 'fa-user-plus' : 'fa-right-to-bracket'}`} />
-                {isRegister ? 'Зарегистрироваться' : 'Войти'}
+                {isRegister ? t('login_register_btn') : t('login_submit_btn')}
               </>
             )}
+          </motion.button>
+
+          <div style={{ display: 'flex', alignItems: 'center', margin: '15px 0 5px 0' }}>
+            <div style={{ flex: 1, height: '1px', background: 'rgba(255,255,255,0.08)' }} />
+            <span style={{ fontSize: '10px', color: '#71717a', padding: '0 10px', textTransform: 'uppercase', fontWeight: 800, letterSpacing: '1px' }}>
+              или
+            </span>
+            <div style={{ flex: 1, height: '1px', background: 'rgba(255,255,255,0.08)' }} />
+          </div>
+
+          <motion.button
+            whileHover={{ scale: 1.02, background: 'rgba(255,255,255,0.08)' }}
+            whileTap={{ scale: 0.98 }}
+            disabled={loading}
+            type="button"
+            onClick={handleGoogleLogin}
+            style={{
+              background: 'rgba(255,255,255,0.04)',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+              color: '#fff',
+              padding: '12px',
+              borderRadius: '13px',
+              fontSize: '12px',
+              fontWeight: 800,
+              textTransform: 'uppercase',
+              letterSpacing: '1px',
+              cursor: loading ? 'wait' : 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '10px',
+            }}
+          >
+            <i className="fa-brands fa-google" style={{ color: '#ea4335', fontSize: '14px' }} />
+            Войти через Google
           </motion.button>
         </form>
       </motion.div>
