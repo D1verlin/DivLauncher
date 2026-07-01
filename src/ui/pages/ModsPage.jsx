@@ -35,6 +35,13 @@ export default function ModsPage({ currentPack, onBack }) {
   const [installingTarget, setInstallingTarget] = useState(null); // project slug
   const [error, setError] = useState('');
 
+  const [layoutMode, setLayoutMode] = useState('grid'); // 'grid' | 'list' | 'compact'
+  const [sidebarSearch, setSidebarSearch] = useState('');
+  const [refreshing, setRefreshing] = useState(false);
+  const [showSidebar, setShowSidebar] = useState(true);
+  const [translatedBody, setTranslatedBody] = useState('');
+  const [translatingBody, setTranslatingBody] = useState(false);
+
   // Detailed view states
   const [selectedMod, setSelectedMod] = useState(null);
   const [selectedModData, setSelectedModData] = useState(null);
@@ -66,6 +73,44 @@ export default function ModsPage({ currentPack, onBack }) {
     if (sortKey === 'name') return { sortField: 4, sortOrder: 'asc' };
     return { sortField: 2, sortOrder: 'desc' }; // popular
   };
+
+  const translateShortDescriptions = useCallback(async (hits, append = false) => {
+    if (!hits || hits.length === 0) return;
+    try {
+      const descriptions = hits.map(h => h.description || '');
+      const batchText = descriptions.join('\n837492\n');
+      const res = await window.electronAPI.translateText(batchText, 'ru');
+      if (res.success && res.text) {
+        const translatedParts = res.text.split('837492').map(p => p.trim());
+        
+        if (append) {
+          setMods(prev => {
+            const baseLength = prev.length - hits.length;
+            return prev.map((m, idx) => {
+              if (idx >= baseLength) {
+                const partIdx = idx - baseLength;
+                const trans = translatedParts[partIdx];
+                if (trans) {
+                  return { ...m, description: trans };
+                }
+              }
+              return m;
+            });
+          });
+        } else {
+          setMods(prev => prev.map((m, idx) => {
+            const trans = translatedParts[idx];
+            if (trans) {
+              return { ...m, description: trans };
+            }
+            return m;
+          }));
+        }
+      }
+    } catch (err) {
+      console.error("Translation error:", err);
+    }
+  }, [lang]);
 
   const searchMods = useCallback(async (isLoadMore = false) => {
     if (!loader || !currentPack) return;
@@ -110,16 +155,22 @@ export default function ModsPage({ currentPack, onBack }) {
       if (isLoadMore) {
         setMods(prev => [...prev, ...data.hits]);
         setPage(page + 1);
+        if (lang === 'ru') {
+          translateShortDescriptions(data.hits, true);
+        }
       } else {
         setMods(data.hits);
         setPage(0);
+        if (lang === 'ru') {
+          translateShortDescriptions(data.hits, false);
+        }
       }
     } catch (err) {
       setError(err.message);
     } finally {
       setLoading(false);
     }
-  }, [search, activeCategory, sortBy, page, loader, currentPack, source, projectType, t]);
+  }, [search, activeCategory, sortBy, page, loader, currentPack, source, projectType, t, lang, translateShortDescriptions]);
 
   useEffect(() => {
     fetchInstalledMods();
@@ -270,6 +321,8 @@ export default function ModsPage({ currentPack, onBack }) {
     setVersionsList([]);
     setActiveScreenshotIndex(0);
     setSelectedTab('description');
+    setTranslatedBody('');
+    setTranslatingBody(false);
     
     try {
       const [projRes, versionsRes] = await Promise.all([
@@ -409,6 +462,505 @@ export default function ModsPage({ currentPack, onBack }) {
     justifyContent: 'center',
     gap: '6px',
     transition: 'all 0.2s'
+  };
+
+  const handleTranslateBody = async () => {
+    if (!selectedModData || !selectedModData.body) return;
+    setTranslatingBody(true);
+    try {
+      const res = await window.electronAPI.translateText(selectedModData.body, 'ru');
+      if (res.success && res.text) {
+        setTranslatedBody(res.text);
+      } else {
+        throw new Error(res.error || "Translation failed");
+      }
+    } catch (err) {
+      alert(`${t('error')}: ${err.message}`);
+    } finally {
+      setTranslatingBody(false);
+    }
+  };
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await Promise.all([
+        fetchInstalledMods(),
+        searchMods(false)
+      ]);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  const handleToggleMod = async (fileName) => {
+    if (!currentPack || !currentPack.clientDir) return;
+    try {
+      const res = await window.electronAPI.toggleMod(currentPack.clientDir, fileName, projectType);
+      if (res.success) {
+        await fetchInstalledMods();
+      } else {
+        throw new Error(res.error);
+      }
+    } catch (err) {
+      alert(`${t('error')}: ${err.message}`);
+    }
+  };
+
+  const handleDeleteMod = async (fileName) => {
+    if (!currentPack || !currentPack.clientDir) return;
+    const confirmMsg = lang === 'ru' 
+      ? `Вы действительно хотите удалить ${fileName}?` 
+      : `Are you sure you want to delete ${fileName}?`;
+    if (!confirm(confirmMsg)) return;
+    try {
+      const res = await window.electronAPI.deleteMod(currentPack.clientDir, fileName, projectType);
+      if (res.success) {
+        // Also update map
+        const map = getInstalledMap();
+        for (const key of Object.keys(map)) {
+          if (map[key] === fileName || map[key] === fileName.replace('.disabled', '')) {
+            delete map[key];
+          }
+        }
+        saveInstalledMap(map);
+        await fetchInstalledMods();
+      } else {
+        throw new Error(res.error);
+      }
+    } catch (err) {
+      alert(`${t('error')}: ${err.message}`);
+    }
+  };
+
+  const getFriendlyModInfo = (fileName) => {
+    const baseName = fileName.toLowerCase().endsWith('.disabled') ? fileName.slice(0, -9) : fileName;
+    // Try to find in currently visible mods
+    const matchedMod = mods.find(m => {
+      const installed = getInstalledFileName(m);
+      return installed === fileName || (installed && installed.replace('.disabled', '').toLowerCase() === baseName.toLowerCase());
+    });
+    if (matchedMod) {
+      return {
+        title: matchedMod.title,
+        icon_url: matchedMod.icon_url,
+        author: matchedMod.author
+      };
+    }
+    
+    // Fallback: extract a readable title from filename
+    let namePart = baseName.replace(/\.jar$|\.zip$/i, '');
+    // Remove version numbers or tags like -mc1.20-fabric etc.
+    namePart = namePart.split('-')[0].split('_')[0];
+    const readable = namePart
+      .replace(/[-_]/g, ' ')
+      .replace(/([a-z])([A-Z])/g, '$1 $2')
+      .replace(/^./, str => str.toUpperCase());
+    
+    return {
+      title: readable,
+      icon_url: null,
+      author: null
+    };
+  };
+
+  const formatDownloads = (dl) => {
+    if (!dl) return '0';
+    if (dl >= 1000000) return `${(dl / 1000000).toFixed(1)}M`;
+    if (dl >= 1000) return `${(dl / 1000).toFixed(0)}K`;
+    return dl;
+  };
+
+  const renderGridCard = (mod) => {
+    const localFile = getInstalledFileName(mod);
+    const isInstalled = !!localFile;
+    
+    return (
+      <div
+        key={mod.project_id}
+        style={{
+          background: 'rgba(10, 10, 16, 0.35)',
+          border: isInstalled 
+            ? '1px solid rgba(16, 185, 129, 0.25)' 
+            : '1px solid rgba(255, 255, 255, 0.07)',
+          borderRadius: '20px',
+          padding: '20px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '12px',
+          transition: 'all 0.2s',
+          cursor: 'pointer',
+          position: 'relative'
+        }}
+        onClick={() => handleOpenDetails(mod)}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.background = 'rgba(255, 255, 255, 0.02)';
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.background = 'rgba(10, 10, 16, 0.35)';
+        }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ display: 'flex', gap: '4px', overflow: 'hidden' }}>
+            {mod.categories.slice(0, 2).map(cat => (
+              <span 
+                key={cat} 
+                style={{ 
+                  padding: '2px 8px', 
+                  background: 'rgba(255, 255, 255, 0.05)', 
+                  border: '1px solid rgba(255, 255, 255, 0.07)', 
+                  borderRadius: '6px', 
+                  fontSize: '8px', 
+                  fontWeight: 800, 
+                  color: '#a1a1aa', 
+                  textTransform: 'uppercase' 
+                }}
+              >
+                {cat}
+              </span>
+            ))}
+          </div>
+          
+          {isInstalled && (
+            <span style={{ 
+              fontSize: '9px', 
+              fontWeight: 800, 
+              background: localFile.endsWith('.disabled') ? 'rgba(245, 158, 11, 0.1)' : 'rgba(16, 185, 129, 0.1)', 
+              border: localFile.endsWith('.disabled') ? '1px solid rgba(245, 158, 11, 0.2)' : '1px solid rgba(16, 185, 129, 0.2)', 
+              color: localFile.endsWith('.disabled') ? '#f59e0b' : '#10b981', 
+              padding: '2px 8px', 
+              borderRadius: '6px', 
+              textTransform: 'uppercase' 
+            }}>
+              {lang === 'ru' ? (localFile.endsWith('.disabled') ? 'Отключен' : 'Установлен') : (localFile.endsWith('.disabled') ? 'Disabled' : 'Installed')}
+            </span>
+          )}
+        </div>
+
+        <div style={{ display: 'flex', gap: '14px', alignItems: 'center' }}>
+          {mod.icon_url ? (
+            <img src={mod.icon_url} alt={mod.title} style={{ width: '48px', height: '48px', borderRadius: '12px', objectFit: 'cover' }} />
+          ) : (
+            <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: 'rgba(255,255,255,0.03)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px', color: '#71717a', border: '1px solid rgba(255,255,255,0.05)' }}>
+              <i className="fa-solid fa-puzzle-piece"></i>
+            </div>
+          )}
+          <div style={{ flexGrow: 1, overflow: 'hidden' }}>
+            <h3 style={{ margin: 0, fontSize: '14px', fontWeight: 800, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {mod.title}
+            </h3>
+            <div style={{ margin: '3px 0 0', fontSize: '11px', color: '#71717a', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span style={{ color: '#10b981', fontWeight: 800 }}>{mod.author}</span>
+            </div>
+          </div>
+        </div>
+
+        <p style={{ margin: 0, fontSize: '12px', color: '#a1a1aa', lineHeight: 1.5, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', flexGrow: 1 }}>
+          {mod.description}
+        </p>
+
+        <div style={{ height: '1px', background: 'rgba(255, 255, 255, 0.05)' }}></div>
+
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }} onClick={(e) => e.stopPropagation()}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: '#71717a', fontWeight: 600 }}>
+            <i className="fa-solid fa-download" style={{ fontSize: '9px' }}></i> 
+            {formatDownloads(mod.downloads)}
+          </span>
+
+          <motion.button 
+            whileHover={installingTarget !== mod.slug ? { scale: 1.03 } : {}}
+            whileTap={installingTarget !== mod.slug ? { scale: 0.96 } : {}}
+            onClick={() => handleInstallToggle(mod)}
+            disabled={installingTarget === mod.slug}
+            style={actionButtonAccentStyle(isInstalled)}
+          >
+            {installingTarget === mod.slug ? (
+              <i className="fa-solid fa-spinner fa-spin"></i>
+            ) : isInstalled ? (
+              <><i className="fa-solid fa-trash"></i> {t('mods_uninstall_btn')}</>
+            ) : (
+              <><i className="fa-solid fa-download"></i> {t('mods_install_btn')}</>
+            )}
+          </motion.button>
+        </div>
+      </div>
+    );
+  };
+
+  const renderListCard = (mod) => {
+    const localFile = getInstalledFileName(mod);
+    const isInstalled = !!localFile;
+    
+    return (
+      <div
+        key={mod.project_id}
+        style={{
+          background: 'rgba(10, 10, 16, 0.35)',
+          border: isInstalled 
+            ? '1px solid rgba(16, 185, 129, 0.25)' 
+            : '1px solid rgba(255, 255, 255, 0.07)',
+          borderRadius: '14px',
+          padding: '10px 18px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '14px',
+          transition: 'all 0.2s',
+          cursor: 'pointer'
+        }}
+        onClick={() => handleOpenDetails(mod)}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.background = 'rgba(255, 255, 255, 0.02)';
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.background = 'rgba(10, 10, 16, 0.35)';
+        }}
+      >
+        {mod.icon_url ? (
+          <img src={mod.icon_url} alt={mod.title} style={{ width: '40px', height: '40px', borderRadius: '8px', objectFit: 'cover' }} />
+        ) : (
+          <div style={{ width: '40px', height: '40px', borderRadius: '8px', background: 'rgba(255,255,255,0.03)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '16px', color: '#71717a', border: '1px solid rgba(255,255,255,0.05)' }}>
+            <i className="fa-solid fa-puzzle-piece"></i>
+          </div>
+        )}
+
+        <div style={{ flexGrow: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: '2px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+            <h4 style={{ margin: 0, fontSize: '13px', fontWeight: 800, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '200px' }}>
+              {mod.title}
+            </h4>
+            <span style={{ fontSize: '10px', color: '#10b981', fontWeight: 700 }}>by {mod.author}</span>
+            {isInstalled && (
+              <span style={{ 
+                fontSize: '8px', 
+                fontWeight: 800, 
+                background: localFile.endsWith('.disabled') ? 'rgba(245, 158, 11, 0.1)' : 'rgba(16, 185, 129, 0.1)', 
+                color: localFile.endsWith('.disabled') ? '#f59e0b' : '#10b981', 
+                padding: '1px 5px', 
+                borderRadius: '4px',
+                textTransform: 'uppercase'
+              }}>
+                {lang === 'ru' ? (localFile.endsWith('.disabled') ? 'Откл' : 'Уст') : (localFile.endsWith('.disabled') ? 'Off' : 'On')}
+              </span>
+            )}
+          </div>
+          <p style={{ margin: 0, fontSize: '11px', color: '#a1a1aa', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {mod.description}
+          </p>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: '#71717a', fontWeight: 600, width: '65px', justifyContent: 'flex-end', flexShrink: 0 }}>
+          <i className="fa-solid fa-download" style={{ fontSize: '9px' }}></i> 
+          {formatDownloads(mod.downloads)}
+        </div>
+
+        <div onClick={(e) => e.stopPropagation()} style={{ flexShrink: 0 }}>
+          <motion.button 
+            whileHover={installingTarget !== mod.slug ? { scale: 1.03 } : {}}
+            whileTap={installingTarget !== mod.slug ? { scale: 0.96 } : {}}
+            onClick={() => handleInstallToggle(mod)}
+            disabled={installingTarget === mod.slug}
+            style={{
+              ...actionButtonAccentStyle(isInstalled),
+              padding: '6px 12px',
+              fontSize: '10px',
+              borderRadius: '8px'
+            }}
+          >
+            {installingTarget === mod.slug ? (
+              <i className="fa-solid fa-spinner fa-spin"></i>
+            ) : isInstalled ? (
+              <><i className="fa-solid fa-trash"></i></>
+            ) : (
+              <><i className="fa-solid fa-download"></i></>
+            )}
+          </motion.button>
+        </div>
+      </div>
+    );
+  };
+
+  const renderCompactCard = (mod) => {
+    const localFile = getInstalledFileName(mod);
+    const isInstalled = !!localFile;
+    
+    return (
+      <div
+        key={mod.project_id}
+        style={{
+          background: 'rgba(10, 10, 16, 0.35)',
+          border: isInstalled 
+            ? '1px solid rgba(16, 185, 129, 0.25)' 
+            : '1px solid rgba(255, 255, 255, 0.07)',
+          borderRadius: '14px',
+          padding: '12px',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: '8px',
+          transition: 'all 0.2s',
+          cursor: 'pointer',
+          textAlign: 'center',
+          position: 'relative'
+        }}
+        onClick={() => handleOpenDetails(mod)}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.background = 'rgba(255, 255, 255, 0.02)';
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.background = 'rgba(10, 10, 16, 0.35)';
+        }}
+      >
+        {isInstalled && (
+          <div style={{
+            position: 'absolute',
+            top: '8px',
+            right: '8px',
+            width: '6px',
+            height: '6px',
+            borderRadius: '50%',
+            background: localFile.endsWith('.disabled') ? '#f59e0b' : '#10b981',
+            boxShadow: `0 0 8px ${localFile.endsWith('.disabled') ? '#f59e0b' : '#10b981'}`
+          }} />
+        )}
+
+        {mod.icon_url ? (
+          <img src={mod.icon_url} alt={mod.title} style={{ width: '38px', height: '38px', borderRadius: '8px', objectFit: 'cover' }} />
+        ) : (
+          <div style={{ width: '38px', height: '38px', borderRadius: '8px', background: 'rgba(255,255,255,0.03)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', color: '#71717a', border: '1px solid rgba(255,255,255,0.05)' }}>
+            <i className="fa-solid fa-puzzle-piece"></i>
+          </div>
+        )}
+
+        <div style={{ width: '100%', minWidth: 0, display: 'flex', flexDirection: 'column', gap: '2px' }}>
+          <h4 style={{ margin: 0, fontSize: '11px', fontWeight: 800, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {mod.title}
+          </h4>
+          <span style={{ fontSize: '9px', color: '#71717a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{mod.author}</span>
+        </div>
+
+        <div 
+          onClick={(e) => e.stopPropagation()} 
+          style={{ 
+            display: 'flex', 
+            justifyContent: 'space-between', 
+            alignItems: 'center', 
+            width: '100%', 
+            marginTop: '4px',
+            background: 'rgba(0,0,0,0.15)',
+            padding: '4px 8px',
+            borderRadius: '6px',
+            boxSizing: 'border-box'
+          }}
+        >
+          <span style={{ display: 'flex', alignItems: 'center', gap: '3px', fontSize: '9px', color: '#71717a', fontWeight: 600 }}>
+            <i className="fa-solid fa-download" style={{ fontSize: '8px' }}></i> 
+            {formatDownloads(mod.downloads)}
+          </span>
+
+          <button 
+            disabled={installingTarget === mod.slug}
+            onClick={() => handleInstallToggle(mod)}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              color: isInstalled ? '#f87171' : '#34d399',
+              cursor: 'pointer',
+              fontSize: '10px',
+              padding: 0,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}
+          >
+            {installingTarget === mod.slug ? (
+              <i className="fa-solid fa-spinner fa-spin" style={{ fontSize: '9px' }}></i>
+            ) : isInstalled ? (
+              <i className="fa-solid fa-trash" style={{ fontSize: '9px' }}></i>
+            ) : (
+              <i className="fa-solid fa-arrow-down" style={{ fontSize: '9px' }}></i>
+            )}
+          </button>
+        </div>
+      </div>
+    );
+  };
+
+  const renderSkeletons = (layout) => {
+    if (layout === 'grid') {
+      return Array.from({ length: 6 }).map((_, idx) => (
+        <div 
+          key={idx}
+          style={{
+            background: 'rgba(10, 10, 16, 0.35)',
+            border: '1px solid rgba(255, 255, 255, 0.07)',
+            borderRadius: '20px',
+            padding: '20px',
+            height: '165px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '12px',
+            boxSizing: 'border-box'
+          }}
+        >
+          <div style={{ display: 'flex', gap: '14px', alignItems: 'center' }}>
+            <div className="skeleton-shimmer" style={{ width: '48px', height: '48px', borderRadius: '12px' }} />
+            <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <div className="skeleton-shimmer" style={{ height: '14px', borderRadius: '4px', width: '70%' }} />
+              <div className="skeleton-shimmer" style={{ height: '10px', borderRadius: '3px', width: '40%' }} />
+            </div>
+          </div>
+          <div className="skeleton-shimmer" style={{ height: '12px', borderRadius: '3px', width: '100%', marginTop: '6px' }} />
+          <div className="skeleton-shimmer" style={{ height: '12px', borderRadius: '3px', width: '80%' }} />
+        </div>
+      ));
+    }
+    if (layout === 'list') {
+      return Array.from({ length: 4 }).map((_, idx) => (
+        <div 
+          key={idx}
+          style={{
+            background: 'rgba(10, 10, 16, 0.35)',
+            border: '1px solid rgba(255, 255, 255, 0.07)',
+            borderRadius: '14px',
+            padding: '10px 18px',
+            height: '62px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '14px',
+            boxSizing: 'border-box'
+          }}
+        >
+          <div className="skeleton-shimmer" style={{ width: '40px', height: '40px', borderRadius: '8px', flexShrink: 0 }} />
+          <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            <div className="skeleton-shimmer" style={{ height: '12px', borderRadius: '4px', width: '30%' }} />
+            <div className="skeleton-shimmer" style={{ height: '9px', borderRadius: '3px', width: '60%' }} />
+          </div>
+        </div>
+      ));
+    }
+    return Array.from({ length: 8 }).map((_, idx) => (
+      <div 
+        key={idx}
+        style={{
+          background: 'rgba(10, 10, 16, 0.35)',
+          border: '1px solid rgba(255, 255, 255, 0.07)',
+          borderRadius: '14px',
+          padding: '12px',
+          height: '110px',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: '8px',
+          boxSizing: 'border-box'
+        }}
+      >
+        <div className="skeleton-shimmer" style={{ width: '38px', height: '38px', borderRadius: '8px' }} />
+        <div className="skeleton-shimmer" style={{ height: '10px', borderRadius: '3px', width: '80%' }} />
+        <div className="skeleton-shimmer" style={{ height: '8px', borderRadius: '3px', width: '50%' }} />
+      </div>
+    ));
   };
 
   return (
@@ -703,6 +1255,29 @@ export default function ModsPage({ currentPack, onBack }) {
                   )}
                 </div>
 
+                {/* Sidebar Toggle Action */}
+                <motion.button 
+                  whileHover={{ scale: 1.03, background: 'rgba(255, 255, 255, 0.06)' }}
+                  whileTap={{ scale: 0.96 }}
+                  onClick={() => setShowSidebar(!showSidebar)}
+                  style={secondaryButtonStyle}
+                >
+                  <i className={`fa-solid ${showSidebar ? 'fa-square-check' : 'fa-list-check'}`} style={{ color: showSidebar ? '#10b981' : '#a1a1aa' }}></i>
+                  {lang === 'ru' ? 'Установленные' : 'Installed'}
+                </motion.button>
+
+                {/* Refresh Action */}
+                <motion.button 
+                  whileHover={{ scale: 1.03, background: 'rgba(255, 255, 255, 0.06)' }}
+                  whileTap={{ scale: 0.96 }}
+                  onClick={handleRefresh}
+                  disabled={refreshing}
+                  style={secondaryButtonStyle}
+                >
+                  <i className={`fa-solid fa-rotate ${refreshing ? 'fa-spin' : ''}`} style={{ color: '#10b981' }}></i>
+                  {lang === 'ru' ? 'Обновить' : 'Refresh'}
+                </motion.button>
+
                 {/* Open Folder Action */}
                 <motion.button 
                   whileHover={{ scale: 1.03, background: 'rgba(255, 255, 255, 0.06)' }}
@@ -717,299 +1292,380 @@ export default function ModsPage({ currentPack, onBack }) {
 
             </div>
 
-            {/* Categories horizontal filter list */}
-            <div className="custom-scrollbar" style={{ 
-              display: 'flex', 
-              gap: '8px', 
-              overflowX: 'auto', 
-              paddingBottom: '10px', 
-              marginBottom: '16px', 
-              flexShrink: 0 
-            }}>
-              {CATEGORIES.map(cat => {
-                const isActive = activeCategory === cat.id;
-                return (
-                  <button
-                    key={cat.id}
-                    onClick={() => {
-                      setActiveCategory(cat.id);
-                      setMods([]);
-                      setPage(0);
-                    }}
+            {/* Split Columns Layout Container */}
+            <div style={{ display: 'flex', flexGrow: 1, overflow: 'hidden', minHeight: 0 }}>
+              
+              {/* Left Column: Browsing & Results (takes ~75%) */}
+              <div style={{ display: 'flex', flexDirection: 'column', flexGrow: 1, overflow: 'hidden', minWidth: 0 }}>
+                
+                {/* Categories horizontal filter list */}
+                <div className="custom-scrollbar" style={{ 
+                  display: 'flex', 
+                  gap: '8px', 
+                  overflowX: 'auto', 
+                  paddingBottom: '10px', 
+                  marginBottom: '16px', 
+                  flexShrink: 0 
+                }}>
+                  {CATEGORIES.map(cat => {
+                    const isActive = activeCategory === cat.id;
+                    return (
+                      <button
+                        key={cat.id}
+                        onClick={() => {
+                          setActiveCategory(cat.id);
+                          setMods([]);
+                          setPage(0);
+                        }}
+                        style={{
+                          padding: '8px 14px',
+                          borderRadius: '11px',
+                          border: isActive ? '1px solid rgba(16, 185, 129, 0.4)' : '1px solid rgba(255, 255, 255, 0.05)',
+                          background: isActive ? 'rgba(16, 185, 129, 0.1)' : 'rgba(255, 255, 255, 0.02)',
+                          color: isActive ? '#34d399' : '#a1a1aa',
+                          fontWeight: 800,
+                          fontSize: '11px',
+                          fontFamily: 'Montserrat',
+                          textTransform: 'uppercase',
+                          letterSpacing: '1px',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          whiteSpace: 'nowrap',
+                          transition: 'all 0.15s'
+                        }}
+                      >
+                        <i className={`fa-solid ${cat.icon}`} style={{ fontSize: '10px' }}></i>
+                        {t(cat.nameKey)}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Sort Bar control strip */}
+                <div style={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'space-between', 
+                  flexWrap: 'wrap',
+                  gap: '12px',
+                  background: 'rgba(255, 255, 255, 0.02)', 
+                  border: '1px solid rgba(255, 255, 255, 0.05)', 
+                  borderRadius: '13px', 
+                  padding: '8px 16px', 
+                  marginBottom: '18px', 
+                  flexShrink: 0 
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: '10px', color: '#71717a', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '1px', whiteSpace: 'nowrap' }}>
+                      {lang === 'ru' ? 'Сортировка по:' : 'Sort by:'}
+                    </span>
+                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                      {SORT_OPTIONS.map(opt => {
+                        const isSelected = sortBy === opt.id;
+                        return (
+                          <button
+                            key={opt.id}
+                            onClick={() => {
+                              setSortBy(opt.id);
+                              setMods([]);
+                              setPage(0);
+                            }}
+                            style={{
+                              padding: '6px 12px',
+                              borderRadius: '8px',
+                              border: 'none',
+                              background: isSelected ? 'rgba(16, 185, 129, 0.08)' : 'transparent',
+                              color: isSelected ? '#10b981' : '#a1a1aa',
+                              cursor: 'pointer',
+                              fontWeight: 800,
+                              fontSize: '11px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '6px',
+                              transition: 'all 0.15s',
+                              border: isSelected ? '1px solid rgba(16, 185, 129, 0.15)' : '1px solid transparent'
+                            }}
+                          >
+                            <i className={`fa-solid ${opt.icon}`} style={{ fontSize: '10px' }}></i>
+                            {t(opt.nameKey)}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Layout Mode Toggles */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ fontSize: '10px', color: '#71717a', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '1px' }}>
+                      {lang === 'ru' ? 'Вид:' : 'View:'}
+                    </span>
+                    <div style={{ display: 'flex', background: 'rgba(255, 255, 255, 0.03)', border: '1px solid rgba(255, 255, 255, 0.05)', borderRadius: '10px', padding: '2px' }}>
+                      {[
+                        { id: 'grid', icon: 'fa-grip' },
+                        { id: 'list', icon: 'fa-list' },
+                        { id: 'compact', icon: 'fa-table-cells' }
+                      ].map(mode => {
+                        const isSelected = layoutMode === mode.id;
+                        return (
+                          <button
+                            key={mode.id}
+                            onClick={() => setLayoutMode(mode.id)}
+                            style={{
+                              padding: '5px 10px',
+                              borderRadius: '7px',
+                              border: 'none',
+                              background: isSelected ? 'rgba(16, 185, 129, 0.15)' : 'transparent',
+                              color: isSelected ? '#10b981' : '#71717a',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              transition: 'all 0.2s'
+                            }}
+                            title={mode.id === 'grid' ? (lang === 'ru' ? 'Сетка' : 'Grid') : mode.id === 'list' ? (lang === 'ru' ? 'Список' : 'List') : (lang === 'ru' ? 'Компактный' : 'Compact')}
+                          >
+                            <i className={`fa-solid ${mode.icon}`} style={{ fontSize: '12px' }}></i>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Mods catalog scrollable container */}
+                <div className="custom-scrollbar" style={{ flexGrow: 1, overflowY: 'auto', paddingBottom: '16px', paddingRight: '4px' }}>
+                  {error && (
+                    <div style={{ background: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.15)', padding: '14px 18px', borderRadius: '13px', color: '#f87171', marginBottom: '20px', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <i className="fa-solid fa-circle-exclamation"></i>
+                      <span>{error}</span>
+                    </div>
+                  )}
+
+                  {/* Conditional catalog layouts */}
+                  {layoutMode === 'grid' && (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '20px' }}>
+                      {mods.map(mod => renderGridCard(mod))}
+                      {loading && renderSkeletons('grid')}
+                    </div>
+                  )}
+
+                  {layoutMode === 'list' && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                      {mods.map(mod => renderListCard(mod))}
+                      {loading && renderSkeletons('list')}
+                    </div>
+                  )}
+
+                  {layoutMode === 'compact' && (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '12px' }}>
+                      {mods.map(mod => renderCompactCard(mod))}
+                      {loading && renderSkeletons('compact')}
+                    </div>
+                  )}
+
+                  {/* Load More Button */}
+                  {!loading && mods.length > 0 && mods.length % 12 === 0 && (
+                    <div style={{ display: 'flex', justifyContent: 'center', marginTop: '24px' }}>
+                      <motion.button 
+                        whileHover={{ scale: 1.03, background: 'rgba(255,255,255,0.06)' }}
+                        whileTap={{ scale: 0.96 }}
+                        onClick={() => searchMods(true)}
+                        style={secondaryButtonStyle}
+                      >
+                        {lang === 'ru' ? 'Загрузить ещё' : 'Load More'}
+                      </motion.button>
+                    </div>
+                  )}
+
+                  {/* Empty state */}
+                  {!loading && mods.length === 0 && !error && (
+                    <div style={{ textAlign: 'center', padding: '60px 40px', color: '#71717a' }}>
+                      <i className="fa-solid fa-ghost" style={{ fontSize: '36px', marginBottom: '12px', opacity: 0.3 }}></i>
+                      <h3 style={{ fontSize: '15px', fontWeight: 800, color: '#a1a1aa', margin: '0 0 4px' }}>
+                        {lang === 'ru' ? 'Ничего не найдено' : 'Nothing found'}
+                      </h3>
+                      <p style={{ fontSize: '12px', margin: 0 }}>
+                        {lang === 'ru' 
+                          ? 'Попробуйте изменить поисковый запрос или фильтр категории.'
+                          : 'Try changing the search query or category filter.'}
+                      </p>
+                    </div>
+                  )}
+
+                </div>
+
+              </div>
+
+              {/* Right Column: Installed Mods Sidebar */}
+              <AnimatePresence>
+                {showSidebar && (
+                  <motion.div
+                    initial={{ width: 0, opacity: 0, marginLeft: 0 }}
+                    animate={{ width: 240, opacity: 1, marginLeft: 20 }}
+                    exit={{ width: 0, opacity: 0, marginLeft: 0 }}
+                    transition={{ type: 'spring', stiffness: 300, damping: 30 }}
                     style={{
-                      padding: '8px 14px',
-                      borderRadius: '11px',
-                      border: isActive ? '1px solid rgba(16, 185, 129, 0.4)' : '1px solid rgba(255, 255, 255, 0.05)',
-                      background: isActive ? 'rgba(16, 185, 129, 0.1)' : 'rgba(255, 255, 255, 0.02)',
-                      color: isActive ? '#34d399' : '#a1a1aa',
-                      fontWeight: 800,
-                      fontSize: '11px',
-                      fontFamily: 'Montserrat',
-                      textTransform: 'uppercase',
-                      letterSpacing: '1px',
-                      cursor: 'pointer',
+                      flexShrink: 0,
+                      background: 'rgba(10, 10, 16, 0.25)',
+                      border: '1px solid rgba(255, 255, 255, 0.05)',
+                      borderRadius: '16px',
                       display: 'flex',
-                      alignItems: 'center',
-                      gap: '8px',
-                      whiteSpace: 'nowrap',
-                      transition: 'all 0.15s'
+                      flexDirection: 'column',
+                      overflow: 'hidden',
+                      padding: '16px',
+                      boxSizing: 'border-box'
                     }}
                   >
-                    <i className={`fa-solid ${cat.icon}`} style={{ fontSize: '10px' }}></i>
-                    {t(cat.nameKey)}
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Sort Bar control strip */}
-            <div style={{ 
-              display: 'flex', 
-              alignItems: 'center', 
-              justifyContent: 'space-between', 
-              background: 'rgba(255, 255, 255, 0.02)', 
-              border: '1px solid rgba(255, 255, 255, 0.05)', 
-              borderRadius: '13px', 
-              padding: '8px 16px', 
-              marginBottom: '18px', 
-              flexShrink: 0 
-            }}>
-              <span style={{ fontSize: '10px', color: '#71717a', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '1px' }}>
-                {lang === 'ru' ? 'Сортировка по:' : 'Sort by:'}
-              </span>
-              <div style={{ display: 'flex', gap: '6px' }}>
-                {SORT_OPTIONS.map(opt => {
-                  const isSelected = sortBy === opt.id;
-                  return (
-                    <button
-                      key={opt.id}
-                      onClick={() => {
-                        setSortBy(opt.id);
-                        setMods([]);
-                        setPage(0);
-                      }}
-                      style={{
-                        padding: '6px 12px',
-                        borderRadius: '8px',
-                        border: 'none',
-                        background: isSelected ? 'rgba(16, 185, 129, 0.08)' : 'transparent',
-                        color: isSelected ? '#10b981' : '#a1a1aa',
-                        cursor: 'pointer',
-                        fontWeight: 800,
-                        fontSize: '11px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '6px',
-                        transition: 'all 0.15s',
-                        border: isSelected ? '1px solid rgba(16, 185, 129, 0.15)' : '1px solid transparent'
-                      }}
-                    >
-                      <i className={`fa-solid ${opt.icon}`} style={{ fontSize: '10px' }}></i>
-                      {opt.name}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Mods Grid */}
-            <div className="custom-scrollbar" style={{ flexGrow: 1, overflowY: 'auto', paddingBottom: '16px', paddingRight: '4px' }}>
-              {error && (
-                <div style={{ background: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.15)', padding: '14px 18px', borderRadius: '13px', color: '#f87171', marginBottom: '20px', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <i className="fa-solid fa-circle-exclamation"></i>
-                  <span>{error}</span>
-                </div>
-              )}
-
-              {/* Grid Layout using cards with border-radius: 20px */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(290px, 1fr))', gap: '20px' }}>
-                
-                {mods.map(mod => {
-                  const localFile = getInstalledFileName(mod);
-                  const isInstalled = !!localFile;
-                  
-                  return (
-                    <div
-                      key={mod.project_id}
-                      style={{
-                        background: 'rgba(10, 10, 16, 0.35)',
-                        border: isInstalled 
-                          ? '1px solid rgba(16, 185, 129, 0.25)' 
-                          : '1px solid rgba(255, 255, 255, 0.07)',
-                        borderRadius: '20px',
-                        padding: '20px',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: '12px',
-                        transition: 'all 0.2s',
-                        cursor: 'pointer',
-                        position: 'relative'
-                      }}
-                      onClick={() => handleOpenDetails(mod)}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.background = 'rgba(255, 255, 255, 0.02)';
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.background = 'rgba(10, 10, 16, 0.35)';
-                      }}
-                    >
-                      {/* Badge categories at top of card */}
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <div style={{ display: 'flex', gap: '4px', overflow: 'hidden' }}>
-                          {mod.categories.slice(0, 2).map(cat => (
-                            <span 
-                              key={cat} 
-                              style={{ 
-                                padding: '2px 8px', 
-                                background: 'rgba(255, 255, 255, 0.05)', 
-                                border: '1px solid rgba(255, 255, 255, 0.07)', 
-                                borderRadius: '6px', 
-                                fontSize: '8px', 
-                                fontWeight: 800, 
-                                color: '#a1a1aa', 
-                                textTransform: 'uppercase' 
-                              }}
-                            >
-                              {cat}
-                            </span>
-                          ))}
-                        </div>
-                        
-                        {isInstalled && (
-                          <span style={{ 
-                            fontSize: '9px', 
-                            fontWeight: 800, 
-                            background: 'rgba(16, 185, 129, 0.1)', 
-                            border: '1px solid rgba(16, 185, 129, 0.2)', 
-                            color: '#10b981', 
-                            padding: '2px 8px', 
-                            borderRadius: '6px', 
-                            textTransform: 'uppercase' 
-                          }}>
-                            {lang === 'ru' ? 'Установлен' : 'Installed'}
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Card Identity Header */}
-                      <div style={{ display: 'flex', gap: '14px', alignItems: 'center' }}>
-                        {mod.icon_url ? (
-                          <img src={mod.icon_url} alt={mod.title} style={{ width: '48px', height: '48px', borderRadius: '12px', objectFit: 'cover' }} />
-                        ) : (
-                          <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: 'rgba(255,255,255,0.03)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px', color: '#71717a', border: '1px solid rgba(255,255,255,0.05)' }}>
-                            <i className="fa-solid fa-puzzle-piece"></i>
-                          </div>
-                        )}
-                        <div style={{ flexGrow: 1, overflow: 'hidden' }}>
-                          <h3 style={{ margin: 0, fontSize: '14px', fontWeight: 800, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                            {mod.title}
-                          </h3>
-                          <div style={{ margin: '3px 0 0', fontSize: '11px', color: '#71717a', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                            <span style={{ color: '#10b981', fontWeight: 800 }}>{mod.author}</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Brief description text */}
-                      <p style={{ margin: 0, fontSize: '12px', color: '#a1a1aa', lineHeight: 1.5, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', flexGrow: 1 }}>
-                        {mod.description}
-                      </p>
-
-                      {/* Divider line */}
-                      <div style={{ height: '1px', background: 'rgba(255, 255, 255, 0.05)' }}></div>
-
-                      {/* Action footer */}
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }} onClick={(e) => e.stopPropagation()}>
-                        <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: '#71717a', fontWeight: 600 }}>
-                          <i className="fa-solid fa-download" style={{ fontSize: '9px' }}></i> 
-                          {mod.downloads >= 1000000 
-                            ? `${(mod.downloads / 1000000).toFixed(1)}M` 
-                            : mod.downloads >= 1000 
-                              ? `${(mod.downloads / 1000).toFixed(0)}K` 
-                              : mod.downloads
+                    <div style={{ width: '208px', display: 'flex', flexDirection: 'column', height: '100%' }}>
+                      {/* Sidebar Header */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                        <span style={{ fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '1px', color: '#10b981' }}>
+                          {projectType === 'mod' 
+                            ? (lang === 'ru' ? 'Установлено модов' : 'Installed Mods')
+                            : projectType === 'resourcepack'
+                              ? (lang === 'ru' ? 'Ресурс-паки' : 'Resource Packs')
+                              : (lang === 'ru' ? 'Шейдеры' : 'Shaders')
                           }
                         </span>
+                        <span style={{ fontSize: '10px', background: 'rgba(16, 185, 129, 0.1)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.2)', padding: '2px 8px', borderRadius: '99px', fontWeight: 800 }}>
+                          {installedMods.length}
+                        </span>
+                      </div>
 
-                        <motion.button 
-                          whileHover={installingTarget !== mod.slug ? { scale: 1.03 } : {}}
-                          whileTap={installingTarget !== mod.slug ? { scale: 0.96 } : {}}
-                          onClick={() => handleInstallToggle(mod)}
-                          disabled={installingTarget === mod.slug}
-                          style={actionButtonAccentStyle(isInstalled)}
-                        >
-                          {installingTarget === mod.slug ? (
-                            <i className="fa-solid fa-spinner fa-spin"></i>
-                          ) : isInstalled ? (
-                            <><i className="fa-solid fa-trash"></i> {t('mods_uninstall_btn')}</>
-                          ) : (
-                            <><i className="fa-solid fa-download"></i> {t('mods_install_btn')}</>
-                          )}
-                        </motion.button>
+                      {/* Sidebar Search Filter */}
+                      <div style={{ position: 'relative', marginBottom: '12px' }}>
+                        <i className="fa-solid fa-magnifying-glass" style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'rgba(255,255,255,0.4)', fontSize: '11px' }}></i>
+                        <input 
+                          type="text" 
+                          placeholder={lang === 'ru' ? 'Поиск в установленных...' : 'Filter installed...'}
+                          value={sidebarSearch}
+                          onChange={(e) => setSidebarSearch(e.target.value)}
+                          style={{ 
+                            width: '100%', 
+                            padding: '8px 10px 8px 28px', 
+                            borderRadius: '10px', 
+                            background: 'rgba(255,255,255,0.03)', 
+                            border: '1px solid rgba(255,255,255,0.07)', 
+                            color: '#fff', 
+                            outline: 'none', 
+                            fontSize: '11px', 
+                            boxSizing: 'border-box',
+                            fontFamily: 'Montserrat',
+                            fontWeight: 600
+                          }}
+                          onFocus={(e) => e.target.style.borderColor = '#10b981'}
+                          onBlur={(e) => e.target.style.borderColor = 'rgba(255,255,255,0.07)'}
+                        />
+                        {sidebarSearch && (
+                          <i 
+                            className="fa-solid fa-circle-xmark" 
+                            onClick={() => setSidebarSearch('')}
+                            style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', color: '#71717a', cursor: 'pointer', fontSize: '11px' }}
+                          />
+                        )}
+                      </div>
+
+                      {/* Sidebar Mod List Container */}
+                      <div className="custom-scrollbar" style={{ flexGrow: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px', paddingRight: '2px' }}>
+                        {installedMods
+                          .filter(fileName => {
+                            if (!sidebarSearch.trim()) return true;
+                            const searchLower = sidebarSearch.toLowerCase();
+                            const info = getFriendlyModInfo(fileName);
+                            return fileName.toLowerCase().includes(searchLower) || info.title.toLowerCase().includes(searchLower);
+                          })
+                          .map(fileName => {
+                            const isEnabled = !fileName.toLowerCase().endsWith('.disabled');
+                            const info = getFriendlyModInfo(fileName);
+                            
+                            return (
+                              <div 
+                                key={fileName}
+                                style={{ 
+                                  display: 'flex', 
+                                  alignItems: 'center', 
+                                  gap: '10px', 
+                                  padding: '8px 10px', 
+                                  borderRadius: '10px', 
+                                  background: isEnabled ? 'rgba(255, 255, 255, 0.02)' : 'rgba(255, 255, 255, 0.01)',
+                                  border: isEnabled ? '1px solid rgba(255, 255, 255, 0.05)' : '1px solid rgba(255, 255, 255, 0.02)',
+                                  opacity: isEnabled ? 1 : 0.65,
+                                  transition: 'opacity 0.2s, background 0.2s'
+                                }}
+                              >
+                                {/* Status Checkbox toggle */}
+                                <div 
+                                  onClick={() => handleToggleMod(fileName)}
+                                  style={{ cursor: 'pointer', color: isEnabled ? '#10b981' : '#71717a', fontSize: '14px', display: 'flex', alignItems: 'center' }}
+                                >
+                                  <i className={`fa-solid ${isEnabled ? 'fa-square-check' : 'fa-square'}`}></i>
+                                </div>
+
+                                {/* Mod Icon */}
+                                {info.icon_url ? (
+                                  <img src={info.icon_url} alt={info.title} style={{ width: '28px', height: '28px', borderRadius: '6px', objectFit: 'cover' }} />
+                                ) : (
+                                  <div style={{ width: '28px', height: '28px', borderRadius: '6px', background: 'rgba(255,255,255,0.03)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', color: '#71717a', border: '1px solid rgba(255,255,255,0.05)' }}>
+                                    <i className="fa-solid fa-puzzle-piece"></i>
+                                  </div>
+                                )}
+
+                                {/* Text Details */}
+                                <div style={{ flexGrow: 1, minWidth: 0 }}>
+                                  <div 
+                                    style={{ fontSize: '11px', fontWeight: 800, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
+                                    title={info.title}
+                                  >
+                                    {info.title}
+                                  </div>
+                                  <div 
+                                    style={{ fontSize: '9px', color: '#71717a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontFamily: 'monospace' }}
+                                    title={fileName}
+                                  >
+                                    {fileName}
+                                  </div>
+                                </div>
+
+                                {/* Delete Button */}
+                                <button 
+                                  onClick={() => handleDeleteMod(fileName)}
+                                  style={{
+                                    background: 'transparent',
+                                    border: 'none',
+                                    color: '#71717a',
+                                    cursor: 'pointer',
+                                    fontSize: '11px',
+                                    padding: '4px',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    transition: 'color 0.2s'
+                                  }}
+                                  onMouseEnter={(e) => e.currentTarget.style.color = '#ef4444'}
+                                  onMouseLeave={(e) => e.currentTarget.style.color = '#71717a'}
+                                >
+                                  <i className="fa-regular fa-trash-can"></i>
+                                </button>
+                              </div>
+                            );
+                          })
+                        }
+
+                        {installedMods.length === 0 && (
+                          <div style={{ textAlign: 'center', padding: '30px 10px', color: '#71717a' }}>
+                            <i className="fa-solid fa-info-circle" style={{ fontSize: '18px', marginBottom: '6px', opacity: 0.3 }}></i>
+                            <div style={{ fontSize: '11px' }}>
+                              {lang === 'ru' ? 'Нет установленных файлов' : 'No files installed'}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
-                  );
-                })}
-
-                {/* Skeletons loader */}
-                {loading && (
-                  Array.from({ length: 6 }).map((_, idx) => (
-                    <div 
-                      key={idx}
-                      style={{
-                        background: 'rgba(10, 10, 16, 0.35)',
-                        border: '1px solid rgba(255, 255, 255, 0.07)',
-                        borderRadius: '20px',
-                        padding: '20px',
-                        height: '165px',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: '12px',
-                        boxSizing: 'border-box'
-                      }}
-                    >
-                      <div style={{ display: 'flex', gap: '14px', alignItems: 'center' }}>
-                        <div className="skeleton-shimmer" style={{ width: '48px', height: '48px', borderRadius: '12px' }} />
-                        <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                          <div className="skeleton-shimmer" style={{ height: '14px', borderRadius: '4px', width: '70%' }} />
-                          <div className="skeleton-shimmer" style={{ height: '10px', borderRadius: '3px', width: '40%' }} />
-                        </div>
-                      </div>
-                      <div className="skeleton-shimmer" style={{ height: '12px', borderRadius: '3px', width: '100%', marginTop: '6px' }} />
-                      <div className="skeleton-shimmer" style={{ height: '12px', borderRadius: '3px', width: '80%' }} />
-                    </div>
-                  ))
+                  </motion.div>
                 )}
-
-              </div>
-
-              {/* Load More Button */}
-              {!loading && mods.length > 0 && mods.length % 12 === 0 && (
-                <div style={{ display: 'flex', justifyContent: 'center', marginTop: '24px' }}>
-                  <motion.button 
-                    whileHover={{ scale: 1.03, background: 'rgba(255,255,255,0.06)' }}
-                    whileTap={{ scale: 0.96 }}
-                    onClick={() => searchMods(true)}
-                    style={secondaryButtonStyle}
-                  >
-                    {lang === 'ru' ? 'Загрузить ещё' : 'Load More'}
-                  </motion.button>
-                </div>
-              )}
-
-              {/* Empty state */}
-              {!loading && mods.length === 0 && !error && (
-                <div style={{ textAlign: 'center', padding: '60px 40px', color: '#71717a' }}>
-                  <i className="fa-solid fa-ghost" style={{ fontSize: '36px', marginBottom: '12px', opacity: 0.3 }}></i>
-                  <h3 style={{ fontSize: '15px', fontWeight: 800, color: '#a1a1aa', margin: '0 0 4px' }}>
-                    {lang === 'ru' ? 'Ничего не найдено' : 'Nothing found'}
-                  </h3>
-                  <p style={{ fontSize: '12px', margin: 0 }}>
-                    {lang === 'ru' 
-                      ? 'Попробуйте изменить поисковый запрос или фильтр категории.'
-                      : 'Try changing the search query or category filter.'}
-                  </p>
-                </div>
-              )}
+              </AnimatePresence>
 
             </div>
           </motion.div>
@@ -1185,19 +1841,53 @@ export default function ModsPage({ currentPack, onBack }) {
                     
                     {/* TAB 1: Description */}
                     {selectedTab === 'description' && (
-                      <div 
-                        className="mod-desc-content custom-scrollbar"
-                        onClick={handleDescriptionClick}
-                        style={{ 
-                          fontSize: '13px', 
-                          color: '#d4d4d8', 
-                          lineHeight: '1.6', 
-                          overflowY: 'auto',
-                          maxHeight: '500px',
-                          paddingRight: '6px'
-                        }}
-                        dangerouslySetInnerHTML={{ __html: parseMarkdown(selectedModData.body) }}
-                      />
+                      <div>
+                        {lang === 'ru' && !translatedBody && (
+                          <motion.button
+                            whileHover={{ scale: 1.02, background: 'rgba(16, 185, 129, 0.2)' }}
+                            whileTap={{ scale: 0.98 }}
+                            onClick={handleTranslateBody}
+                            disabled={translatingBody}
+                            style={{
+                              background: 'rgba(16, 185, 129, 0.1)',
+                              border: '1px solid rgba(16, 185, 129, 0.2)',
+                              color: '#34d399',
+                              padding: '6px 14px',
+                              borderRadius: '8px',
+                              fontSize: '11px',
+                              fontWeight: 800,
+                              fontFamily: 'Montserrat',
+                              textTransform: 'uppercase',
+                              letterSpacing: '0.5px',
+                              marginBottom: '14px',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '6px',
+                              transition: 'all 0.2s'
+                            }}
+                          >
+                            {translatingBody ? (
+                              <><i className="fa-solid fa-spinner fa-spin"></i> Перевод...</>
+                            ) : (
+                              <><i className="fa-solid fa-language"></i> Перевести описание</>
+                            )}
+                          </motion.button>
+                        )}
+                        <div 
+                          className="mod-desc-content custom-scrollbar"
+                          onClick={handleDescriptionClick}
+                          style={{ 
+                            fontSize: '13px', 
+                            color: '#d4d4d8', 
+                            lineHeight: '1.6', 
+                            overflowY: 'auto',
+                            maxHeight: '500px',
+                            paddingRight: '6px'
+                          }}
+                          dangerouslySetInnerHTML={{ __html: parseMarkdown(translatedBody || selectedModData.body) }}
+                        />
+                      </div>
                     )}
 
                     {/* TAB 2: Versions List */}

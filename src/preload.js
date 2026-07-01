@@ -100,6 +100,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getInstalledMods: (clientDir, projectType) => ipcRenderer.invoke('get-installed-mods', clientDir, projectType),
   downloadMod: (url, clientDir, fileName, projectType) => ipcRenderer.invoke('download-mod', url, clientDir, fileName, projectType),
   deleteMod: (clientDir, fileName, projectType) => ipcRenderer.invoke('delete-mod', clientDir, fileName, projectType),
+  toggleMod: (clientDir, fileName, projectType) => ipcRenderer.invoke('toggle-mod', clientDir, fileName, projectType),
+  translateText: (text, targetLang) => ipcRenderer.invoke('translate-text', text, targetLang),
   searchCurse: (query, options) => ipcRenderer.invoke('search-curse', query, options),
   getCurseVersions: (modId, loaders, gameVersions) => ipcRenderer.invoke('get-curse-versions', modId, loaders, gameVersions),
   getCurseProject: (modId) => ipcRenderer.invoke('get-curse-project', modId),

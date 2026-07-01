@@ -2689,10 +2689,12 @@ module.exports = function(ipcMain) {
       const files = fs.readdirSync(folderPath).filter(f => {
         const lower = f.toLowerCase();
         if (projectType === 'resourcepack') {
-          // Resourcepacks can be zip files or folders
-          return lower.endsWith('.zip') || fs.statSync(path.join(folderPath, f)).isDirectory();
+          // Resourcepacks can be zip files or folders, and can end in .disabled
+          const isZip = lower.endsWith('.zip') || lower.endsWith('.zip.disabled');
+          const isDir = fs.statSync(path.join(folderPath, f)).isDirectory();
+          return isZip || isDir;
         }
-        return lower.endsWith(extensionFilter);
+        return lower.endsWith(extensionFilter) || lower.endsWith(extensionFilter + '.disabled');
       });
       return { success: true, mods: files };
     } catch (e) {
@@ -2725,8 +2727,89 @@ module.exports = function(ipcMain) {
       else if (projectType === 'shader') subFolder = 'shaderpacks';
 
       const dest = path.resolve(app.getPath('userData'), clientDir, subFolder, fileName);
-      if (fs.existsSync(dest)) fs.unlinkSync(dest);
+      if (fs.existsSync(dest)) {
+        const stat = fs.statSync(dest);
+        if (stat.isDirectory()) {
+          fs.rmSync(dest, { recursive: true, force: true });
+        } else {
+          fs.unlinkSync(dest);
+        }
+      }
       return { success: true };
+    } catch (e) {
+      return { success: false, error: e.message };
+    }
+  });
+
+  ipcMain.handle('toggle-mod', async (event, clientDir, fileName, projectType = 'mod') => {
+    if (!clientDir || !fileName) return { success: false, error: "Invalid args" };
+    try {
+      let subFolder = 'mods';
+      if (projectType === 'resourcepack') subFolder = 'resourcepacks';
+      else if (projectType === 'shader') subFolder = 'shaderpacks';
+
+      const folderPath = path.resolve(app.getPath('userData'), clientDir, subFolder);
+      const oldPath = path.join(folderPath, fileName);
+      if (!fs.existsSync(oldPath)) return { success: false, error: "File not found" };
+
+      let newFileName;
+      if (fileName.toLowerCase().endsWith('.disabled')) {
+        newFileName = fileName.substring(0, fileName.length - 9);
+      } else {
+        newFileName = fileName + '.disabled';
+      }
+
+      const newPath = path.join(folderPath, newFileName);
+      fs.renameSync(oldPath, newPath);
+      return { success: true, newFileName };
+    } catch (e) {
+      return { success: false, error: e.message };
+    }
+  });
+
+  ipcMain.handle('translate-text', async (event, text, targetLang = 'ru') => {
+    if (!text) return { success: true, text: "" };
+    try {
+      if (text.length < 4000) {
+        const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${targetLang}&dt=t&q=${encodeURIComponent(text)}`;
+        const res = await axios.get(url, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+        if (res.data && res.data[0]) {
+          const translated = res.data[0].map(s => s[0]).join('');
+          return { success: true, text: translated };
+        }
+        return { success: false, error: "Failed to parse translation" };
+      }
+
+      const paragraphs = text.split('\n');
+      let result = [];
+      let currentChunk = "";
+      
+      for (const p of paragraphs) {
+        if ((currentChunk + p).length > 3000) {
+          const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${targetLang}&dt=t&q=${encodeURIComponent(currentChunk)}`;
+          const res = await axios.get(url, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+          if (res.data && res.data[0]) {
+            result.push(res.data[0].map(s => s[0]).join(''));
+          } else {
+            result.push(currentChunk);
+          }
+          currentChunk = p + "\n";
+        } else {
+          currentChunk += p + "\n";
+        }
+      }
+      
+      if (currentChunk) {
+        const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${targetLang}&dt=t&q=${encodeURIComponent(currentChunk)}`;
+        const res = await axios.get(url, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+        if (res.data && res.data[0]) {
+          result.push(res.data[0].map(s => s[0]).join(''));
+        } else {
+          result.push(currentChunk);
+        }
+      }
+
+      return { success: true, text: result.join('\n') };
     } catch (e) {
       return { success: false, error: e.message };
     }
