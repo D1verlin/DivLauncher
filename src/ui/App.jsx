@@ -10,6 +10,7 @@ import UsersPage from './pages/UsersPage';
 import BuildsPage from './pages/BuildsPage';
 import CreatePackPage from './pages/CreatePackPage';
 import ModsPage from './pages/ModsPage';
+import ImportExportPage from './pages/ImportExportPage';
 import OfficialBuildManagerPage from './pages/OfficialBuildManagerPage';
 import { useTranslation } from './utils/i18n';
 import { setLoadedBadges } from './utils/badgeHelper';
@@ -271,6 +272,43 @@ export default function App() {
   // --- МОДАЛЬНЫЕ ОКНА (замена confirm/alert) ---
   const [confirmModal, setConfirmModal] = useState(null); // { title, message, onConfirm }
   const [alertModal, setAlertModal] = useState(null);     // { title, message }
+
+  // --- ИНИЦИАЛИЗАЦИЯ И ДИНАМИЧЕСКИЙ ИМПОРТ ШРИФТОВ ---
+  useEffect(() => {
+    const applyFont = () => {
+      const savedFont = localStorage.getItem('launcher_font') || 'Montserrat';
+      document.documentElement.style.setProperty('--global-font', `'${savedFont}', sans-serif`);
+    };
+
+    applyFont();
+    window.addEventListener('settings-changed', applyFont);
+
+    if (window.electronAPI?.getCustomFonts) {
+      window.electronAPI.getCustomFonts().then(fonts => {
+        if (Array.isArray(fonts)) {
+          fonts.forEach(font => {
+            const styleId = `custom-font-${font.family}`;
+            if (!document.getElementById(styleId)) {
+              const style = document.createElement('style');
+              style.id = styleId;
+              const normalizedPath = font.path.replace(/\\/g, '/');
+              style.textContent = `
+                @font-face {
+                  font-family: "${font.family}";
+                  src: url("local-file://${normalizedPath}");
+                }
+              `;
+              document.head.appendChild(style);
+            }
+          });
+        }
+      }).catch(err => console.error('Error loading custom fonts:', err));
+    }
+
+    return () => {
+      window.removeEventListener('settings-changed', applyFont);
+    };
+  }, []);
 
   const showConfirm = useCallback((title, message) => {
     return new Promise((resolve) => {
@@ -588,20 +626,17 @@ export default function App() {
               setEditingPack(null);
               setCurrentPage('create-pack');
             }}
-            onImportClick={async () => {
-              if (window.electronAPI?.importCustomPack) {
-                const result = await window.electronAPI.importCustomPack();
-                if (result.success) {
-                  fetchModpacks();
-                  if (result.pack) {
-                    setCurrentPack(result.pack);
-                    localStorage.setItem('launcher_last_pack', result.pack.id);
-                  }
-                } else if (!result.canceled && result.error !== 'Отменено') {
-                  showAlert(lang === 'ru' ? 'Ошибка импорта' : 'Import Error', result.error || (lang === 'ru' ? 'Не удалось импортировать сборку.' : 'Failed to import the pack.'));
-                }
-              }
+            onImportClick={() => {
+              setCurrentPage('import-export');
             }}
+          />
+        );
+      case 'import-export':
+        return (
+          <ImportExportPage
+            onBack={() => setCurrentPage('builds')}
+            modpacks={modpacks}
+            fetchModpacks={fetchModpacks}
           />
         );
       case 'create-pack':

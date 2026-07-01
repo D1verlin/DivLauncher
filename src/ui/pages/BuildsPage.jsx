@@ -76,31 +76,6 @@ export default function BuildsPage({ modpacks, currentPack, onSelect, onDelete, 
           </div>
 
           <motion.button
-            whileHover={{ scale: 1.05, backgroundColor: 'rgba(59, 130, 246, 0.2)' }}
-            whileTap={{ scale: 0.95 }}
-            onClick={onImportClick}
-            style={{
-              padding: '10px 16px',
-              borderRadius: '12px',
-              background: 'rgba(255, 255, 255, 0.05)',
-              border: '1px solid rgba(59, 130, 246, 0.3)',
-              color: '#60a5fa',
-              fontFamily: 'Montserrat',
-              fontSize: '13px',
-              fontWeight: 700,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              transition: 'all 0.2s',
-              textTransform: 'uppercase',
-              letterSpacing: '1px'
-            }}
-          >
-            <i className="fa-solid fa-file-import" />
-          </motion.button>
-
-          <motion.button
             whileHover={{ scale: 1.05, backgroundColor: 'rgba(16, 185, 129, 0.2)' }}
             whileTap={{ scale: 0.95 }}
             onClick={onCreateClick}
@@ -128,7 +103,14 @@ export default function BuildsPage({ modpacks, currentPack, onSelect, onDelete, 
       </div>
 
       {/* Grid container with scrolls */}
-      <div style={{ flexGrow: 1, overflowY: 'auto', paddingRight: '5px' }}>
+      <div style={{ 
+        flexGrow: 1, 
+        overflowY: 'auto', 
+        overflowX: 'hidden', 
+        paddingRight: '5px',
+        padding: '12px 8px',
+        margin: '-12px -8px'
+      }}>
         <motion.div 
           variants={containerVariants} 
           initial="hidden" 
@@ -413,6 +395,68 @@ export default function BuildsPage({ modpacks, currentPack, onSelect, onDelete, 
               </motion.div>
             );
           })}
+
+          {/* Special Card-Placeholder for Import / Export */}
+          <motion.div
+            variants={itemVariants}
+            whileHover={{
+              scale: 1.02,
+              borderColor: 'rgba(16, 185, 129, 0.4)',
+              background: 'linear-gradient(135deg, rgba(25, 25, 30, 0.55), rgba(15, 15, 20, 0.7))'
+            }}
+            whileTap={{ scale: 0.98 }}
+            onClick={onImportClick}
+            style={{
+              height: '180px',
+              borderRadius: '16px',
+              position: 'relative',
+              overflow: 'hidden',
+              cursor: 'pointer',
+              border: '1px solid rgba(255, 255, 255, 0.08)',
+              background: 'linear-gradient(135deg, rgba(20, 20, 25, 0.45), rgba(10, 10, 15, 0.6))',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '20px',
+              transition: 'border-color 0.2s, background 0.2s'
+            }}
+          >
+            <motion.div 
+              variants={{
+                initial: { scale: 1, y: 0 },
+                hover: { scale: 1.05, y: -2, transition: { type: 'spring', stiffness: 300, damping: 15 } }
+              }}
+              style={{ 
+                width: '48px', height: '48px', borderRadius: '10px',
+                background: 'rgba(255, 255, 255, 0.04)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                color: '#fff', fontSize: '22px',
+                marginBottom: '12px',
+                zIndex: 3,
+                border: '1px solid rgba(255, 255, 255, 0.08)'
+              }}
+            >
+              <i className="fa-solid fa-file-import" style={{ color: '#10b981' }} />
+            </motion.div>
+            
+            <h4 style={{ 
+              margin: '0 0 6px 0', 
+              fontSize: '14px', 
+              fontWeight: 800, 
+              color: '#fff',
+              textAlign: 'center',
+              textTransform: 'uppercase',
+              letterSpacing: '0.5px',
+              zIndex: 3
+            }}>
+              {lang === 'ru' ? 'Импорт / Экспорт' : 'Import / Export'}
+            </h4>
+            
+            <p style={{ margin: 0, fontSize: '10px', color: '#a1a1aa', textAlign: 'center', lineHeight: 1.3, zIndex: 3 }}>
+              {lang === 'ru' ? 'Перенос сборок с CurseForge, Modrinth и др.' : 'Transfer packs from CurseForge, Modrinth etc.'}
+            </p>
+          </motion.div>
         </motion.div>
       </div>
     </div>

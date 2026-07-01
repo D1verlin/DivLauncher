@@ -3,10 +3,17 @@ img { -webkit-user-drag: none; }
 input, textarea { user-select: text !important; -webkit-user-select: text !important; -webkit-user-drag: auto; -webkit-app-region: no-drag; }
 button, a, select { -webkit-app-region: no-drag; }
 
+:root {
+    --global-font: 'Montserrat', sans-serif;
+}
+
+html, body, input, select, textarea, button, h1, h2, h3, h4, h5, h6, p, span, label, option {
+    font-family: var(--global-font);
+}
+
 html, body {
     background: transparent !important;
     overflow: hidden;
-    font-family: 'Montserrat', sans-serif;
     color: white;
     width: 100vw;
     height: 100vh;
@@ -26,7 +33,7 @@ div, button, select { box-shadow: none !important; }
 input[type="text"], input[type="number"], select { 
     width: 100%; padding: 14px; border-radius: 12px; 
     background: #18181b5e; border: 1px solid rgba(255,255,255,0.05); 
-    color: white; outline: none; font-family: 'Montserrat'; 
+    color: white; outline: none; 
 }
 input[type="text"]:focus, input[type="number"]:focus { border-color: #10b981; }
 
@@ -54,4 +61,9 @@ input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.2); backgro
 }
 .tab-enter {
     animation: tabEnter 0.18s ease forwards;
+}
+
+/* Protect FontAwesome icons */
+.fa, .fa-solid, .fa-regular, .fa-brands, [class^="fa-"], [class*=" fa-"] {
+    font-family: "Font Awesome 6 Free", "Font Awesome 6 Solid", "Font Awesome 6 Brands", sans-serif !important;
 }

@@ -2217,6 +2217,431 @@ module.exports = function(ipcMain) {
     }
   });
 
+  ipcMain.handle('import-pack-extended', async (event, type) => {
+    let tempDir = '';
+    try {
+      let filters = [];
+      if (type === 'modrinth') {
+        filters = [{ name: 'Modrinth Modpack', extensions: ['mrpack'] }];
+      } else if (type === 'curseforge' || type === 'prism' || type === 'multimc') {
+        filters = [{ name: 'Minecraft Modpack Archive', extensions: ['zip'] }];
+      } else if (type === 'divlauncher') {
+        filters = [{ name: 'DivLauncher Pack', extensions: ['zip', 'json'] }];
+      } else {
+        return { success: false, error: 'Неподдерживаемый тип импорта' };
+      }
+
+      const { canceled, filePaths } = await dialog.showOpenDialog({
+        title: 'Выберите файл сборки для импорта',
+        properties: ['openFile'],
+        filters: filters
+      });
+
+      if (canceled || filePaths.length === 0) return { success: false, error: 'Отменено' };
+      const selectedPath = filePaths[0];
+
+      event.sender.send('import-progress', { stage: 'extracting', message: 'Подготовка к распаковке...', progress: 2 });
+
+      let packName = '';
+      let mcVersion = '';
+      let loaderType = 'fabric';
+      let loaderVersion = 'latest';
+      let packId = 'custom_pack_' + Date.now();
+      let clientDir = `custom-packs/${packId}`;
+      let targetClientDir = path.resolve(app.getPath('userData'), clientDir);
+      let isImportedPackOfficial = false;
+      let importedPackData = null;
+
+      tempDir = path.join(app.getPath('temp'), 'divlauncher-import-' + Date.now());
+      fs.mkdirSync(tempDir, { recursive: true });
+
+      if (type === 'divlauncher') {
+        if (selectedPath.endsWith('.json')) {
+          const content = fs.readFileSync(selectedPath, 'utf8');
+          const packData = JSON.parse(content);
+          if (!packData.id || !packData.clientDir) throw new Error("Неверный формат divpack.json");
+          
+          importedPackData = packData;
+          isImportedPackOfficial = !packData.isCustom;
+
+          packId = packData.id;
+          clientDir = packData.clientDir;
+          targetClientDir = path.resolve(app.getPath('userData'), clientDir);
+          const sourceDir = path.dirname(selectedPath);
+          
+          if (targetClientDir !== sourceDir) {
+            fs.cpSync(sourceDir, targetClientDir, { recursive: true, force: true });
+          }
+          packName = packData.name;
+          mcVersion = packData.mcVersion;
+          loaderType = packData.loaderType;
+          loaderVersion = packData.loaderVersion;
+        } else if (selectedPath.endsWith('.zip')) {
+          await extract(selectedPath, { dir: tempDir });
+          
+          const zip = new AdmZip(selectedPath);
+          const zipEntries = zip.getEntries();
+          const divpackEntry = zipEntries.find(e => e.entryName === 'divpack.json' || e.entryName.endsWith('/divpack.json'));
+          if (!divpackEntry) throw new Error("В архиве не найден файл divpack.json!");
+          
+          const content = zip.readAsText(divpackEntry);
+          const packData = JSON.parse(content);
+          if (!packData.id || !packData.clientDir) throw new Error("Неверный формат divpack.json");
+          
+          importedPackData = packData;
+          isImportedPackOfficial = !packData.isCustom;
+
+          packId = packData.id;
+          clientDir = packData.clientDir;
+          targetClientDir = path.resolve(app.getPath('userData'), clientDir);
+          
+          const extractedDivpackPath = path.join(tempDir, divpackEntry.entryName);
+          const sourceDir = path.dirname(extractedDivpackPath);
+          
+          fs.cpSync(sourceDir, targetClientDir, { recursive: true, force: true });
+          packName = packData.name;
+          mcVersion = packData.mcVersion;
+          loaderType = packData.loaderType;
+          loaderVersion = packData.loaderVersion;
+        }
+      } else if (type === 'curseforge') {
+        await extract(selectedPath, { dir: tempDir });
+        const manifestPath = path.join(tempDir, 'manifest.json');
+        if (!fs.existsSync(manifestPath)) {
+          throw new Error('Не найден manifest.json в архиве CurseForge.');
+        }
+
+        const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+        packName = manifest.name || 'CurseForge Pack';
+        mcVersion = manifest.minecraft?.version || '1.20.1';
+        
+        if (manifest.minecraft && manifest.minecraft.modLoaders && manifest.minecraft.modLoaders.length > 0) {
+          const primaryLoader = manifest.minecraft.modLoaders.find(l => l.primary) || manifest.minecraft.modLoaders[0];
+          const loaderId = primaryLoader.id;
+          if (loaderId.startsWith('forge-')) {
+            loaderType = 'forge';
+            loaderVersion = loaderId.replace('forge-', '');
+          } else if (loaderId.startsWith('fabric-')) {
+            loaderType = 'fabric';
+            loaderVersion = loaderId.replace('fabric-', '');
+          } else if (loaderId.startsWith('neoforge-')) {
+            loaderType = 'neoforge';
+            loaderVersion = loaderId.replace('neoforge-', '');
+          } else if (loaderId.startsWith('quilt-')) {
+            loaderType = 'quilt';
+            loaderVersion = loaderId.replace('quilt-', '');
+          }
+        }
+
+        fs.mkdirSync(targetClientDir, { recursive: true });
+
+        const overridesPath = path.join(tempDir, manifest.overrides || 'overrides');
+        if (fs.existsSync(overridesPath)) {
+          event.sender.send('import-progress', { stage: 'copying_overrides', message: 'Копирование оверлей-файлов...', progress: 5 });
+          fs.cpSync(overridesPath, targetClientDir, { recursive: true, force: true });
+        }
+
+        const files = manifest.files || [];
+        const totalFiles = files.length;
+        if (totalFiles > 0) {
+          const modsFolder = path.join(targetClientDir, 'mods');
+          if (!fs.existsSync(modsFolder)) {
+            fs.mkdirSync(modsFolder, { recursive: true });
+          }
+
+          let downloadedCount = 0;
+          const concurrency = 3;
+          for (let i = 0; i < files.length; i += concurrency) {
+            const chunk = files.slice(i, i + concurrency);
+            await Promise.all(chunk.map(async (file) => {
+              try {
+                const url = `${getCurseBaseUrl()}/mods/${file.projectID}/files/${file.fileID}`;
+                const res = await axios.get(url, { headers: getCurseHeaders(), timeout: 15000 });
+                const fileData = res.data.data;
+                let downloadUrl = fileData.downloadUrl;
+                const fileName = fileData.fileName;
+                
+                if (!downloadUrl && fileName) {
+                  const idStr = String(file.fileID);
+                  let mainDir = '';
+                  let subDir = '';
+                  if (idStr.length <= 4) {
+                    mainDir = '0';
+                    subDir = idStr;
+                  } else {
+                    mainDir = idStr.substring(0, idStr.length - 3);
+                    subDir = idStr.substring(idStr.length - 3);
+                  }
+                  downloadUrl = `https://edge.forgecdn.net/files/${mainDir}/${subDir}/${encodeURIComponent(fileName)}`;
+                }
+
+                if (downloadUrl && fileName) {
+                  const dest = path.join(modsFolder, fileName);
+                  await downloadFile(downloadUrl, dest);
+                }
+              } catch (err) {
+                console.error(`Ошибка при скачивании мода CurseForge ${file.projectID}: ${err.message}`);
+              } finally {
+                downloadedCount++;
+                const percentage = Math.min(95, Math.round(10 + (downloadedCount / totalFiles) * 85));
+                event.sender.send('import-progress', { 
+                  stage: 'downloading_mods', 
+                  message: `Загрузка модов (${downloadedCount}/${totalFiles})...`, 
+                  progress: percentage, 
+                  current: downloadedCount, 
+                  total: totalFiles 
+                });
+              }
+            }));
+          }
+        }
+      } else if (type === 'modrinth') {
+        await extract(selectedPath, { dir: tempDir });
+        const indexPath = path.join(tempDir, 'modrinth.index.json');
+        if (!fs.existsSync(indexPath)) {
+          throw new Error('Не найден modrinth.index.json в архиве Modrinth.');
+        }
+
+        const index = JSON.parse(fs.readFileSync(indexPath, 'utf8'));
+        packName = index.name || 'Modrinth Pack';
+        mcVersion = index.dependencies?.minecraft || '1.20.1';
+        
+        if (index.dependencies) {
+          if (index.dependencies['fabric-loader']) {
+            loaderType = 'fabric';
+            loaderVersion = index.dependencies['fabric-loader'];
+          } else if (index.dependencies['forge']) {
+            loaderType = 'forge';
+            loaderVersion = index.dependencies['forge'];
+          } else if (index.dependencies['neoforge']) {
+            loaderType = 'neoforge';
+            loaderVersion = index.dependencies['neoforge'];
+          } else if (index.dependencies['quilt-loader']) {
+            loaderType = 'quilt';
+            loaderVersion = index.dependencies['quilt-loader'];
+          }
+        }
+
+        fs.mkdirSync(targetClientDir, { recursive: true });
+
+        const overridesPath = path.join(tempDir, 'overrides');
+        if (fs.existsSync(overridesPath)) {
+          event.sender.send('import-progress', { stage: 'copying_overrides', message: 'Копирование оверлей-файлов...', progress: 5 });
+          fs.cpSync(overridesPath, targetClientDir, { recursive: true, force: true });
+        }
+        const clientOverridesPath = path.join(tempDir, 'client-overrides');
+        if (fs.existsSync(clientOverridesPath)) {
+          event.sender.send('import-progress', { stage: 'copying_overrides', message: 'Копирование клиентских файлов...', progress: 8 });
+          fs.cpSync(clientOverridesPath, targetClientDir, { recursive: true, force: true });
+        }
+
+        const files = (index.files || []).filter(f => !f.env || f.env.client !== 'unsupported');
+        const totalFiles = files.length;
+        if (totalFiles > 0) {
+          let downloadedCount = 0;
+          const concurrency = 3;
+          for (let i = 0; i < files.length; i += concurrency) {
+            const chunk = files.slice(i, i + concurrency);
+            await Promise.all(chunk.map(async (file) => {
+              try {
+                const downloadUrl = file.downloads[0];
+                if (downloadUrl) {
+                  const dest = path.join(targetClientDir, file.path);
+                  const destFolder = path.dirname(dest);
+                  if (!fs.existsSync(destFolder)) {
+                    fs.mkdirSync(destFolder, { recursive: true });
+                  }
+                  await downloadFile(downloadUrl, dest);
+                }
+              } catch (err) {
+                console.error(`Ошибка при скачивании файла Modrinth ${file.path}: ${err.message}`);
+              } finally {
+                downloadedCount++;
+                const percentage = Math.min(95, Math.round(10 + (downloadedCount / totalFiles) * 85));
+                event.sender.send('import-progress', { 
+                  stage: 'downloading_mods', 
+                  message: `Загрузка файлов (${downloadedCount}/${totalFiles})...`, 
+                  progress: percentage, 
+                  current: downloadedCount, 
+                  total: totalFiles 
+                });
+              }
+            }));
+          }
+        }
+      } else if (type === 'prism' || type === 'multimc') {
+        await extract(selectedPath, { dir: tempDir });
+        
+        const findInstanceCfg = (dir) => {
+          const items = fs.readdirSync(dir);
+          for (const item of items) {
+            const fullPath = path.join(dir, item);
+            if (fs.statSync(fullPath).isDirectory()) {
+              const found = findInstanceCfg(fullPath);
+              if (found) return found;
+            } else if (item === 'instance.cfg') {
+              return fullPath;
+            }
+          }
+          return null;
+        };
+
+        const instanceCfgPath = findInstanceCfg(tempDir);
+        if (!instanceCfgPath) {
+          throw new Error('Не найден файл instance.cfg в архиве.');
+        }
+
+        const cfgContent = fs.readFileSync(instanceCfgPath, 'utf8');
+        const cfg = {};
+        cfgContent.split(/\r?\n/).forEach(line => {
+          const match = line.match(/^\s*([^=]+)\s*=\s*(.*)\s*$/);
+          if (match) {
+            cfg[match[1].trim()] = match[2].trim();
+          }
+        });
+
+        packName = cfg.name || 'Imported Pack';
+        mcVersion = cfg.MCVersion || cfg.IntendedVersion || '1.20.1';
+        
+        const cfgLower = cfgContent.toLowerCase();
+        if (cfgLower.includes('fabric') || cfg.customLoaderName === 'Fabric') {
+          loaderType = 'fabric';
+        } else if (cfgLower.includes('forge') || cfg.customLoaderName === 'Forge') {
+          loaderType = 'forge';
+        } else if (cfgLower.includes('neoforge') || cfg.customLoaderName === 'NeoForge') {
+          loaderType = 'neoforge';
+        } else if (cfgLower.includes('quilt') || cfg.customLoaderName === 'Quilt') {
+          loaderType = 'quilt';
+        }
+
+        const baseDir = path.dirname(instanceCfgPath);
+        let mcFolder = path.join(baseDir, '.minecraft');
+        if (!fs.existsSync(mcFolder)) {
+          mcFolder = path.join(baseDir, 'minecraft');
+        }
+        if (!fs.existsSync(mcFolder)) {
+          const items = fs.readdirSync(baseDir);
+          for (const item of items) {
+            const fullItem = path.join(baseDir, item);
+            if (fs.statSync(fullItem).isDirectory() && (fs.existsSync(path.join(fullItem, 'mods')) || fs.existsSync(path.join(fullItem, 'config')))) {
+              mcFolder = fullItem;
+              break;
+            }
+          }
+        }
+        if (!fs.existsSync(mcFolder)) {
+          throw new Error('Не найдена игровая папка (minecraft/.minecraft) внутри архива.');
+        }
+
+        fs.mkdirSync(targetClientDir, { recursive: true });
+        event.sender.send('import-progress', { stage: 'copying_files', message: 'Копирование игровых файлов...', progress: 40 });
+        fs.cpSync(mcFolder, targetClientDir, { recursive: true, force: true });
+      }
+
+      event.sender.send('import-progress', { stage: 'finalizing', message: 'Сохранение сборки...', progress: 95 });
+
+      if (isImportedPackOfficial && importedPackData) {
+        // For official packs, just save divpack.json in the client folder and skip custom_modpacks.json
+        fs.writeFileSync(path.join(targetClientDir, 'divpack.json'), JSON.stringify(importedPackData, null, 2));
+
+        event.sender.send('import-progress', { stage: 'completed', message: 'Импорт успешно завершен!', progress: 100 });
+
+        if (tempDir && fs.existsSync(tempDir)) {
+          fs.rmSync(tempDir, { recursive: true, force: true });
+        }
+
+        return { success: true, pack: importedPackData };
+      }
+
+      const newPack = {
+        id: packId,
+        name: packName,
+        clientDir: clientDir,
+        mcVersion: mcVersion,
+        loaderType: loaderType,
+        loaderVersion: loaderVersion || 'latest',
+        icon: 'fa-cube',
+        isCustom: true
+      };
+
+      fs.writeFileSync(path.join(targetClientDir, 'divpack.json'), JSON.stringify(newPack, null, 2));
+
+      const file = getCustomPacksFile();
+      let packs = [];
+      if (fs.existsSync(file)) {
+        packs = JSON.parse(fs.readFileSync(file, 'utf8'));
+      }
+      
+      const existingIndex = packs.findIndex(p => p.id === newPack.id);
+      if (existingIndex > -1) {
+        packs[existingIndex] = newPack;
+      } else {
+        packs.push(newPack);
+      }
+      fs.writeFileSync(file, JSON.stringify(packs, null, 2));
+
+      event.sender.send('import-progress', { stage: 'completed', message: 'Импорт успешно завершен!', progress: 100 });
+
+      if (tempDir && fs.existsSync(tempDir)) {
+        fs.rmSync(tempDir, { recursive: true, force: true });
+      }
+
+      return { success: true, pack: newPack };
+    } catch (err) {
+      console.error('Extended import error:', err);
+      if (tempDir && fs.existsSync(tempDir)) {
+        fs.rmSync(tempDir, { recursive: true, force: true });
+      }
+      return { success: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('export-pack-extended', async (event, packToExport) => {
+    try {
+      if (!packToExport) return { success: false, error: 'Сборка не найдена' };
+
+      const { canceled, filePath } = await dialog.showSaveDialog({
+        title: 'Экспорт сборки',
+        defaultPath: `${packToExport.name || 'modpack'}.zip`,
+        filters: [{ name: 'DivLauncher Modpack', extensions: ['zip'] }]
+      });
+
+      if (canceled || !filePath) return { success: false, error: 'Отменено' };
+
+      const clientPath = path.resolve(app.getPath('userData'), packToExport.clientDir);
+      if (!fs.existsSync(clientPath)) return { success: false, error: 'Директория клиента не найдена' };
+
+      fs.writeFileSync(path.join(clientPath, 'divpack.json'), JSON.stringify(packToExport, null, 2));
+
+      const isOfficial = !packToExport.isCustom;
+
+      return new Promise((resolve) => {
+        const workerPath = path.join(__dirname, 'export-worker.js');
+        const worker = new Worker(workerPath, {
+          workerData: { clientPath, filePath, isOfficial }
+        });
+
+        worker.on('message', (msg) => {
+          if (msg.success) {
+            resolve({ success: true });
+          } else {
+            resolve({ success: false, error: msg.error || 'Ошибка при архивации сборки' });
+          }
+        });
+
+        worker.on('error', (err) => {
+          resolve({ success: false, error: err.message });
+        });
+
+        worker.on('exit', (code) => {
+          resolve({ success: false, error: `Воркер завершился с ошибкой (код: ${code})` });
+        });
+      });
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+
   ipcMain.handle('delete-custom-pack', async (event, id) => {
     try {
       const file = getCustomPacksFile();
@@ -2836,6 +3261,94 @@ module.exports = function(ipcMain) {
       return { success: true, ...resp.data };
     } catch (err) {
       return { success: false, error: err.response?.data?.error || err.message };
+    }
+  });
+
+  // ── FONT SWITCHING IPC HANDLERS ───────────────────────────────────────────
+  const getCustomFontsDir = () => path.join(app.getPath('userData'), 'custom-fonts');
+
+  ipcMain.handle('get-system-fonts', async () => {
+    try {
+      if (process.platform === 'win32') {
+        const cmd = `powershell -Command "[System.Reflection.Assembly]::LoadWithPartialName('System.Drawing') | Out-Null; (New-Object System.Drawing.Text.InstalledFontCollection).Families | Select-Object -ExpandProperty Name"`;
+        const stdout = execSync(cmd, { encoding: 'utf8', timeout: 8000 });
+        const fonts = stdout.split(/\r?\n/).map(f => f.trim()).filter(f => f.length > 0);
+        return fonts;
+      } else if (process.platform === 'darwin') {
+        const stdout = execSync(`system_profiler SPFontsDataType | grep "Family:" | cut -d: -f2`, { encoding: 'utf8', timeout: 5000 });
+        const fonts = stdout.split(/\r?\n/).map(f => f.trim()).filter(f => f.length > 0);
+        return [...new Set(fonts)];
+      } else {
+        const stdout = execSync(`fc-list : family | sort -u`, { encoding: 'utf8', timeout: 5000 });
+        const fonts = stdout.split(/\r?\n/).map(f => f.split(',')[0].trim()).filter(f => f.length > 0);
+        return fonts;
+      }
+    } catch (err) {
+      console.error('Error fetching system fonts:', err);
+      return ['Arial', 'Verdana', 'Georgia', 'Impact', 'Segoe UI', 'Courier New', 'Times New Roman'];
+    }
+  });
+
+  ipcMain.handle('get-custom-fonts', async () => {
+    try {
+      const dir = getCustomFontsDir();
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+        return [];
+      }
+      const files = fs.readdirSync(dir).filter(f => {
+        const lower = f.toLowerCase();
+        return lower.endsWith('.ttf') || lower.endsWith('.otf') || lower.endsWith('.woff') || lower.endsWith('.woff2');
+      });
+      return files.map(file => {
+        const ext = path.extname(file);
+        const name = path.basename(file, ext);
+        const filePath = path.join(dir, file);
+        return {
+          family: name,
+          path: filePath
+        };
+      });
+    } catch (err) {
+      console.error('Error getting custom fonts:', err);
+      return [];
+    }
+  });
+
+  ipcMain.handle('add-custom-font', async () => {
+    try {
+      const { canceled, filePaths } = await dialog.showOpenDialog({
+        title: 'Выберите файл шрифта',
+        properties: ['openFile'],
+        filters: [
+          { name: 'Шрифты (TTF, OTF, WOFF)', extensions: ['ttf', 'otf', 'woff', 'woff2'] }
+        ]
+      });
+
+      if (canceled || filePaths.length === 0) return { success: false, error: 'Отменено' };
+      const selectedPath = filePaths[0];
+      const dir = getCustomFontsDir();
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
+
+      const fileName = path.basename(selectedPath);
+      const dest = path.join(dir, fileName);
+      fs.copyFileSync(selectedPath, dest);
+
+      const ext = path.extname(fileName);
+      const name = path.basename(fileName, ext);
+
+      return {
+        success: true,
+        font: {
+          family: name,
+          path: dest
+        }
+      };
+    } catch (err) {
+      console.error('Error adding custom font:', err);
+      return { success: false, error: err.message };
     }
   });
 };

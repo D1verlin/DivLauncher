@@ -254,6 +254,63 @@ export default function SettingsPage({ currentPack }) {
   const [mode, setMode] = useState(localStorage.getItem('launcher_mode') || 'host');
   const [ip,   setIp]   = useState(localStorage.getItem('launcher_server_ip') || '');
 
+  // Fonts
+  const [selectedFont, setSelectedFont] = useState(localStorage.getItem('launcher_font') || 'Montserrat');
+  const [systemFonts, setSystemFonts] = useState([]);
+  const [customFonts, setCustomFonts] = useState([]);
+
+  useEffect(() => {
+    if (window.electronAPI) {
+      if (window.electronAPI.getSystemFonts) {
+        window.electronAPI.getSystemFonts().then(fonts => {
+          if (Array.isArray(fonts)) {
+            const unique = [...new Set(fonts)].sort((a, b) => a.localeCompare(b));
+            setSystemFonts(unique);
+          }
+        }).catch(err => console.error(err));
+      }
+      if (window.electronAPI.getCustomFonts) {
+        window.electronAPI.getCustomFonts().then(fonts => {
+          if (Array.isArray(fonts)) {
+            setCustomFonts(fonts);
+          }
+        }).catch(err => console.error(err));
+      }
+    }
+  }, []);
+
+  const handleFontChange = (fontName) => {
+    setSelectedFont(fontName);
+    localStorage.setItem('launcher_font', fontName);
+    window.dispatchEvent(new Event('settings-changed'));
+  };
+
+  const handleAddFont = async () => {
+    if (!window.electronAPI?.addCustomFont) return;
+    try {
+      const res = await window.electronAPI.addCustomFont();
+      if (res && res.success && res.font) {
+        const styleId = `custom-font-${res.font.family}`;
+        if (!document.getElementById(styleId)) {
+          const style = document.createElement('style');
+          style.id = styleId;
+          const normalizedPath = res.font.path.replace(/\\/g, '/');
+          style.textContent = `
+            @font-face {
+              font-family: "${res.font.family}";
+              src: url("local-file://${normalizedPath}");
+            }
+          `;
+          document.head.appendChild(style);
+        }
+        setCustomFonts(prev => [...prev, res.font]);
+        handleFontChange(res.font.family);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   const importRef    = useRef(null);
 
   // ── Persist ───────────────────────────────────────────────────────────────
@@ -466,6 +523,87 @@ export default function SettingsPage({ currentPack }) {
           </InfoBox>
         </div>
       </Section>
+
+      <Section title={t('settings_font')} icon="fa-solid fa-font" color="#ec4899">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+            <div style={{ flexGrow: 1 }}>
+              <select
+                value={selectedFont}
+                onChange={(e) => handleFontChange(e.target.value)}
+                style={{
+                  background: 'rgba(255, 255, 255, 0.05)',
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  borderRadius: '12px',
+                  color: '#fff',
+                  padding: '12px',
+                  fontFamily: 'inherit',
+                  fontWeight: 600,
+                  outline: 'none',
+                  cursor: 'pointer',
+                  width: '100%'
+                }}
+              >
+                {/* Standard out of the box fonts */}
+                <optgroup label={t('settings_font_standard')} style={{ background: '#18181b', color: '#a1a1aa' }}>
+                  {['Montserrat', 'Jura', 'Stalinist One', 'Cascadia Code', 'Arial', 'Verdana', 'Georgia'].map(f => (
+                    <option key={f} value={f} style={{ background: '#18181b', color: '#fff', fontFamily: f }}>{f}</option>
+                  ))}
+                </optgroup>
+
+                {/* Custom fonts uploaded by the user */}
+                {customFonts.length > 0 && (
+                  <optgroup label={t('settings_font_custom')} style={{ background: '#18181b', color: '#a1a1aa' }}>
+                    {customFonts.map(f => (
+                      <option key={f.family} value={f.family} style={{ background: '#18181b', color: '#fff', fontFamily: f.family }}>{f.family}</option>
+                    ))}
+                  </optgroup>
+                )}
+
+                {/* OS System Fonts */}
+                {systemFonts.length > 0 && (
+                  <optgroup label={t('settings_font_system')} style={{ background: '#18181b', color: '#a1a1aa' }}>
+                    {systemFonts.map(f => (
+                      <option key={f} value={f} style={{ background: '#18181b', color: '#fff', fontFamily: f }}>{f}</option>
+                    ))}
+                  </optgroup>
+                )}
+              </select>
+            </div>
+
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={handleAddFont}
+              style={{
+                background: 'rgba(236, 72, 153, 0.15)',
+                border: '1px solid rgba(236, 72, 153, 0.3)',
+                color: '#f472b6',
+                borderRadius: '12px',
+                padding: '12px 20px',
+                fontWeight: 800,
+                fontSize: '12px',
+                textTransform: 'uppercase',
+                letterSpacing: '1px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                transition: 'all 0.2s',
+                whiteSpace: 'nowrap',
+                height: '46px'
+              }}
+            >
+              <i className="fa-solid fa-plus" />
+              {t('settings_font_add')}
+            </motion.button>
+          </div>
+          <InfoBox color="#ec4899" icon="fa-solid fa-circle-info">
+            {t('settings_font_desc')}
+          </InfoBox>
+        </div>
+      </Section>
+
       <Section title={t('settings_profile_config')} icon="fa-solid fa-floppy-disk" color="#f59e0b">
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
           <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={handleExport}

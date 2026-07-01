@@ -4,7 +4,7 @@ const path = require('path');
 const AdmZip = require('adm-zip');
 
 try {
-  const { clientPath, filePath } = workerData;
+  const { clientPath, filePath, isOfficial } = workerData;
 
   if (!clientPath || !filePath) {
     throw new Error('clientPath or filePath is missing in workerData');
@@ -14,22 +14,27 @@ try {
 
   const zip = new AdmZip();
 
-  // Exclude filter function
-  const filter = (localFilePath) => {
-    const norm = localFilePath.replace(/\\/g, '/');
-    const relativePath = norm.substring(normalizedClientPath.length).replace(/^\//, '');
-
-    if (
-      relativePath.startsWith('versions') ||
-      relativePath.startsWith('libraries') ||
-      relativePath.startsWith('runtime') ||
-      relativePath.startsWith('assets/indexes') ||
-      relativePath.startsWith('assets/objects') ||
-      relativePath.startsWith('assets/skins')
-    ) {
-      return false;
+  // Exclude filter function (adm-zip passes path relative to localPath)
+  const filter = (relativePath) => {
+    const norm = relativePath.replace(/\\/g, '/');
+    if (isOfficial) {
+      // Exclude mods, config, and pack_version.txt for official packs since they are downloaded from the server
+      if (
+        norm.startsWith('mods/') ||
+        norm.startsWith('config/') ||
+        norm === 'pack_version.txt'
+      ) {
+        return false;
+      }
     }
-    return true;
+    return !(
+      norm.startsWith('versions/') ||
+      norm.startsWith('libraries/') ||
+      norm.startsWith('runtime/') ||
+      norm.startsWith('assets/indexes/') ||
+      norm.startsWith('assets/objects/') ||
+      norm.startsWith('assets/skins/')
+    );
   };
 
   // Add client folder content recursively with filter

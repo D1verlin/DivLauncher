@@ -28,7 +28,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
       'update-available', 'update-progress', 'update-downloaded',
       'server-log', 'server-status', 'server-players',
       'r2-upload-progress', 'download-progress', 'update-done',
-      'launch-progress', 'launch-error', 'launch-closed'
+      'launch-progress', 'launch-error', 'launch-closed', 'import-progress'
     ];
     if (ALLOWED_CHANNELS.includes(channel)) {
       ipcRenderer.removeAllListeners(channel);
@@ -82,6 +82,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
   saveCustomPack: (pack) => ipcRenderer.invoke('save-custom-pack', pack),
   importCustomPack: () => ipcRenderer.invoke('import-custom-pack'),
   exportCustomPack: (id) => ipcRenderer.invoke('export-custom-pack', id),
+  importPackExtended: (type) => ipcRenderer.invoke('import-pack-extended', type),
+  exportPackExtended: (pack) => ipcRenderer.invoke('export-pack-extended', pack),
+  onImportProgress: (callback) => {
+    ipcRenderer.on('import-progress', (event, data) => callback(data));
+  },
+  getSystemFonts: () => ipcRenderer.invoke('get-system-fonts'),
+  getCustomFonts: () => ipcRenderer.invoke('get-custom-fonts'),
+  addCustomFont: () => ipcRenderer.invoke('add-custom-font'),
   deleteCustomPack: (id) => ipcRenderer.invoke('delete-custom-pack', id),
   syncLocalMods: (pack) => ipcRenderer.invoke('sync-local-mods', pack),
   // --- DISCORD RPC ---
