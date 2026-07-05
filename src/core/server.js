@@ -374,6 +374,29 @@ async function resolveLoaderDetails(pack) {
       pack.installerName = newName;
       await saveCorrectedPackConfig(pack);
     }
+  } else if (pack.loaderType === 'forge') {
+    let currentUrl = pack.installerUrl || pack.forgeUrl;
+    if (currentUrl && currentUrl.includes('maven.minecraftforge.net')) {
+      const mcVersion = pack.mcVersion;
+      const installerName = pack.installerName || pack.forgeInstallerName || '';
+      const match = installerName.match(/forge-(?:[0-9.]+)-([0-9.]+)(?:-[0-9.]+)?-installer\.jar/);
+      if (match) {
+        const forgeVersion = match[1];
+        const needsSuffix = mcVersion === '1.8.9' || /^(1\.[0-7]\b)/.test(mcVersion);
+        const expectedVersionStr = needsSuffix ? `${mcVersion}-${forgeVersion}-${mcVersion}` : `${mcVersion}-${forgeVersion}`;
+        const newUrl = `https://maven.minecraftforge.net/net/minecraftforge/forge/${expectedVersionStr}/forge-${expectedVersionStr}-installer.jar`;
+        const newName = `forge-${expectedVersionStr}-installer.jar`;
+        
+        if (currentUrl !== newUrl) {
+          sysLog(`Correcting Forge pack "${pack.name}" loader version string to "${expectedVersionStr}"`);
+          pack.forgeUrl = newUrl;
+          pack.forgeInstallerName = newName;
+          pack.installerUrl = newUrl;
+          pack.installerName = newName;
+          await saveCorrectedPackConfig(pack);
+        }
+      }
+    }
   }
 }
 

@@ -442,6 +442,29 @@ async function resolveLoaderDetails(pack) {
       pack.installerName = newName;
       await saveCorrectedPackConfig(pack);
     }
+  } else if (pack.loaderType === 'forge') {
+    let currentUrl = pack.installerUrl || pack.forgeUrl;
+    if (currentUrl && currentUrl.includes('maven.minecraftforge.net')) {
+      const mcVersion = pack.mcVersion;
+      const installerName = pack.installerName || pack.forgeInstallerName || '';
+      const match = installerName.match(/forge-(?:[0-9.]+)-([0-9.]+)(?:-[0-9.]+)?-installer\.jar/);
+      if (match) {
+        const forgeVersion = match[1];
+        const needsSuffix = mcVersion === '1.8.9' || /^(1\.[0-7]\b)/.test(mcVersion);
+        const expectedVersionStr = needsSuffix ? `${mcVersion}-${forgeVersion}-${mcVersion}` : `${mcVersion}-${forgeVersion}`;
+        const newUrl = `https://maven.minecraftforge.net/net/minecraftforge/forge/${expectedVersionStr}/forge-${expectedVersionStr}-installer.jar`;
+        const newName = `forge-${expectedVersionStr}-installer.jar`;
+        
+        if (currentUrl !== newUrl) {
+          sysLog(`Correcting Forge pack "${pack.name}" loader version string to "${expectedVersionStr}"`);
+          pack.forgeUrl = newUrl;
+          pack.forgeInstallerName = newName;
+          pack.installerUrl = newUrl;
+          pack.installerName = newName;
+          await saveCorrectedPackConfig(pack);
+        }
+      }
+    }
   }
 }
 
@@ -958,7 +981,9 @@ module.exports = function(ipcMain) {
         };
         fs.writeFileSync(getCustomCacheFile(), JSON.stringify(cacheData));
         logger.log("Auth credentials written to cache file successfully.");
+        // Return all user profile fields (customizations, google link status, etc.) to the UI
         return { 
+          ...webResponse.data.user,
           success: true, 
           id: webResponse.data.user.id,
           name: data.selectedProfile.name, 
@@ -1061,7 +1086,9 @@ module.exports = function(ipcMain) {
         };
         fs.writeFileSync(cacheFile, JSON.stringify(updatedCache));
         logger.log("Updated auth cache written back to file.");
+        // Return all user profile fields (customizations, google link status, etc.) to the UI
         return { 
+          ...profileDetails,
           id: profileDetails ? profileDetails.id : null,
           name: data.selectedProfile.name, 
           uuid: data.selectedProfile.id, 

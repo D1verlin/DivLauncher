@@ -582,8 +582,10 @@ export default function CreatePackPage({ onCreate, onBack, isActive, editPack })
         setError(lang === 'ru' ? `Версия Forge для Minecraft ${mcVersion} не найдена.` : `Forge version for Minecraft ${mcVersion} not found.`);
         return;
       }
-      newPack.forgeUrl = `https://maven.minecraftforge.net/net/minecraftforge/forge/${mcVersion}-${forgeVersion}/forge-${mcVersion}-${forgeVersion}-installer.jar`;
-      newPack.forgeInstallerName = `forge-${mcVersion}-${forgeVersion}-installer.jar`;
+      const needsSuffix = mcVersion === '1.8.9' || /^(1\.[0-7]\b)/.test(mcVersion);
+      const versionPath = needsSuffix ? `${mcVersion}-${forgeVersion}-${mcVersion}` : `${mcVersion}-${forgeVersion}`;
+      newPack.forgeUrl = `https://maven.minecraftforge.net/net/minecraftforge/forge/${versionPath}/forge-${versionPath}-installer.jar`;
+      newPack.forgeInstallerName = `forge-${versionPath}-installer.jar`;
     } else if (loaderType === 'neoforge') {
       const neoForgeVersions = {
         '1.20.1': '20.1.89',

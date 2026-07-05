@@ -346,7 +346,8 @@ export default function AdminModpacksSection({ onModpacksUpdate, onManageMods })
     } else if (loaderType === 'forge') {
       const forgeRec = promos[`${mcVersion}-recommended`] || promos[`${mcVersion}-latest`] || promos[mcVersion];
       if (forgeRec) {
-        const fullVersion = `${mcVersion}-${forgeRec}`;
+        const needsSuffix = mcVersion === '1.8.9' || /^(1\.[0-7]\b)/.test(mcVersion);
+        const fullVersion = needsSuffix ? `${mcVersion}-${forgeRec}-${mcVersion}` : `${mcVersion}-${forgeRec}`;
         setForgeUrl(`https://maven.minecraftforge.net/net/minecraftforge/forge/${fullVersion}/forge-${fullVersion}-installer.jar`);
         setForgeInstallerName(`forge-${fullVersion}-installer.jar`);
       } else {
@@ -404,7 +405,8 @@ export default function AdminModpacksSection({ onModpacksUpdate, onManageMods })
         } else {
           const forgeRec = promos[`${mcVersion}-recommended`] || promos[`${mcVersion}-latest`] || promos[mcVersion];
           if (forgeRec) {
-            const fullVersion = `${mcVersion}-${forgeRec}`;
+            const needsSuffix = mcVersion === '1.8.9' || /^(1\.[0-7]\b)/.test(mcVersion);
+            const fullVersion = needsSuffix ? `${mcVersion}-${forgeRec}-${mcVersion}` : `${mcVersion}-${forgeRec}`;
             setServerLoaderUrl(`https://maven.minecraftforge.net/net/minecraftforge/forge/${fullVersion}/forge-${fullVersion}-installer.jar`);
             setServerLoaderName(`forge-${fullVersion}-installer.jar`);
           } else {
