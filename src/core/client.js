@@ -16,6 +16,28 @@ const { Client, Authenticator } = require('minecraft-launcher-core');
 const launcher = new Client();
 let gameProcess = null;
 
+const resolveClientPath = (clientDir) => {
+  if (!clientDir) return '';
+  if (path.isAbsolute(clientDir)) return clientDir;
+  const isCustom = clientDir.startsWith('custom-packs');
+  if (!isCustom) {
+    const exeDir = path.dirname(app.getPath('exe'));
+    return path.resolve(exeDir, clientDir);
+  }
+  return path.resolve(app.getPath('userData'), clientDir);
+};
+
+const resolveServerPath = (serverDir) => {
+  if (!serverDir) return '';
+  if (path.isAbsolute(serverDir)) return serverDir;
+  const isCustom = serverDir.startsWith('custom-packs');
+  if (!isCustom) {
+    const exeDir = path.dirname(app.getPath('exe'));
+    return path.resolve(exeDir, serverDir);
+  }
+  return path.resolve(app.getPath('userData'), serverDir);
+};
+
 const AUTH_SERVER = process.env.AUTH_SERVER || 'https://mcauth.diverlin.ru';
 
 function sysLog(...args) {
@@ -645,7 +667,7 @@ async function ensureLoader(event, pack) {
   }
 
   if (pack.loaderType === 'neoforge' || pack.loaderType === 'forge') {
-    const gameRoot = path.resolve(app.getPath('userData'), pack.clientDir);
+    const gameRoot = resolveClientPath(pack.clientDir);
     await ensureInstallerLibraries(event, installerPath, gameRoot);
   }
 
@@ -680,7 +702,7 @@ async function ensureAuthlibInjector(event) {
 module.exports = function(ipcMain) {
   ipcMain.on('open-client-folder', (event, pack) => {
     if (!pack) return;
-    shell.openPath(path.resolve(app.getPath('userData'), pack.clientDir));
+    shell.openPath(resolveClientPath(pack.clientDir));
   });
 
   ipcMain.on('upload-client-configs', async (event, pack) => {
@@ -689,7 +711,7 @@ module.exports = function(ipcMain) {
     if (!canceled && filePaths.length > 0) {
       try {
         event.reply('launch-progress', `Копирование...`);
-        fs.cpSync(filePaths[0], path.resolve(app.getPath('userData'), pack.clientDir, 'config'), { recursive: true, force: true });
+        fs.cpSync(filePaths[0], path.resolve(resolveClientPath(pack.clientDir), 'config'), { recursive: true, force: true });
         event.reply('launch-progress', `Конфиги загружены!`);
         setTimeout(() => event.reply('launch-progress', 'Готово к запуску'), 4000);
       } catch (err) { event.reply('launch-error', `Ошибка: ${err.message}`); }
@@ -702,7 +724,7 @@ module.exports = function(ipcMain) {
     try {
       const pack = options.pack;
       sysLog(`Pack ID: ${pack.id}, Name: ${pack.name}, Version: ${pack.mcVersion}, Loader: ${pack.loaderType}`);
-      const gameRoot = path.resolve(app.getPath('userData'), pack.clientDir);
+      const gameRoot = resolveClientPath(pack.clientDir);
       sysLog(`Game root directory: ${gameRoot}`);
       launcher.removeAllListeners();
       if (!fs.existsSync(gameRoot)) {
@@ -775,7 +797,10 @@ module.exports = function(ipcMain) {
       await syncModpack(event, gameRoot, pack);
       sysLog(`Modpack sync complete.`);
 
-      let customArgs = [`-javaagent:${authlibPath}=${AUTH_SERVER}/api/yggdrasil`];
+      let customArgs = [
+        `-javaagent:${authlibPath}=${AUTH_SERVER}/api/yggdrasil`,
+        '-Dhttp.agent=Mozilla/5.0'
+      ];
 
       let opts = {
         clientPackage: null, authorization: auth, root: gameRoot, 
@@ -821,6 +846,29 @@ module.exports = function(ipcMain) {
       }
 
       sysLog(`Setting launcher listeners...`);
+
+      const parts = pack.mcVersion.split('.');
+      const minor = parseInt(parts[1] || '0', 10);
+      const isLegacyForge = clientLoaderType === 'forge' && minor < 13;
+      if (isLegacyForge) {
+        launcher.on('arguments', (launchArgs) => {
+          const cpIndex = launchArgs.indexOf('-cp');
+          if (cpIndex !== -1 && cpIndex + 1 < launchArgs.length) {
+            const cpString = launchArgs[cpIndex + 1];
+            const separator = process.platform === 'win32' ? ';' : ':';
+            const paths = cpString.split(separator);
+            const resolvedInstaller = installerPath ? path.resolve(installerPath).toLowerCase() : '';
+            const filteredPaths = paths.filter(p => {
+              if (!p) return false;
+              const resolvedPath = path.resolve(p).toLowerCase();
+              return resolvedPath !== resolvedInstaller;
+            });
+            launchArgs[cpIndex + 1] = filteredPaths.join(separator);
+            sysLog(`[DivLauncher Intercept] Legacy Forge installer JAR filtered out from classpath.`);
+          }
+        });
+      }
+
       launcher.on('download-status', (e) => {
         sysLog(`[MCLC download-status] Name: ${e.name}, Progress: ${e.current}/${e.total}`);
         event.reply('launch-progress', `Библиотеки: ${e.name}`);
@@ -1206,7 +1254,7 @@ module.exports = function(ipcMain) {
       const base64Data = skinDataUrl.replace(/^data:image\/png;base64,/, '');
       const buffer = Buffer.from(base64Data, 'base64');
 
-      const gameRoot = path.resolve(app.getPath('userData'), packClientDir || 'div-launcher');
+      const gameRoot = resolveClientPath(packClientDir || 'div-launcher');
       const skinsDir = path.join(gameRoot, 'resourcepacks', 'skins');
       if (!fs.existsSync(skinsDir)) fs.mkdirSync(skinsDir, { recursive: true });
 
@@ -1271,7 +1319,7 @@ module.exports = function(ipcMain) {
       // 2. Save locally for CustomSkinLoader
       if (clientDir && username) {
         try {
-          const gameRoot = path.resolve(app.getPath('userData'), clientDir);
+          const gameRoot = resolveClientPath(clientDir);
           const skinsDir = path.join(gameRoot, 'resourcepacks', 'skins');
           if (!fs.existsSync(skinsDir)) fs.mkdirSync(skinsDir, { recursive: true });
           fs.writeFileSync(path.join(skinsDir, `${username}.png`), fileBuffer);
@@ -1350,7 +1398,7 @@ module.exports = function(ipcMain) {
       // 2. Save locally
       if (clientDir && username) {
         try {
-          const gameRoot = path.resolve(app.getPath('userData'), clientDir);
+          const gameRoot = resolveClientPath(clientDir);
           const skinsDir = path.join(gameRoot, 'resourcepacks', 'skins');
           if (!fs.existsSync(skinsDir)) fs.mkdirSync(skinsDir, { recursive: true });
           fs.writeFileSync(path.join(skinsDir, `${username}_cape.png`), fileBuffer);
@@ -2048,7 +2096,7 @@ module.exports = function(ipcMain) {
   ipcMain.handle('save-custom-pack', async (event, pack) => {
     try {
       // 1. Сохраняем ассеты локально внутри папки сборки
-      const clientPath = path.resolve(app.getPath('userData'), pack.clientDir);
+      const clientPath = resolveClientPath(pack.clientDir);
       const assetsPath = path.join(clientPath, 'assets');
       if (!fs.existsSync(assetsPath)) {
         fs.mkdirSync(assetsPath, { recursive: true });
@@ -2120,7 +2168,7 @@ module.exports = function(ipcMain) {
         packData = JSON.parse(content);
         if (!packData.id || !packData.clientDir) throw new Error("Неверный формат divpack.json");
         
-        targetClientDir = path.resolve(app.getPath('userData'), packData.clientDir);
+        targetClientDir = resolveClientPath(packData.clientDir);
         const sourceDir = path.dirname(selectedPath);
         
         if (targetClientDir !== sourceDir) {
@@ -2136,7 +2184,7 @@ module.exports = function(ipcMain) {
         packData = JSON.parse(content);
         if (!packData.id || !packData.clientDir) throw new Error("Неверный формат divpack.json");
 
-        targetClientDir = path.resolve(app.getPath('userData'), packData.clientDir);
+        targetClientDir = resolveClientPath(packData.clientDir);
         
         const tempDir = path.join(app.getPath('temp'), 'divlauncher-import-' + Date.now());
         zip.extractAllTo(tempDir, true);
@@ -2204,7 +2252,7 @@ module.exports = function(ipcMain) {
 
       if (canceled || !filePath) return { success: false, error: 'Отменено' };
 
-      const clientPath = path.resolve(app.getPath('userData'), packToExport.clientDir);
+      const clientPath = resolveClientPath(packToExport.clientDir);
       if (!fs.existsSync(clientPath)) return { success: false, error: 'Директория клиента не найдена' };
 
       // Ensure divpack.json is up to date in the directory
@@ -2275,7 +2323,7 @@ module.exports = function(ipcMain) {
       let loaderVersion = 'latest';
       let packId = 'custom_pack_' + Date.now();
       let clientDir = `custom-packs/${packId}`;
-      let targetClientDir = path.resolve(app.getPath('userData'), clientDir);
+      let targetClientDir = resolveClientPath(clientDir);
       let isImportedPackOfficial = false;
       let importedPackData = null;
 
@@ -2293,7 +2341,7 @@ module.exports = function(ipcMain) {
 
           packId = packData.id;
           clientDir = packData.clientDir;
-          targetClientDir = path.resolve(app.getPath('userData'), clientDir);
+          targetClientDir = resolveClientPath(clientDir);
           const sourceDir = path.dirname(selectedPath);
           
           if (targetClientDir !== sourceDir) {
@@ -2320,7 +2368,7 @@ module.exports = function(ipcMain) {
 
           packId = packData.id;
           clientDir = packData.clientDir;
-          targetClientDir = path.resolve(app.getPath('userData'), clientDir);
+          targetClientDir = resolveClientPath(clientDir);
           
           const extractedDivpackPath = path.join(tempDir, divpackEntry.entryName);
           const sourceDir = path.dirname(extractedDivpackPath);
@@ -2635,7 +2683,7 @@ module.exports = function(ipcMain) {
 
       if (canceled || !filePath) return { success: false, error: 'Отменено' };
 
-      const clientPath = path.resolve(app.getPath('userData'), packToExport.clientDir);
+      const clientPath = resolveClientPath(packToExport.clientDir);
       if (!fs.existsSync(clientPath)) return { success: false, error: 'Директория клиента не найдена' };
 
       fs.writeFileSync(path.join(clientPath, 'divpack.json'), JSON.stringify(packToExport, null, 2));
@@ -2676,8 +2724,8 @@ module.exports = function(ipcMain) {
         let packs = JSON.parse(fs.readFileSync(file, 'utf8'));
         const packToDelete = packs.find(p => p.id === id);
         if (packToDelete) {
-          const clientPath = packToDelete.clientDir ? path.resolve(app.getPath('userData'), packToDelete.clientDir) : null;
-          const serverPath = packToDelete.serverDir ? path.resolve(app.getPath('userData'), packToDelete.serverDir) : null;
+          const clientPath = packToDelete.clientDir ? resolveClientPath(packToDelete.clientDir) : null;
+          const serverPath = packToDelete.serverDir ? resolveServerPath(packToDelete.serverDir) : null;
           
           if (clientPath && fs.existsSync(clientPath)) {
             fs.rmSync(clientPath, { recursive: true, force: true });
@@ -2710,7 +2758,7 @@ module.exports = function(ipcMain) {
         extensionFilter = '.zip';
       }
 
-      const folderPath = path.resolve(app.getPath('userData'), clientDir, subFolder);
+      const folderPath = path.resolve(resolveClientPath(clientDir), subFolder);
       if (!fs.existsSync(folderPath)) return { success: true, mods: [] };
       
       const files = fs.readdirSync(folderPath).filter(f => {
@@ -2736,7 +2784,7 @@ module.exports = function(ipcMain) {
       if (projectType === 'resourcepack') subFolder = 'resourcepacks';
       else if (projectType === 'shader') subFolder = 'shaderpacks';
 
-      const folderPath = path.resolve(app.getPath('userData'), clientDir, subFolder);
+      const folderPath = path.resolve(resolveClientPath(clientDir), subFolder);
       if (!fs.existsSync(folderPath)) fs.mkdirSync(folderPath, { recursive: true });
       const dest = path.join(folderPath, fileName);
       await downloadFile(url, dest);
@@ -2753,7 +2801,7 @@ module.exports = function(ipcMain) {
       if (projectType === 'resourcepack') subFolder = 'resourcepacks';
       else if (projectType === 'shader') subFolder = 'shaderpacks';
 
-      const dest = path.resolve(app.getPath('userData'), clientDir, subFolder, fileName);
+      const dest = path.resolve(resolveClientPath(clientDir), subFolder, fileName);
       if (fs.existsSync(dest)) {
         const stat = fs.statSync(dest);
         if (stat.isDirectory()) {
@@ -2775,7 +2823,7 @@ module.exports = function(ipcMain) {
       if (projectType === 'resourcepack') subFolder = 'resourcepacks';
       else if (projectType === 'shader') subFolder = 'shaderpacks';
 
-      const folderPath = path.resolve(app.getPath('userData'), clientDir, subFolder);
+      const folderPath = path.resolve(resolveClientPath(clientDir), subFolder);
       const oldPath = path.join(folderPath, fileName);
       if (!fs.existsSync(oldPath)) return { success: false, error: "File not found" };
 

@@ -52,7 +52,7 @@ const TabButton = ({ active, icon, label, onClick }) => (
   </motion.button>
 );
 
-export default function ServerPage({ logs, isRunning, players, currentPack, onPackUpdate }) {
+export default function ServerPage({ logs, isRunning, players, currentPack, onPackUpdate, showConfirm, showAlert }) {
   const { t, lang } = useTranslation();
   const [activeTab, setActiveTab] = useState('console'); // console | players | settings
   const [command, setCommand] = useState('');
@@ -122,12 +122,16 @@ export default function ServerPage({ logs, isRunning, players, currentPack, onPa
 
   const handleDeleteBackup = async (fileName) => {
     if (!currentPack) return;
-    if (confirm(lang === 'ru' ? `Вы уверены, что хотите удалить бэкап ${fileName}?` : `Are you sure you want to delete backup ${fileName}?`)) {
+    const confirmed = await showConfirm(
+      lang === 'ru' ? 'Удалить резервную копию?' : 'Delete Backup?',
+      lang === 'ru' ? `Вы уверены, что хотите удалить бэкап ${fileName}?` : `Are you sure you want to delete backup ${fileName}?`
+    );
+    if (confirmed) {
       const res = await window.electronAPI.deleteBackup(currentPack, fileName);
       if (res.success) {
         loadBackups();
       } else {
-        alert((lang === 'ru' ? 'Ошибка удаления: ' : 'Delete error: ') + res.error);
+        showAlert(t('error'), (lang === 'ru' ? 'Ошибка удаления: ' : 'Delete error: ') + res.error);
       }
     }
   };
@@ -135,18 +139,22 @@ export default function ServerPage({ logs, isRunning, players, currentPack, onPa
   const handleRestoreBackup = async (fileName) => {
     if (!currentPack) return;
     if (isRunning) {
-      alert(lang === 'ru' ? 'Невозможно восстановить бэкап при запущеном сервере! Сначала остановите сервер.' : 'Cannot restore backup while the server is running! Stop the server first.');
+      showAlert(t('error'), lang === 'ru' ? 'Невозможно восстановить бэкап при запущеном сервере! Сначала остановите сервер.' : 'Cannot restore backup while the server is running! Stop the server first.');
       return;
     }
-    if (confirm(lang === 'ru' ? `Вы действительно хотите ВОССТАНОВИТЬ мир из ${fileName}? Текущий мир будет полностью удален.` : `Are you sure you want to RESTORE the world from ${fileName}? The current world will be completely deleted.`)) {
+    const confirmed = await showConfirm(
+      lang === 'ru' ? 'Восстановить мир из бэкапа?' : 'Restore World?',
+      lang === 'ru' ? `Вы действительно хотите ВОССТАНОВИТЬ мир из ${fileName}? Текущий мир будет полностью удален.` : `Are you sure you want to RESTORE the world from ${fileName}? The current world will be completely deleted.`
+    );
+    if (confirmed) {
       setIsRestoring(true);
       const res = await window.electronAPI.restoreBackup(currentPack, fileName);
       setIsRestoring(false);
       if (res.success) {
-        alert(lang === 'ru' ? 'Резервная копия успешно восстановлена!' : 'Backup restored successfully!');
+        showAlert(lang === 'ru' ? 'Успешно' : 'Success', lang === 'ru' ? 'Резервная копия успешно восстановлена!' : 'Backup restored successfully!');
         loadBackups();
       } else {
-        alert((lang === 'ru' ? 'Ошибка восстановления: ' : 'Restore error: ') + res.error);
+        showAlert(t('error'), (lang === 'ru' ? 'Ошибка восстановления: ' : 'Restore error: ') + res.error);
       }
     }
   };
@@ -199,9 +207,9 @@ export default function ServerPage({ logs, isRunning, players, currentPack, onPa
     if (window.electronAPI && window.electronAPI.syncLocalMods) {
       const result = await window.electronAPI.syncLocalMods(currentPack);
       if (result.success) {
-        alert(lang === 'ru' ? `Успешно подтянуто модов: ${result.copiedCount} (клиентских пропущено: ${result.skippedCount})` : `Successfully synced mods: ${result.copiedCount} (skipped client-only: ${result.skippedCount})`);
+        showAlert(lang === 'ru' ? 'Успешно' : 'Success', lang === 'ru' ? `Успешно подтянуто модов: ${result.copiedCount} (клиентских пропущено: ${result.skippedCount})` : `Successfully synced mods: ${result.copiedCount} (skipped client-only: ${result.skippedCount})`);
       } else {
-        alert((lang === 'ru' ? 'Ошибка синхронизации: ' : 'Sync error: ') + result.error);
+        showAlert(t('error'), (lang === 'ru' ? 'Ошибка синхронизации: ' : 'Sync error: ') + result.error);
       }
     }
   };

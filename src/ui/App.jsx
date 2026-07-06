@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ClientPage from './pages/ClientPage';
 import ServerPage from './pages/ServerPage';
@@ -268,6 +268,238 @@ export default function App() {
   const [profileCache, setProfileCache] = useState({});
   const [authLoading, setAuthLoading] = useState(true);
   const [badges, setBadges] = useState([]);
+
+  // --- CLIENT GAME EXECUTION LIFTED STATE & EFFECTS ---
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [isLaunching, setIsLaunching] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [downloadProgress, setDownloadProgress] = useState(0);
+  const [clientStatus, setClientStatus] = useState('');
+  const [clientConsoleLogs, setClientConsoleLogs] = useState([]);
+  const [runningPackId, setRunningPackId] = useState(null);
+  const [playtime, setPlaytime] = useState(0);
+
+  const currentPackRef = useRef(currentPack);
+  const runningPackIdRef = useRef(null);
+  const isLaunchingRef = useRef(false);
+  const fullLogsRef = useRef([]);
+  const sessionStartRef = useRef(null);
+
+  useEffect(() => {
+    currentPackRef.current = currentPack;
+  }, [currentPack]);
+
+  useEffect(() => {
+    runningPackIdRef.current = runningPackId;
+  }, [runningPackId]);
+
+  useEffect(() => {
+    isLaunchingRef.current = isLaunching;
+  }, [isLaunching]);
+
+  // Load playtime when pack selection or running pack changes
+  useEffect(() => {
+    if (currentPack) {
+      if (runningPackId && currentPack.id === runningPackId) {
+        // Keeps the dynamic counter intact if selecting the active pack
+      } else {
+        const savedTime = parseInt(localStorage.getItem(`playtime_${currentPack.id}`) || '0', 10);
+        setPlaytime(savedTime);
+      }
+    }
+  }, [currentPack, runningPackId]);
+
+  // Initialize status for non-running packs or when currentPack changes
+  useEffect(() => {
+    if (!runningPackId && currentPack) {
+      const installedVersion = localStorage.getItem(`installed_v_${currentPack.id}`);
+      const isZipPack = currentPack.useZip && currentPack.packVersion;
+      const needsInstall = isZipPack && !installedVersion;
+      const needsUpdate = isZipPack && installedVersion && (currentPack.packVersion !== installedVersion);
+      
+      let initialStatus = t('client_ready');
+      if (needsInstall) initialStatus = `${t('client_needs_install')}${currentPack.packVersion}`;
+      else if (needsUpdate) initialStatus = `${t('client_needs_update')}${currentPack.packVersion}`;
+      
+      setClientStatus(initialStatus);
+      setClientConsoleLogs([]);
+      setDownloadProgress(0);
+    }
+  }, [currentPack, runningPackId, lang, t]);
+
+  // Auto-save playtime interval
+  useEffect(() => {
+    let interval;
+    if (isPlaying && runningPackId && sessionStartRef.current) {
+      interval = setInterval(() => {
+        if (!sessionStartRef.current || typeof sessionStartRef.current !== 'number') {
+          console.error("sessionStartRef is invalid:", sessionStartRef.current);
+          return;
+        }
+
+        const now = Date.now();
+        const playedMs = now - sessionStartRef.current;
+
+        // Prevent invalid time jumps
+        if (playedMs <= 0 || playedMs > 24 * 60 * 60 * 1000) {
+          console.warn("Discarding invalid playtime delta:", playedMs);
+          sessionStartRef.current = now;
+          return;
+        }
+
+        const saved = parseInt(localStorage.getItem(`playtime_${runningPackId}`) || '0', 10);
+        const newTotal = saved + playedMs;
+        
+        localStorage.setItem(`playtime_${runningPackId}`, newTotal);
+
+        if (currentPackRef.current && currentPackRef.current.id === runningPackId) {
+          setPlaytime(newTotal);
+        }
+
+        sessionStartRef.current = now;
+      }, 60000);
+    }
+    return () => clearInterval(interval);
+  }, [isPlaying, runningPackId]);
+
+  // Register Electron client lifecycle listeners
+  useEffect(() => {
+    if (!window.electronAPI) return;
+
+    if (window.electronAPI.onDownloadProgress) {
+      window.electronAPI.onDownloadProgress((event, percent) => {
+        setDownloadProgress(percent);
+        setClientStatus(`${t('client_updating')} (${percent}%)`);
+      });
+    }
+
+    if (window.electronAPI.onUpdateDone) {
+      window.electronAPI.onUpdateDone(() => {
+        if (currentPackRef.current) {
+          localStorage.setItem(`installed_v_${currentPackRef.current.id}`, currentPackRef.current.packVersion);
+          setIsUpdating(false);
+          setClientStatus(lang === 'ru' ? 'Сборка успешно установлена!' : 'Modpack installed successfully!');
+        }
+      });
+    }
+
+    window.electronAPI.onProgress((event, msg) => {
+      if (msg.startsWith('[LOG]')) {
+        const cleanMsg = msg.replace('[LOG]', '').trim();
+        if (cleanMsg) {
+          const lines = cleanMsg.split('\n').map(l => l.trim()).filter(l => l);
+          fullLogsRef.current.push(...lines);
+          setClientConsoleLogs(prev => [...prev, ...lines].slice(-6));
+
+          if (isLaunchingRef.current && (
+              cleanMsg.includes('Render thread/INFO') || 
+              cleanMsg.includes('LWJGL') || 
+              cleanMsg.includes('OpenAL') ||
+              cleanMsg.includes('Sound engine started') ||
+              cleanMsg.includes('Setting user:')
+          )) {
+            setIsLaunching(false);
+            setIsPlaying(true);
+            setClientStatus(t('client_playing'));
+            sessionStartRef.current = Date.now();
+
+            if (currentPackRef.current && window.electronAPI.setDiscordPlaying) {
+              window.electronAPI.setDiscordPlaying(currentPackRef.current.name);
+            }
+          }
+        }
+        return;
+      }
+
+      setClientStatus(msg);
+      if (msg.includes('Запуск Minecraft...') || msg.includes('Launching Minecraft...')) {
+        setClientConsoleLogs(lang === 'ru' 
+          ? ["Инициализация движка...", "Передача управления Java..."] 
+          : ["Initializing engine...", "Handing over to Java..."]
+        );
+      }
+    });
+
+    window.electronAPI.onError((event, msg) => {
+      setClientStatus(`${t('error')}: ${msg}`);
+      fullLogsRef.current.push(`[ERROR] ${lang === 'ru' ? 'Ошибка запуска' : 'Launch error'}: ${msg}`);
+      setIsLaunching(false);
+      setIsPlaying(false);
+      setIsUpdating(false);
+    });
+
+    window.electronAPI.onClosed(() => {
+      if (sessionStartRef.current && runningPackIdRef.current) {
+        if (typeof sessionStartRef.current === 'number' && sessionStartRef.current > 0) {
+          const now = Date.now();
+          const playedMs = now - sessionStartRef.current;
+          
+          if (playedMs > 0 && playedMs <= 24 * 60 * 60 * 1000) {
+            const saved = parseInt(localStorage.getItem(`playtime_${runningPackIdRef.current}`) || '0', 10);
+            const newTotal = saved + playedMs;
+            localStorage.setItem(`playtime_${runningPackIdRef.current}`, newTotal);
+            if (currentPackRef.current && currentPackRef.current.id === runningPackIdRef.current) {
+              setPlaytime(newTotal);
+            }
+          }
+        }
+        sessionStartRef.current = null;
+      }
+
+      setClientStatus(t('client_closed'));
+      setIsLaunching(false);
+      setIsPlaying(false);
+      setIsUpdating(false);
+      setClientConsoleLogs([]);
+      setRunningPackId(null);
+
+      if (window.electronAPI.setDiscordIdle) {
+        window.electronAPI.setDiscordIdle();
+      }
+    });
+
+    return () => {
+      window.electronAPI.removeAllListeners?.('download-progress');
+      window.electronAPI.removeAllListeners?.('update-done');
+      window.electronAPI.removeAllListeners?.('launch-progress');
+      window.electronAPI.removeAllListeners?.('launch-error');
+      window.electronAPI.removeAllListeners?.('launch-closed');
+    };
+  }, [lang, t]);
+
+  const handleLaunchGame = (pack, options) => {
+    setIsLaunching(true);
+    setIsPlaying(false);
+    setRunningPackId(pack.id);
+    setClientStatus(t('client_launching'));
+    fullLogsRef.current = [t('client_launching')];
+    setClientConsoleLogs([t('client_launching')]);
+    window.electronAPI.launchGame(options);
+  };
+
+  const handleKillGame = () => {
+    window.electronAPI.killGame();
+  };
+
+  const handleUpdatePack = (pack) => {
+    setIsUpdating(true);
+    setRunningPackId(pack.id);
+    const installedVersion = localStorage.getItem(`installed_v_${pack.id}`);
+    const needsInstall = pack.useZip && !installedVersion;
+    setClientStatus(needsInstall ? t('client_updating') : t('client_launching'));
+    window.electronAPI.updatePack(pack);
+  };
+
+  const handleExportLogs = () => {
+    if (fullLogsRef.current.length === 0) return;
+    const blob = new Blob([fullLogsRef.current.join('\n')], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `client_log_${currentPackRef.current?.id || 'game'}.txt`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
 
   // --- МОДАЛЬНЫЕ ОКНА (замена confirm/alert) ---
   const [confirmModal, setConfirmModal] = useState(null); // { title, message, onConfirm }
@@ -659,7 +891,24 @@ export default function App() {
           <ClientPage 
             openSettings={() => setCurrentPage('settings')} 
             openMods={() => setCurrentPage('mods')}
-            currentPack={currentPack} 
+            currentPack={currentPack}
+            isPlaying={isPlaying}
+            isLaunching={isLaunching}
+            isUpdating={isUpdating}
+            downloadProgress={downloadProgress}
+            clientStatus={clientStatus}
+            clientConsoleLogs={clientConsoleLogs}
+            runningPackId={runningPackId}
+            playtime={playtime}
+            onLaunchGame={handleLaunchGame}
+            onKillGame={handleKillGame}
+            onUpdatePack={handleUpdatePack}
+            onPlaytimeChange={setPlaytime}
+            onExportLogs={handleExportLogs}
+            setClientStatus={setClientStatus}
+            runningPackName={modpacks.find(p => p.id === runningPackId)?.name || ''}
+            showConfirm={showConfirm}
+            showAlert={showAlert}
           />
         );
       case 'mods':
@@ -673,9 +922,9 @@ export default function App() {
           );
         }
         // Для кастомных сборок (или обычных пользователей) → магазин модов
-        return <ModsPage currentPack={currentPack} onBack={() => setCurrentPage('client')} />;
+        return <ModsPage currentPack={currentPack} onBack={() => setCurrentPage('client')} showConfirm={showConfirm} showAlert={showAlert} />;
       case 'server':
-        return <ServerPage logs={serverLogs} isRunning={isServerRunning} players={serverPlayers} currentPack={currentPack} onPackUpdate={handlePackUpdate} />;
+        return <ServerPage logs={serverLogs} isRunning={isServerRunning} players={serverPlayers} currentPack={currentPack} onPackUpdate={handlePackUpdate} showConfirm={showConfirm} showAlert={showAlert} />;
       case 'users':
         return (
           <UsersPage 
@@ -718,11 +967,13 @@ export default function App() {
                 }));
               }
             }}
+            showConfirm={showConfirm}
+            showAlert={showAlert}
           />
         );
       }
       case 'settings':
-        return <SettingsPage currentPack={currentPack} />;
+        return <SettingsPage currentPack={currentPack} showConfirm={showConfirm} showAlert={showAlert} />;
       case 'admin':
         return profile && profile.is_admin === 1 ? (
           <AdminPage 
@@ -738,6 +989,8 @@ export default function App() {
             }}
             badges={badges}
             onBadgesUpdate={fetchBadges}
+            showConfirm={showConfirm}
+            showAlert={showAlert}
           />
         ) : null;
       default:

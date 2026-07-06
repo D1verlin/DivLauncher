@@ -20,7 +20,7 @@ const SORT_OPTIONS = [
   { id: 'name', nameKey: 'mods_sort_alpha', icon: 'fa-sort-alpha-down' }
 ];
 
-export default function ModsPage({ currentPack, onBack }) {
+export default function ModsPage({ currentPack, onBack, showConfirm, showAlert }) {
   const { lang, t } = useTranslation();
   const [source, setSource] = useState('curse'); // 'curse' | 'modrinth'
   const [projectType, setProjectType] = useState('mod'); // 'mod' | 'resourcepack' | 'shader'
@@ -268,7 +268,7 @@ export default function ModsPage({ currentPack, onBack }) {
       
       await fetchInstalledMods();
     } catch (err) {
-      alert(`${t('error')}: ${err.message}`);
+      showAlert(t('error'), err.message);
     } finally {
       setInstallingTarget(null);
     }
@@ -289,7 +289,7 @@ export default function ModsPage({ currentPack, onBack }) {
       
       await fetchInstalledMods();
     } catch (err) {
-      alert(`${t('error')}: ${err.message}`);
+      showAlert(t('error'), err.message);
     } finally {
       setInstallingTarget(null);
     }
@@ -307,13 +307,17 @@ export default function ModsPage({ currentPack, onBack }) {
       
       await fetchInstalledMods();
     } catch (err) {
-      alert(`${t('error')}: ${err.message}`);
+      showAlert(t('error'), err.message);
     } finally {
       setInstallingTarget(null);
     }
   };
 
-  const handleOpenDetails = async (mod) => {
+  const handleOpenDetails = async (mod, sourceOverride) => {
+    const activeSource = sourceOverride || source;
+    if (sourceOverride && sourceOverride !== source) {
+      setSource(sourceOverride);
+    }
     setSelectedMod(mod);
     setDetailsLoading(true);
     setError('');
@@ -326,10 +330,10 @@ export default function ModsPage({ currentPack, onBack }) {
     
     try {
       const [projRes, versionsRes] = await Promise.all([
-        source === 'curse'
+        activeSource === 'curse'
           ? window.electronAPI.getCurseProject(mod.id)
           : window.electronAPI.getModrinthProject(mod.id),
-        source === 'curse'
+        activeSource === 'curse'
           ? window.electronAPI.getCurseVersions(mod.id, [loader], [currentPack.mcVersion])
           : window.electronAPI.getModrinthVersions(mod.id, [loader], [currentPack.mcVersion])
       ]);
@@ -475,7 +479,7 @@ export default function ModsPage({ currentPack, onBack }) {
         throw new Error(res.error || "Translation failed");
       }
     } catch (err) {
-      alert(`${t('error')}: ${err.message}`);
+      showAlert(t('error'), err.message);
     } finally {
       setTranslatingBody(false);
     }
@@ -505,7 +509,7 @@ export default function ModsPage({ currentPack, onBack }) {
         throw new Error(res.error);
       }
     } catch (err) {
-      alert(`${t('error')}: ${err.message}`);
+      showAlert(t('error'), err.message);
     }
   };
 
@@ -514,7 +518,11 @@ export default function ModsPage({ currentPack, onBack }) {
     const confirmMsg = lang === 'ru' 
       ? `Вы действительно хотите удалить ${fileName}?` 
       : `Are you sure you want to delete ${fileName}?`;
-    if (!confirm(confirmMsg)) return;
+    const confirmed = await showConfirm(
+      lang === 'ru' ? 'Удалить?' : 'Delete?',
+      confirmMsg
+    );
+    if (!confirmed) return;
     try {
       const res = await window.electronAPI.deleteMod(currentPack.clientDir, fileName, projectType);
       if (res.success) {
@@ -531,7 +539,37 @@ export default function ModsPage({ currentPack, onBack }) {
         throw new Error(res.error);
       }
     } catch (err) {
-      alert(`${t('error')}: ${err.message}`);
+      showAlert(t('error'), err.message);
+    }
+  };
+
+  const handleInstalledModClick = async (fileName) => {
+    const baseName = fileName.toLowerCase().endsWith('.disabled') ? fileName.slice(0, -9) : fileName;
+    
+    // 1. Precise lookup in the installed_map
+    const map = getInstalledMap();
+    const foundModId = Object.keys(map).find(key => {
+      const val = map[key];
+      return val === fileName || val === baseName || (val && val.replace('.disabled', '') === baseName);
+    });
+
+    if (foundModId) {
+      const isCurseId = /^\d+$/.test(foundModId);
+      const modSource = isCurseId ? 'curse' : 'modrinth';
+      handleOpenDetails({ id: foundModId }, modSource);
+    } else {
+      // 2. Fallback lookup in currently loaded search results
+      const matchedMod = mods.find(m => {
+        const installed = getInstalledFileName(m);
+        return installed === fileName || (installed && installed.replace('.disabled', '').toLowerCase() === baseName.toLowerCase());
+      });
+      if (matchedMod) {
+        handleOpenDetails(matchedMod, source);
+      } else {
+        // 3. Ultimate fallback: fill search input and trigger search
+        const info = getFriendlyModInfo(fileName);
+        setSearch(info.title);
+      }
     }
   };
 
@@ -1583,6 +1621,7 @@ export default function ModsPage({ currentPack, onBack }) {
                             return (
                               <div 
                                 key={fileName}
+                                onClick={() => handleInstalledModClick(fileName)}
                                 style={{ 
                                   display: 'flex', 
                                   alignItems: 'center', 
@@ -1592,12 +1631,21 @@ export default function ModsPage({ currentPack, onBack }) {
                                   background: isEnabled ? 'rgba(255, 255, 255, 0.02)' : 'rgba(255, 255, 255, 0.01)',
                                   border: isEnabled ? '1px solid rgba(255, 255, 255, 0.05)' : '1px solid rgba(255, 255, 255, 0.02)',
                                   opacity: isEnabled ? 1 : 0.65,
-                                  transition: 'opacity 0.2s, background 0.2s'
+                                  transition: 'opacity 0.2s, background 0.2s, border-color 0.2s',
+                                  cursor: 'pointer'
+                                }}
+                                onMouseEnter={e => {
+                                  e.currentTarget.style.background = 'rgba(255, 255, 255, 0.06)';
+                                  e.currentTarget.style.borderColor = 'rgba(16, 185, 129, 0.2)';
+                                }}
+                                onMouseLeave={e => {
+                                  e.currentTarget.style.background = isEnabled ? 'rgba(255, 255, 255, 0.02)' : 'rgba(255, 255, 255, 0.01)';
+                                  e.currentTarget.style.borderColor = isEnabled ? 'rgba(255, 255, 255, 0.05)' : 'rgba(255, 255, 255, 0.02)';
                                 }}
                               >
                                 {/* Status Checkbox toggle */}
                                 <div 
-                                  onClick={() => handleToggleMod(fileName)}
+                                  onClick={(e) => { e.stopPropagation(); handleToggleMod(fileName); }}
                                   style={{ cursor: 'pointer', color: isEnabled ? '#10b981' : '#71717a', fontSize: '14px', display: 'flex', alignItems: 'center' }}
                                 >
                                   <i className={`fa-solid ${isEnabled ? 'fa-square-check' : 'fa-square'}`}></i>
@@ -1630,7 +1678,7 @@ export default function ModsPage({ currentPack, onBack }) {
 
                                 {/* Delete Button */}
                                 <button 
-                                  onClick={() => handleDeleteMod(fileName)}
+                                  onClick={(e) => { e.stopPropagation(); handleDeleteMod(fileName); }}
                                   style={{
                                     background: 'transparent',
                                     border: 'none',

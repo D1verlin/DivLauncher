@@ -10,6 +10,28 @@ const axios = require('axios');
 
 let serverProcess = null;
 
+const resolveClientPath = (clientDir) => {
+  if (!clientDir) return '';
+  if (path.isAbsolute(clientDir)) return clientDir;
+  const isCustom = clientDir.startsWith('custom-packs');
+  if (!isCustom) {
+    const exeDir = path.dirname(app.getPath('exe'));
+    return path.resolve(exeDir, clientDir);
+  }
+  return path.resolve(app.getPath('userData'), clientDir);
+};
+
+const resolveServerPath = (serverDir) => {
+  if (!serverDir) return '';
+  if (path.isAbsolute(serverDir)) return serverDir;
+  const isCustom = serverDir.startsWith('custom-packs');
+  if (!isCustom) {
+    const exeDir = path.dirname(app.getPath('exe'));
+    return path.resolve(exeDir, serverDir);
+  }
+  return path.resolve(app.getPath('userData'), serverDir);
+};
+
 const debugLogPath = 'C:\\Users\\Lenovo\\Desktop\\Projects\\DivLauncher\\div_launcher_debug.log';
 
 function sysLog(...args) {
@@ -532,7 +554,7 @@ async function ensureLoader(event, pack) {
   }
 
   if (pack.loaderType === 'neoforge' || pack.loaderType === 'forge') {
-    const serverRoot = path.resolve(app.getPath('userData'), pack.serverDir);
+    const serverRoot = resolveServerPath(pack.serverDir);
     await ensureInstallerLibraries(event, installerPath, serverRoot);
   }
 
@@ -678,8 +700,8 @@ async function resolveArclightServerUrl(mcVersion) {
 
 function syncLocalModsHelper(pack) {
   try {
-    const clientRoot = path.resolve(app.getPath('userData'), pack.clientDir);
-    const serverRoot = path.resolve(app.getPath('userData'), pack.serverDir);
+    const clientRoot = resolveClientPath(pack.clientDir);
+    const serverRoot = resolveServerPath(pack.serverDir);
     
     const clientModsDir = path.join(clientRoot, 'mods');
     const serverModsDir = path.join(serverRoot, 'mods');
@@ -734,7 +756,7 @@ module.exports = function(ipcMain, mainWindow) {
 
   // Чтение свойств сервера для UI
   ipcMain.handle('get-server-props', (event, pack) => {
-    const serverRoot = path.resolve(app.getPath('userData'), pack.serverDir);
+    const serverRoot = resolveServerPath(pack.serverDir);
     const propsPath = path.join(serverRoot, 'server.properties');
     let props = { 
       'motd': pack.name, 
@@ -786,7 +808,7 @@ module.exports = function(ipcMain, mainWindow) {
 
   // Сохранение свойств сервера из UI
   ipcMain.handle('save-server-props', (event, pack, newProps) => {
-    const serverRoot = path.resolve(app.getPath('userData'), pack.serverDir);
+    const serverRoot = resolveServerPath(pack.serverDir);
     const propsPath = path.join(serverRoot, 'server.properties');
     let props = {};
     if (fs.existsSync(propsPath)) {
@@ -835,7 +857,7 @@ module.exports = function(ipcMain, mainWindow) {
 
   // Быстрый бэкап мира через встроенный TAR Windows
   ipcMain.on('backup-world', (event, pack) => {
-    const serverRoot = path.resolve(app.getPath('userData'), pack.serverDir);
+    const serverRoot = resolveServerPath(pack.serverDir);
     const worldDir = path.join(serverRoot, 'world');
     if (!fs.existsSync(worldDir)) {
       event.reply('server-log', '[Бэкап] Ошибка: Папка world пуста или не существует.\n');
@@ -851,7 +873,7 @@ module.exports = function(ipcMain, mainWindow) {
 
   ipcMain.handle('list-backups', async (event, pack) => {
     try {
-      const serverRoot = path.resolve(app.getPath('userData'), pack.serverDir);
+      const serverRoot = resolveServerPath(pack.serverDir);
       if (!fs.existsSync(serverRoot)) return [];
       const files = fs.readdirSync(serverRoot);
       const backups = [];
@@ -879,7 +901,7 @@ module.exports = function(ipcMain, mainWindow) {
       if (fileName.includes('/') || fileName.includes('\\') || !fileName.startsWith('backup_') || !fileName.endsWith('.zip')) {
         throw new Error('Некорректное имя файла бэкапа');
       }
-      const serverRoot = path.resolve(app.getPath('userData'), pack.serverDir);
+      const serverRoot = resolveServerPath(pack.serverDir);
       const filePath = path.join(serverRoot, fileName);
       if (fs.existsSync(filePath)) {
         fs.unlinkSync(filePath);
@@ -900,7 +922,7 @@ module.exports = function(ipcMain, mainWindow) {
       if (serverProcess) {
         throw new Error('Невозможно восстановить бэкап, пока сервер запущен!');
       }
-      const serverRoot = path.resolve(app.getPath('userData'), pack.serverDir);
+      const serverRoot = resolveServerPath(pack.serverDir);
       const filePath = path.join(serverRoot, fileName);
       if (!fs.existsSync(filePath)) {
         throw new Error('Файл резервной копии не найден');
@@ -1198,7 +1220,7 @@ storage-method: h2
   async function startServer(event, pack) {
     if (serverProcess) { event.reply('server-log', 'Сервер уже запущен!\n'); return; }
     try {
-      const serverRoot = path.resolve(app.getPath('userData'), pack.serverDir);
+      const serverRoot = resolveServerPath(pack.serverDir);
       if (!fs.existsSync(serverRoot)) fs.mkdirSync(serverRoot, { recursive: true });
       event.reply('server-status', 'starting');
 
@@ -1295,14 +1317,14 @@ storage-method: h2
           event.reply('server-log', `Установка ядра ${isFabric ? 'Fabric' : 'Quilt'} (скачивание сервера)...\n`);
           execSync(`"${activeJavaPath}" -jar "${installerPath}" server -dir "${serverRoot}" -mcversion ${pack.mcVersion} -loader ${pack.loaderVersion} -downloadMinecraft`, { stdio: 'ignore' });
         }
-        fs.writeFileSync(runBatPath, `java -Xmx4G -Dfile.encoding=UTF-8 -javaagent:authlib-injector.jar=${authServerUrl}/api/yggdrasil -jar ${jarName} nogui\npause`);
+        fs.writeFileSync(runBatPath, `java -Xmx4G -Dfile.encoding=UTF-8 -Dhttp.agent=Mozilla/5.0 -javaagent:authlib-injector.jar=${authServerUrl}/api/yggdrasil -jar ${jarName} nogui\npause`);
       } else if (sLoaderType === 'paper' || sLoaderType === 'spigot' || sLoaderType === 'hybrid') {
         const serverJarName = path.basename(installerPath);
         const serverJarDest = path.join(serverRoot, serverJarName);
         if (!fs.existsSync(serverJarDest)) {
           fs.copyFileSync(installerPath, serverJarDest);
         }
-        fs.writeFileSync(runBatPath, `java -Xmx4G -Dfile.encoding=UTF-8 -javaagent:authlib-injector.jar=${authServerUrl}/api/yggdrasil -jar "${serverJarName}" nogui\npause`);
+        fs.writeFileSync(runBatPath, `java -Xmx4G -Dfile.encoding=UTF-8 -Dhttp.agent=Mozilla/5.0 -javaagent:authlib-injector.jar=${authServerUrl}/api/yggdrasil -jar "${serverJarName}" nogui\npause`);
       } else if (sLoaderType === 'forge' || sLoaderType === 'neoforge') {
         const isForge = sLoaderType === 'forge';
         if (!fs.existsSync(runBatPath)) {
@@ -1314,10 +1336,10 @@ storage-method: h2
           const files = fs.readdirSync(serverRoot);
           const forgeJar = files.find(f => (f.startsWith('forge-') || f.startsWith('neoforge-')) && f.endsWith('.jar') && !f.includes('installer'));
           if (forgeJar) {
-            fs.writeFileSync(runBatPath, `java -Xmx4G -Dfile.encoding=UTF-8 -javaagent:authlib-injector.jar=${authServerUrl}/api/yggdrasil -jar "${forgeJar}" nogui\npause`);
+            fs.writeFileSync(runBatPath, `java -Xmx4G -Dfile.encoding=UTF-8 -Dhttp.agent=Mozilla/5.0 -javaagent:authlib-injector.jar=${authServerUrl}/api/yggdrasil -jar "${forgeJar}" nogui\npause`);
           } else {
             // Write a general fallback run.bat just in case
-            fs.writeFileSync(runBatPath, `java -Xmx4G -Dfile.encoding=UTF-8 -javaagent:authlib-injector.jar=${authServerUrl}/api/yggdrasil -jar ${sLoaderType}.jar nogui\npause`);
+            fs.writeFileSync(runBatPath, `java -Xmx4G -Dfile.encoding=UTF-8 -Dhttp.agent=Mozilla/5.0 -javaagent:authlib-injector.jar=${authServerUrl}/api/yggdrasil -jar ${sLoaderType}.jar nogui\npause`);
           }
         }
         // Настройка jvm аргументов для Forge серверов (через user_jvm_args.txt)
@@ -1329,6 +1351,10 @@ storage-method: h2
         let modified = false;
         if (!jvmContent.includes('-Dfile.encoding=UTF-8')) {
           jvmContent = `-Dfile.encoding=UTF-8\n` + jvmContent;
+          modified = true;
+        }
+        if (!jvmContent.includes('-Dhttp.agent=')) {
+          jvmContent = `-Dhttp.agent=Mozilla/5.0\n` + jvmContent;
           modified = true;
         }
         if (!jvmContent.includes('-javaagent:authlib-injector.jar')) {
@@ -1345,7 +1371,7 @@ storage-method: h2
         if (!fs.existsSync(serverJarDest) && fs.existsSync(installerPath)) {
           fs.copyFileSync(installerPath, serverJarDest);
         }
-        fs.writeFileSync(runBatPath, `java -Xmx4G -Dfile.encoding=UTF-8 -javaagent:authlib-injector.jar=${authServerUrl}/api/yggdrasil -jar "${serverJarName}" nogui\npause`);
+        fs.writeFileSync(runBatPath, `java -Xmx4G -Dfile.encoding=UTF-8 -Dhttp.agent=Mozilla/5.0 -javaagent:authlib-injector.jar=${authServerUrl}/api/yggdrasil -jar "${serverJarName}" nogui\npause`);
       }
 
       // Автоматическое внедрение глобальных плагинов и модов
@@ -1418,7 +1444,7 @@ storage-method: h2
 
   ipcMain.on('open-server-folder', (event, pack) => {
     if (!pack) return;
-    shell.openPath(path.resolve(app.getPath('userData'), pack.serverDir));
+    shell.openPath(resolveServerPath(pack.serverDir));
   });
 
   ipcMain.handle('sync-local-mods', async (event, pack) => {
@@ -1429,7 +1455,7 @@ storage-method: h2
     if (!pack) return;
     const { canceled, filePaths } = await dialog.showOpenDialog({ title: 'Выберите мир', properties: ['openDirectory'] });
     if (!canceled && filePaths.length > 0) {
-      const targetFolder = path.resolve(app.getPath('userData'), pack.serverDir, 'world');
+      const targetFolder = path.resolve(resolveServerPath(pack.serverDir), 'world');
       try {
         event.reply('server-log', `Установка мира...\n`);
         if (fs.existsSync(targetFolder)) fs.rmSync(targetFolder, { recursive: true, force: true });

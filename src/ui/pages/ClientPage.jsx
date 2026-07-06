@@ -2,6 +2,31 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTranslation } from '../utils/i18n';
 
+// --- SHARED GLASSMORPHIC STYLES ---
+const glassCard = {
+  background: 'rgba(10, 10, 16, 0.75)',
+  backdropFilter: 'blur(32px)',
+  WebkitBackdropFilter: 'blur(32px)',
+  border: '1px solid rgba(255, 255, 255, 0.08)',
+  borderRadius: '24px',
+  padding: '24px',
+  boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.7)',
+};
+
+const glassInput = {
+  background: 'rgba(255, 255, 255, 0.04)',
+  border: '1px solid rgba(255, 255, 255, 0.08)',
+  borderRadius: '14px',
+  color: '#fff',
+  padding: '10px 14px',
+  width: '80px',
+  outline: 'none',
+  fontFamily: 'Montserrat',
+  fontSize: '14px',
+  fontWeight: 700,
+  textAlign: 'center',
+};
+
 // --- ФУНКЦИЯ ФОРМАТИРОВАНИЯ ВРЕМЕНИ ---
 const formatPlaytime = (ms, t) => {
   const totalMins = Math.floor(ms / 60000);
@@ -12,18 +37,36 @@ const formatPlaytime = (ms, t) => {
   return `${h}${t('client_playtime_hours')}${m}${t('client_playtime_minutes')}`;
 };
 
-export default function ClientPage({ openSettings, openMods, currentPack, onDeletePack }) {
+export default function ClientPage({ 
+  openSettings, 
+  openMods, 
+  currentPack, 
+  onDeletePack,
+  isPlaying,
+  isLaunching,
+  isUpdating,
+  downloadProgress,
+  clientStatus: status,
+  clientConsoleLogs: consoleLogs,
+  runningPackId,
+  runningPackName,
+  playtime,
+  onLaunchGame,
+  onKillGame,
+  onUpdatePack,
+  onPlaytimeChange,
+  onExportLogs,
+  setClientStatus,
+  showConfirm,
+  showAlert
+}) {
   const { lang, t } = useTranslation();
-  const [status, setStatus] = useState(t('client_ready'));
-  const [isLaunching, setIsLaunching] = useState(false);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [isUpdating, setIsUpdating] = useState(false);
-  const [consoleLogs, setConsoleLogs] = useState([]);
-  const fullLogsRef = useRef([]);
-  
-  const [downloadProgress, setDownloadProgress] = useState(0);
-
   const [activeUsername, setActiveUsername] = useState(localStorage.getItem('launcher_username') || '');
+
+  // States for playtime editing modal
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editHours, setEditHours] = useState('0');
+  const [editMinutes, setEditMinutes] = useState('0');
 
   const getLogColor = (log) => {
     if (log.includes('[ERROR]') || log.includes('[FATAL]') || log.includes('Exception') || log.toLowerCase().includes('error')) {
@@ -38,17 +81,6 @@ export default function ClientPage({ openSettings, openMods, currentPack, onDele
     return '#71717a'; // Grey
   };
 
-  const handleExportLogs = () => {
-    if (fullLogsRef.current.length === 0) return;
-    const blob = new Blob([fullLogsRef.current.join('\n')], { type: 'text/plain;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `client_log_${currentPack.id}.txt`;
-    link.click();
-    URL.revokeObjectURL(url);
-  };
-
   useEffect(() => {
     const handleSettingsUpdate = () => {
       setActiveUsername(localStorage.getItem('launcher_username') || '');
@@ -57,13 +89,6 @@ export default function ClientPage({ openSettings, openMods, currentPack, onDele
     handleSettingsUpdate();
     return () => window.removeEventListener('settings-changed', handleSettingsUpdate);
   }, []);
-  
-  // Состояния для счетчика времени
-  const [playtime, setPlaytime] = useState(0);
-  const sessionStartRef = useRef(null);
-  
-  const isLaunchingRef = useRef(false);
-  const currentPackRef = useRef(currentPack); 
 
   // --- УМНАЯ ПРОВЕРКА ВЕРСИИ И УСТАНОВКИ ---
   const installedVersion = localStorage.getItem(`installed_v_${currentPack.id}`);
@@ -71,174 +96,27 @@ export default function ClientPage({ openSettings, openMods, currentPack, onDele
   const needsInstall = isZipPack && !installedVersion;
   const needsUpdate = isZipPack && installedVersion && (currentPack.packVersion !== installedVersion);
 
-  useEffect(() => {
-    isLaunchingRef.current = isLaunching;
-  }, [isLaunching]);
-
-  useEffect(() => {
-    currentPackRef.current = currentPack;
-    
-    // Подгружаем сохраненное время при переключении сборки
-    const savedTime = parseInt(localStorage.getItem(`playtime_${currentPack.id}`) || '0', 10);
-    setPlaytime(savedTime);
-    
-    let initialStatus = t('client_ready');
-    if (needsInstall) initialStatus = `${t('client_needs_install')}${currentPack.packVersion}`;
-    else if (needsUpdate) initialStatus = `${t('client_needs_update')}${currentPack.packVersion}`;
-    
-    setStatus(initialStatus);
-    setConsoleLogs([]); 
-    setIsPlaying(false);
-    setIsLaunching(false);
-    setIsUpdating(false);
-    setDownloadProgress(0);
-  }, [currentPack, needsInstall, needsUpdate]);
-
-  // АВТОСОХРАНЕНИЕ ВРЕМЕНИ (раз в минуту, защита от закрытия лаунчера)
-  useEffect(() => {
-    let interval;
-    if (isPlaying && sessionStartRef.current) {
-      interval = setInterval(() => {
-        const playedMs = Date.now() - sessionStartRef.current;
-        const saved = parseInt(localStorage.getItem(`playtime_${currentPackRef.current.id}`) || '0', 10);
-        const newTotal = saved + playedMs;
-        
-        setPlaytime(newTotal); // Обновляем UI
-        localStorage.setItem(`playtime_${currentPackRef.current.id}`, newTotal); // Пишем в память
-        
-        // Сдвигаем точку отсчета, чтобы не прибавлять одно и то же время дважды
-        sessionStartRef.current = Date.now();
-      }, 60000); 
-    }
-    return () => clearInterval(interval);
-  }, [isPlaying]);
-
-  useEffect(() => {
-    if (window.electronAPI.onDownloadProgress) {
-      window.electronAPI.onDownloadProgress((event, percent) => {
-        setDownloadProgress(percent);
-        setStatus(`${t('client_updating')} (${percent}%)`);
-      });
-    }
-
-    if (window.electronAPI.onUpdateDone) {
-      window.electronAPI.onUpdateDone(() => {
-        localStorage.setItem(`installed_v_${currentPackRef.current.id}`, currentPackRef.current.packVersion);
-        setIsUpdating(false);
-        setStatus(needsInstall 
-          ? (lang === 'ru' ? 'Сборка успешно установлена!' : 'Modpack installed successfully!') 
-          : (lang === 'ru' ? 'Сборка обновлена!' : 'Modpack updated!')
-        );
-      });
-    }
-
-    window.electronAPI.onProgress((event, msg) => {
-      if (msg.startsWith('[LOG]')) {
-        const cleanMsg = msg.replace('[LOG]', '').trim();
-        if (cleanMsg) {
-          const lines = cleanMsg.split('\n').map(l => l.trim()).filter(l => l);
-          fullLogsRef.current.push(...lines);
-          setConsoleLogs(prev => {
-            return [...prev, ...lines].slice(-6); 
-          });
-
-          if (isLaunchingRef.current && (
-              cleanMsg.includes('Render thread/INFO') || 
-              cleanMsg.includes('LWJGL') || 
-              cleanMsg.includes('OpenAL') ||
-              cleanMsg.includes('Sound engine started') ||
-              cleanMsg.includes('Setting user:')
-          )) {
-            setIsLaunching(false);
-            setIsPlaying(true); 
-            setStatus(t('client_playing')); 
-            // ЗАПУСКАЕМ ТАЙМЕР
-            sessionStartRef.current = Date.now();
-
-            // ---> МЕНЯЕМ СТАТУС В DISCORD НА ИГРОВОЙ <---
-            if (window.electronAPI.setDiscordPlaying) {
-              window.electronAPI.setDiscordPlaying(currentPackRef.current.name);
-            }
-          }
-        }
-        return;
-      }
-      
-      setStatus(msg);
-      if (msg.includes('Запуск Minecraft...') || msg.includes('Launching Minecraft...')) {
-        setConsoleLogs(lang === 'ru' 
-          ? ["Инициализация движка...", "Передача управления Java..."] 
-          : ["Initializing engine...", "Handing over to Java..."]
-        );
-      }
-    });
-
-    window.electronAPI.onError((event, msg) => { 
-      setStatus(`${t('error')}: ${msg}`); 
-      fullLogsRef.current.push(`[ERROR] ${lang === 'ru' ? 'Ошибка запуска' : 'Launch error'}: ${msg}`);
-      setIsLaunching(false); 
-      setIsPlaying(false);
-      setIsUpdating(false);
-    });
-
-    window.electronAPI.onClosed(() => { 
-      // СОХРАНЯЕМ ОСТАТКИ ВРЕМЕНИ ПРИ ЗАКРЫТИИ
-      if (sessionStartRef.current) {
-        const playedMs = Date.now() - sessionStartRef.current;
-        const saved = parseInt(localStorage.getItem(`playtime_${currentPackRef.current.id}`) || '0', 10);
-        const newTotal = saved + playedMs;
-        localStorage.setItem(`playtime_${currentPackRef.current.id}`, newTotal);
-        setPlaytime(newTotal);
-        sessionStartRef.current = null;
-      }
-
-      setStatus(t('client_closed')); 
-      setIsLaunching(false); 
-      setIsPlaying(false); 
-      setConsoleLogs([]); 
-
-      // ---> ВОЗВРАЩАЕМ СТАТУС В DISCORD В РЕЖИМ ОЖИДАНИЯ <---
-      if (window.electronAPI.setDiscordIdle) {
-        window.electronAPI.setDiscordIdle();
-      }
-    });
-
-    return () => {
-      window.electronAPI.removeAllListeners?.('download-progress');
-      window.electronAPI.removeAllListeners?.('update-done');
-      window.electronAPI.removeAllListeners?.('launch-progress');
-      window.electronAPI.removeAllListeners?.('launch-error');
-      window.electronAPI.removeAllListeners?.('launch-closed');
-    };
-  }, [needsInstall]); 
+  const isAnotherPackRunning = runningPackId && runningPackId !== currentPack.id;
 
   const handleAction = () => {
+    if (isAnotherPackRunning) return;
+
     if (isPlaying) {
-      window.electronAPI.killGame();
+      onKillGame();
       return;
     }
 
     if (needsInstall || needsUpdate) {
-      setIsUpdating(true);
-      setStatus(needsInstall ? t('client_updating') : t('client_launching'));
-      if (window.electronAPI.updatePack) {
-        window.electronAPI.updatePack(currentPack);
-      }
+      onUpdatePack(currentPack);
       return;
     }
 
     if (activeUsername.length < 3) { 
-      setStatus(t('client_username_warning')); 
+      setClientStatus(t('client_username_warning')); 
       return; 
     }
     
-    setIsLaunching(true);
-    setIsPlaying(false);
-    setStatus(t('client_launching'));
-    fullLogsRef.current = [t('client_launching')];
-    setConsoleLogs([t('client_launching')]);
-
-    window.electronAPI.launchGame({
+    onLaunchGame(currentPack, {
       pack: currentPack,
       username: activeUsername,
       ram: (localStorage.getItem('launcher_ram') || '4') + 'G',
@@ -249,6 +127,33 @@ export default function ClientPage({ openSettings, openMods, currentPack, onDele
       height: localStorage.getItem('launcher_win_height') || '720',
       fullscreen: localStorage.getItem('launcher_fullscreen') === 'true'
     });
+  };
+
+  const handleOpenEditModal = () => {
+    const totalMins = Math.floor(playtime / 60000);
+    const h = Math.floor(totalMins / 60);
+    const m = totalMins % 60;
+    setEditHours(String(h));
+    setEditMinutes(String(m));
+    setShowEditModal(true);
+  };
+
+  const handleSavePlaytime = () => {
+    const h = parseInt(editHours, 10);
+    const m = parseInt(editMinutes, 10);
+    if (isNaN(h) || isNaN(m) || h < 0 || m < 0 || m >= 60) {
+      showAlert(t('error'), t('client_playtime_invalid_input'));
+      return;
+    }
+    const newPlaytime = (h * 60 + m) * 60000;
+    localStorage.setItem(`playtime_${currentPack.id}`, String(newPlaytime));
+    onPlaytimeChange(newPlaytime);
+    setShowEditModal(false);
+  };
+
+  const handleResetPlaytime = () => {
+    setEditHours('0');
+    setEditMinutes('0');
   };
 
   const containerVariants = {
@@ -335,11 +240,21 @@ export default function ClientPage({ openSettings, openMods, currentPack, onDele
         <motion.div variants={itemVariants} style={{ display: 'flex', alignItems: 'center', gap: '15px', minHeight: '30px', marginBottom: '35px', position: 'relative', width: '100%' }}>
           <div style={{ background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.05)', padding: '6px 12px', borderRadius: '10px', fontSize: '13px', color: '#a1a1aa', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px', boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.3)', flexShrink: 0 }}>
             <i className="fa-regular fa-clock" style={{ color: '#3b82f6' }}></i>
-            {t('client_playtime')}<span style={{ color: '#fff' }}>{formatPlaytime(playtime, t)}</span>
+            {t('client_playtime')}
+            <span style={{ color: '#fff' }}>{formatPlaytime(playtime, t)}</span>
+            <motion.button 
+              whileHover={{ scale: 1.15, color: '#f59e0b' }} 
+              whileTap={{ scale: 0.95 }}
+              onClick={handleOpenEditModal}
+              title={t('client_playtime_edit')}
+              style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.4)', cursor: 'pointer', fontSize: '12px', padding: '0 4px', display: 'flex', alignItems: 'center', marginLeft: '4px' }}
+            >
+              <i className="fa-solid fa-pen"></i>
+            </motion.button>
           </div>
           <p style={{ 
             fontSize: '15px', 
-            color: (isLaunching || isUpdating) ? '#34d399' : (isPlaying ? '#60a5fa' : ((needsInstall || needsUpdate) ? '#f59e0b' : '#e4e4e7')), 
+            color: isAnotherPackRunning ? '#ef4444' : (isLaunching || isUpdating) ? '#34d399' : (isPlaying ? '#60a5fa' : ((needsInstall || needsUpdate) ? '#f59e0b' : '#e4e4e7')), 
             fontWeight: 600, 
             margin: 0, 
             textShadow: '0 2px 6px rgba(0,0,0,1)', 
@@ -349,7 +264,7 @@ export default function ClientPage({ openSettings, openMods, currentPack, onDele
             textOverflow: 'ellipsis',
             maxWidth: '350px'
           }}>
-            {status}
+            {isAnotherPackRunning ? `${t('client_another_pack_running')} ${runningPackName}` : status}
           </p>
         </motion.div>
 
@@ -368,25 +283,65 @@ export default function ClientPage({ openSettings, openMods, currentPack, onDele
         
         <motion.div variants={itemVariants} style={{ display: 'flex', gap: '15px', zIndex: 10 }}>
           <motion.button 
-            whileHover={!(isLaunching || isUpdating) ? { scale: 1.05, boxShadow: isPlaying ? '0 10px 30px rgba(239, 68, 68, 0.5)' : ((needsInstall || needsUpdate) ? '0 10px 30px rgba(59, 130, 246, 0.5)' : '0 10px 30px rgba(16, 185, 129, 0.5)') } : {}} 
-            whileTap={!(isLaunching || isUpdating) ? { scale: 0.95 } : {}} 
-            onClick={!(isLaunching || isUpdating) ? handleAction : undefined} 
+            whileHover={!(isLaunching || isUpdating || isAnotherPackRunning) ? { scale: 1.05, boxShadow: isPlaying ? '0 10px 30px rgba(239, 68, 68, 0.5)' : ((needsInstall || needsUpdate) ? '0 10px 30px rgba(59, 130, 246, 0.5)' : '0 10px 30px rgba(16, 185, 129, 0.5)') } : {}} 
+            whileTap={!(isLaunching || isUpdating || isAnotherPackRunning) ? { scale: 0.95 } : {}} 
+            onClick={!(isLaunching || isUpdating || isAnotherPackRunning) ? handleAction : undefined} 
             style={{ 
-              background: (isLaunching || isUpdating) ? '#059669' : (isPlaying ? '#ef4444' : ((needsInstall || needsUpdate) ? 'linear-gradient(135deg, #3b82f6, #2563eb)' : 'linear-gradient(135deg, #10b981, #059669)')), 
-              color: '#fff', border: 'none', padding: '0 40px', height: '65px', borderRadius: '20px', 
-              fontSize: '18px', fontWeight: 800, cursor: (isLaunching || isUpdating) ? 'wait' : 'pointer', 
+              background: isAnotherPackRunning 
+                ? 'rgba(255, 255, 255, 0.05)' 
+                : (isLaunching || isUpdating) 
+                  ? '#059669' 
+                  : (isPlaying 
+                    ? '#ef4444' 
+                    : ((needsInstall || needsUpdate) 
+                      ? 'linear-gradient(135deg, #3b82f6, #2563eb)' 
+                      : 'linear-gradient(135deg, #10b981, #059669)')), 
+              color: isAnotherPackRunning ? '#71717a' : '#fff', 
+              border: isAnotherPackRunning ? '1px solid rgba(255, 255, 255, 0.08)' : 'none', 
+              padding: '0 40px', height: '65px', borderRadius: '20px', 
+              fontSize: '18px', fontWeight: 800, 
+              cursor: isAnotherPackRunning ? 'not-allowed' : (isLaunching || isUpdating) ? 'wait' : 'pointer', 
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '15px', textTransform: 'uppercase', 
-              letterSpacing: '1.5px', boxShadow: '0 10px 25px rgba(0,0,0,0.6)', position: 'relative', overflow: 'hidden',
+              letterSpacing: '1.5px', boxShadow: isAnotherPackRunning ? 'none' : '0 10px 25px rgba(0,0,0,0.6)', 
+              position: 'relative', overflow: 'hidden',
               transition: 'background 0.3s'
             }}
           >
             {(isLaunching || isUpdating) && <motion.div animate={{ x: ['-150%', '250%'] }} transition={{ repeat: Infinity, duration: 1.5, ease: "easeInOut" }} style={{ position: 'absolute', top: 0, left: 0, width: '50%', height: '100%', background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent)', transform: 'skewX(-20deg)' }} />}
             
             {/* ИКОНКА */}
-            {(isLaunching || isUpdating) ? <i className="fa-solid fa-spinner fa-spin"></i> : (isPlaying ? <i className="fa-solid fa-stop"></i> : (needsInstall ? <i className="fa-solid fa-download"></i> : (needsUpdate ? <i className="fa-solid fa-cloud-arrow-down"></i> : <i className="fa-solid fa-play"></i>)))} 
+            {isAnotherPackRunning ? (
+              <i className="fa-solid fa-ban"></i>
+            ) : (isLaunching || isUpdating) ? (
+              <i className="fa-solid fa-spinner fa-spin"></i>
+            ) : isPlaying ? (
+              <i className="fa-solid fa-stop"></i>
+            ) : needsInstall ? (
+              <i className="fa-solid fa-download"></i>
+            ) : needsUpdate ? (
+              <i className="fa-solid fa-cloud-arrow-down"></i>
+            ) : (
+              <i className="fa-solid fa-play"></i>
+            )} 
             
             {/* ТЕКСТ */}
-            {isLaunching ? (lang === 'ru' ? 'ЗАПУСК...' : 'LAUNCHING...') : (isUpdating ? (needsInstall ? (lang === 'ru' ? 'УСТАНОВКА...' : 'INSTALLING...') : (lang === 'ru' ? 'ОБНОВЛЕНИЕ...' : 'UPDATING...')) : (isPlaying ? (lang === 'ru' ? 'ОСТАНОВИТЬ' : 'STOP') : (needsInstall ? t('client_install').toUpperCase() : (needsUpdate ? t('client_update').toUpperCase() : t('client_play').toUpperCase()))))}
+            {isAnotherPackRunning ? (
+              (lang === 'ru' ? 'ЗАПУЩЕНА ДРУГАЯ СБОРКА' : 'ANOTHER PACK IS RUNNING')
+            ) : isLaunching ? (
+              (lang === 'ru' ? 'ЗАПУСК...' : 'LAUNCHING...')
+            ) : isUpdating ? (
+              needsInstall 
+                ? (lang === 'ru' ? 'УСТАНОВКА...' : 'INSTALLING...') 
+                : (lang === 'ru' ? 'ОБНОВЛЕНИЕ...' : 'UPDATING...')
+            ) : isPlaying ? (
+              (lang === 'ru' ? 'ОСТАНОВИТЬ' : 'STOP')
+            ) : needsInstall ? (
+              t('client_install').toUpperCase()
+            ) : needsUpdate ? (
+              t('client_update').toUpperCase()
+            ) : (
+              t('client_play').toUpperCase()
+            )}
           </motion.button>
 
           <motion.button 
@@ -424,7 +379,7 @@ export default function ClientPage({ openSettings, openMods, currentPack, onDele
               animate={{ scale: 1, opacity: 1 }}
               whileHover={{ background: 'rgba(0,0,0,0.8)', scale: 1.05, borderColor: 'rgba(255,255,255,0.3)' }} 
               whileTap={{ scale: 0.95 }}
-              onClick={handleExportLogs} 
+              onClick={onExportLogs} 
               style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(10px)', color: '#fff', border: '1px solid rgba(255,255,255,0.1)', width: '65px', height: '65px', borderRadius: '20px', fontSize: '22px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 10px 25px rgba(0,0,0,0.5)', transition: 'color 0.3s' }}
               title={t('client_export_logs')}
             >
@@ -453,6 +408,123 @@ export default function ClientPage({ openSettings, openMods, currentPack, onDele
         </AnimatePresence>
 
       </motion.div>
+
+      {/* --- PLAYTIME EDITING MODAL (GLASSMORPHIC) --- */}
+      <AnimatePresence>
+        {showEditModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            style={{
+              position: 'fixed',
+              inset: 0,
+              zIndex: 1000,
+              background: 'rgba(0,0,0,0.8)',
+              backdropFilter: 'blur(10px)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+            onClick={(e) => { if (e.target === e.currentTarget) setShowEditModal(false); }}
+          >
+            <motion.div
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 20 }}
+              transition={{ type: 'spring', stiffness: 350, damping: 26 }}
+              style={{ ...glassCard, maxWidth: '380px', width: '90%' }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '20px' }}>
+                <div style={{
+                  width: '42px', height: '42px', borderRadius: '12px', flexShrink: 0,
+                  background: 'rgba(245,158,11,0.15)', border: '1px solid rgba(245,158,11,0.3)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>
+                  <i className="fa-regular fa-clock" style={{ color: '#f59e0b', fontSize: '18px' }} />
+                </div>
+                <div>
+                  <h3 style={{ color: '#fff', fontWeight: 900, fontSize: '16px', margin: 0, fontFamily: 'Montserrat' }}>
+                    {t('client_playtime_edit_title')}
+                  </h3>
+                  <p style={{ color: '#71717a', fontWeight: 600, fontSize: '12px', margin: '4px 0 0 0' }}>
+                    {currentPack.name}
+                  </p>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '20px', margin: '25px 0' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ color: '#a1a1aa', fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '1px' }}>
+                    {t('client_playtime_hours_label')}
+                  </span>
+                  <input 
+                    type="number" 
+                    min="0"
+                    value={editHours} 
+                    onChange={(e) => setEditHours(e.target.value)} 
+                    style={glassInput} 
+                  />
+                </div>
+                <span style={{ color: '#a1a1aa', fontSize: '20px', fontWeight: 800, marginTop: '20px' }}>:</span>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ color: '#a1a1aa', fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '1px' }}>
+                    {t('client_playtime_minutes_label')}
+                  </span>
+                  <input 
+                    type="number" 
+                    min="0"
+                    max="59"
+                    value={editMinutes} 
+                    onChange={(e) => setEditMinutes(e.target.value)} 
+                    style={glassInput} 
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '20px' }}>
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <motion.button 
+                    whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} 
+                    onClick={() => setShowEditModal(false)}
+                    style={{
+                      flex: 1, padding: '12px', borderRadius: '12px',
+                      border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.05)',
+                      color: '#a1a1aa', cursor: 'pointer', fontFamily: 'Montserrat', fontWeight: 700, fontSize: '13px',
+                    }}
+                  >
+                    {t('cancel')}
+                  </motion.button>
+                  <motion.button 
+                    whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} 
+                    onClick={handleSavePlaytime}
+                    style={{
+                      flex: 1, padding: '12px', borderRadius: '12px',
+                      border: '1px solid rgba(16,185,129,0.3)', background: 'rgba(16,185,129,0.15)',
+                      color: '#10b981', cursor: 'pointer', fontFamily: 'Montserrat', fontWeight: 800, fontSize: '13px',
+                    }}
+                  >
+                    {t('save')}
+                  </motion.button>
+                </div>
+
+                <motion.button 
+                  whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }} 
+                  onClick={handleResetPlaytime}
+                  style={{
+                    width: '100%', padding: '10px', borderRadius: '12px',
+                    border: '1px solid rgba(239,68,68,0.2)', background: 'rgba(239,68,68,0.08)',
+                    color: '#f87171', cursor: 'pointer', fontFamily: 'Montserrat', fontWeight: 700, fontSize: '12px',
+                  }}
+                >
+                  <i className="fa-solid fa-trash-can" style={{ marginRight: '6px' }}></i>
+                  {t('client_playtime_reset_btn')}
+                </motion.button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

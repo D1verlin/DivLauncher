@@ -172,8 +172,16 @@ function FormSelect({ label, value, options, onChange, placeholder, showSearch =
 // ────────────────────────────────────────────────────────────
 // Main component
 // ────────────────────────────────────────────────────────────
-export default function AdminModpacksSection({ onModpacksUpdate, onManageMods }) {
+export default function AdminModpacksSection({ onModpacksUpdate, onManageMods, showConfirm, showAlert }) {
   const { t, lang } = useTranslation();
+
+  const alert = (msg) => {
+    if (showAlert) {
+      showAlert(t('error'), msg);
+    } else {
+      window.alert(msg);
+    }
+  };
   const [packs, setPacks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -625,10 +633,13 @@ export default function AdminModpacksSection({ onModpacksUpdate, onManageMods })
   };
 
   const handleDelete = async (pack) => {
-    if (!confirm(lang === 'ru' 
-      ? `Вы действительно хотите удалить официальную сборку "${pack.name}" (ID: ${pack.id})?\nВнимание! Это удалит её только из списка сборок. Файлы на R2 останутся.`
-      : `Are you sure you want to delete the official pack "${pack.name}" (ID: ${pack.id})?\nWarning! This will only remove it from the pack list. Files on R2 will remain.`
-    )) {
+    const confirmed = await showConfirm(
+      lang === 'ru' ? 'Удалить сборку?' : 'Delete Pack?',
+      lang === 'ru' 
+        ? `Вы действительно хотите удалить официальную сборку "${pack.name}" (ID: ${pack.id})?\nВнимание! Это удалит её только из списка сборок. Файлы на R2 останутся.`
+        : `Are you sure you want to delete the official pack "${pack.name}" (ID: ${pack.id})?\nWarning! This will only remove it from the pack list. Files on R2 will remain.`
+    );
+    if (!confirmed) {
       return;
     }
 

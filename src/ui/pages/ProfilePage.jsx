@@ -216,14 +216,23 @@ function InfoBox({ color = '#a1a1aa', icon = 'fa-solid fa-circle-info', children
   );
 }
 
-export default function ProfilePage({ profile: initialProfile, isOwnProfile = true, onBack, onLogout, currentPack, onProfileUpdate }) {
+export default function ProfilePage({ profile: initialProfile, isOwnProfile = true, onBack, onLogout, currentPack, onProfileUpdate, showConfirm, showAlert }) {
   const { t, lang } = useTranslation();
   const [profile, setProfile] = useState(initialProfile);
+  const [authServerUrl, setAuthServerUrl] = useState('https://mcauth.diverlin.ru');
   const [skinUrl, setSkinUrl] = useState(null);
   const [capeUrl, setCapeUrl] = useState(null);
   const [loading, setLoading] = useState(true);
   const [uploadStatus, setUploadStatus] = useState(null);
   const [copiedUuid, setCopiedUuid] = useState(false);
+
+  useEffect(() => {
+    if (window.electronAPI && window.electronAPI.getAuthServerUrl) {
+      window.electronAPI.getAuthServerUrl().then(url => {
+        if (url) setAuthServerUrl(url.replace(/\/$/, ''));
+      });
+    }
+  }, []);
 
   // Active settings tab: 'style' | 'socials' | 'security'
   const [activeTab, setActiveTab] = useState('style');
@@ -269,6 +278,11 @@ export default function ProfilePage({ profile: initialProfile, isOwnProfile = tr
     setSocialGithub(initialProfile.social_github || '');
   }, [initialProfile]);
 
+  const onProfileUpdateRef = useRef(onProfileUpdate);
+  useEffect(() => {
+    onProfileUpdateRef.current = onProfileUpdate;
+  }, [onProfileUpdate]);
+
   // Refresh profile logic (Stale-While-Revalidate trigger)
   const fetchUpdatedProfile = useCallback(async () => {
     try {
@@ -284,43 +298,65 @@ export default function ProfilePage({ profile: initialProfile, isOwnProfile = tr
           const updated = await response.json();
           // Update profile state
           setProfile(updated);
+
+          // Also sync all editing state variables
+          setBioText(updated.bio || '');
+          setStatusEmoji(updated.status_emoji || '🎮');
+          setStatusText(updated.status_text || '');
+          setProfileBgType(updated.profile_bg_type || 'preset');
+          setProfileBgValue(updated.profile_bg_value || 'preset-1');
+          setAvatarType(updated.avatar_type || 'minecraft');
+          setAvatarUrl(updated.avatar_url || '');
+          setSkinVariant(updated.skin_model || 'classic');
+          setSocialDiscord(updated.social_discord || '');
+          setSocialTelegram(updated.social_telegram || '');
+          setSocialYoutube(updated.social_youtube || '');
+          setSocialGithub(updated.social_github || '');
+
           // Callback to parent App.jsx memory cache
-          if (onProfileUpdate) {
-            onProfileUpdate(updated);
+          if (onProfileUpdateRef.current) {
+            onProfileUpdateRef.current(updated);
           }
         }
       }
     } catch (e) {
       console.error('Failed to refresh profile:', e);
     }
-  }, [profile.uuid, onProfileUpdate]);
+  }, [profile.uuid]);
 
   // Load profile skin/cape data
   const loadSkinData = useCallback(async () => {
-    if (!profile || !window.electronAPI.getSkinData) return;
+    if (!profile) return;
     setLoading(true);
     try {
-      const result = await window.electronAPI.getSkinData(profile.uuid);
-      if (result.success && result.skinDataUrl) {
-        setSkinUrl(result.skinDataUrl);
-        setCapeUrl(result.capeDataUrl);
+      const skinVal = profile.skin_url;
+      const capeVal = profile.cape_url;
+      if (skinVal) {
+        const absoluteSkin = skinVal.startsWith('http') ? skinVal : (authServerUrl + skinVal);
+        setSkinUrl(absoluteSkin);
       } else {
         const steveResult = await window.electronAPI.getDefaultSkin();
         if (steveResult.success) {
           setSkinUrl(steveResult.skinDataUrl);
-          setCapeUrl(null);
         }
+      }
+
+      if (capeVal) {
+        const absoluteCape = capeVal.startsWith('http') ? capeVal : (authServerUrl + capeVal);
+        setCapeUrl(absoluteCape);
+      } else {
+        setCapeUrl(null);
       }
     } catch (e) {
       console.error('[ProfilePage] Error fetching skin data:', e);
     } finally {
       setLoading(false);
     }
-  }, [profile]);
+  }, [profile.skin_url, profile.cape_url, authServerUrl]);
 
   useEffect(() => {
     fetchUpdatedProfile();
-  }, []);
+  }, [profile.uuid, fetchUpdatedProfile]);
 
   useEffect(() => {
     loadSkinData();
@@ -361,7 +397,11 @@ export default function ProfilePage({ profile: initialProfile, isOwnProfile = tr
       const result = await window.electronAPI.uploadSkin(currentPack?.clientDir, profile.username || profile.name);
       if (result.success) {
         setUploadStatus({ type: 'success', text: lang === 'ru' ? 'Скин успешно загружен на сервер!' : 'Skin uploaded successfully!' });
-        loadSkinData();
+        const updatedFields = { skin_url: result.skinUrl };
+        setProfile(prev => ({ ...prev, ...updatedFields }));
+        if (onProfileUpdate) {
+          onProfileUpdate(updatedFields);
+        }
       } else if (result.error !== 'Выбор отменен') {
         setUploadStatus({ type: 'error', text: result.error || (lang === 'ru' ? 'Ошибка загрузки скина' : 'Skin upload error') });
       }
@@ -377,7 +417,11 @@ export default function ProfilePage({ profile: initialProfile, isOwnProfile = tr
       const result = await window.electronAPI.uploadCape(currentPack?.clientDir, profile.username || profile.name);
       if (result.success) {
         setUploadStatus({ type: 'success', text: lang === 'ru' ? 'Плащ успешно загружен на сервер!' : 'Cape uploaded successfully!' });
-        loadSkinData();
+        const updatedFields = { cape_url: result.capeUrl };
+        setProfile(prev => ({ ...prev, ...updatedFields }));
+        if (onProfileUpdate) {
+          onProfileUpdate(updatedFields);
+        }
       } else if (result.error !== 'Выбор отменен') {
         setUploadStatus({ type: 'error', text: result.error || (lang === 'ru' ? 'Ошибка загрузки плаща' : 'Cape upload error') });
       }
@@ -404,11 +448,11 @@ export default function ProfilePage({ profile: initialProfile, isOwnProfile = tr
         }
         return true;
       } else {
-        alert(res.error || 'Ошибка обновления кастомизации');
+        showAlert(t('error'), res.error || 'Ошибка обновления кастомизации');
         return false;
       }
     } catch (err) {
-      alert(err.message);
+      showAlert(t('error'), err.message);
       return false;
     }
   };
@@ -501,17 +545,21 @@ export default function ProfilePage({ profile: initialProfile, isOwnProfile = tr
         await fetchUpdatedProfile();
         setUploadStatus({ type: 'success', text: lang === 'ru' ? `Google аккаунт ${result.email} привязан!` : `Google account ${result.email} linked!` });
       } else {
-        alert(result.error || 'Ошибка привязки Google');
+        showAlert(t('error'), result.error || 'Ошибка привязки Google');
       }
     } catch (e) {
-      alert(e.message);
+      showAlert(t('error'), e.message);
     } finally {
       setGoogleLoading(false);
     }
   };
 
   const handleUnlinkGoogle = async () => {
-    if (!confirm(lang === 'ru' ? 'Вы уверены, что хотите отвязать Google аккаунт?' : 'Are you sure you want to unlink Google account?')) return;
+    const confirmed = await showConfirm(
+      lang === 'ru' ? 'Отвязать Google?' : 'Unlink Google?',
+      lang === 'ru' ? 'Вы уверены, что хотите отвязать Google аккаунт?' : 'Are you sure you want to unlink Google account?'
+    );
+    if (!confirmed) return;
     setGoogleLoading(true);
     try {
       const result = await window.electronAPI.unlinkGoogle();
@@ -519,10 +567,10 @@ export default function ProfilePage({ profile: initialProfile, isOwnProfile = tr
         await fetchUpdatedProfile();
         setUploadStatus({ type: 'success', text: lang === 'ru' ? 'Google аккаунт успешно отвязан!' : 'Google account unlinked!' });
       } else {
-        alert(result.error || 'Ошибка отвязки Google');
+        showAlert(t('error'), result.error || 'Ошибка отвязки Google');
       }
     } catch (e) {
-      alert(e.message);
+      showAlert(t('error'), e.message);
     } finally {
       setGoogleLoading(false);
     }
@@ -585,9 +633,9 @@ export default function ProfilePage({ profile: initialProfile, isOwnProfile = tr
 
   const currentBgStyle = profileBgType === 'preset'
     ? { background: PRESET_GRADIENTS[profileBgValue] || PRESET_GRADIENTS['preset-1'] }
-    : { backgroundImage: `url(${profileBgValue.startsWith('/') ? 'https://mcauth.diverlin.ru' + profileBgValue : profileBgValue})`, backgroundSize: 'cover', backgroundPosition: 'center' };
+    : { backgroundImage: `url(${profileBgValue.startsWith('/') ? authServerUrl + profileBgValue : profileBgValue})`, backgroundSize: 'cover', backgroundPosition: 'center' };
 
-  const finalAvatarUrl = avatarUrl.startsWith('/') ? 'https://mcauth.diverlin.ru' + avatarUrl : avatarUrl;
+  const finalAvatarUrl = avatarUrl.startsWith('/') ? authServerUrl + avatarUrl : avatarUrl;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
@@ -597,8 +645,8 @@ export default function ProfilePage({ profile: initialProfile, isOwnProfile = tr
         <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
           {!isOwnProfile && (
             <motion.button
-              whileHover={{ scale: 1.05, x: -3 }}
-              whileTap={{ scale: 0.95 }}
+              whileHover={{ backgroundColor: 'rgba(255, 255, 255, 0.15)', borderColor: 'rgba(255, 255, 255, 0.25)' }}
+              whileTap={{ backgroundColor: 'rgba(255, 255, 255, 0.08)' }}
               onClick={onBack}
               style={{
                 background: 'rgba(255, 255, 255, 0.05)',
@@ -644,7 +692,7 @@ export default function ProfilePage({ profile: initialProfile, isOwnProfile = tr
               alignItems: 'center',
               gap: '24px',
               overflow: 'hidden',
-              border: '1px solid rgba(255,255,255,0.12)',
+              border: 'none',
               boxShadow: '0 12px 30px rgba(0,0,0,0.4)',
               flexShrink: 0
             }}>
@@ -1393,7 +1441,7 @@ export default function ProfilePage({ profile: initialProfile, isOwnProfile = tr
               ...currentBgStyle,
               position: 'relative',
               borderRadius: '24px',
-              border: '1px solid rgba(255,255,255,0.15)',
+              border: 'none',
               boxShadow: '0 20px 50px rgba(0,0,0,0.5)',
               overflow: 'hidden',
               display: 'flex',
@@ -1478,15 +1526,15 @@ export default function ProfilePage({ profile: initialProfile, isOwnProfile = tr
                 </div>
 
                 {/* Status message */}
-                {(statusText || statusEmoji) && (
+                {(profile.status_text || profile.status_emoji) && (
                   <div style={{
                     display: 'flex', alignItems: 'center', gap: '8px',
                     padding: '12px 16px', background: 'rgba(255,255,255,0.03)',
                     border: '1px solid rgba(255,255,255,0.06)', borderRadius: '14px',
                     color: '#e4e4e7', fontSize: '13px', fontWeight: 600, width: 'fit-content'
                   }}>
-                    <span style={{ fontSize: '18px' }}>{statusEmoji}</span>
-                    <span>{statusText}</span>
+                    <span style={{ fontSize: '18px' }}>{profile.status_emoji || '🎮'}</span>
+                    <span>{profile.status_text}</span>
                   </div>
                 )}
 

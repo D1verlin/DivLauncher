@@ -114,7 +114,7 @@ function QuickCopyButton({ text }) {
   );
 }
 
-export default function AdminPage({ profile, active, onProfileUpdate, onModpacksUpdate, onManageMods, badges = [], onBadgesUpdate }) {
+export default function AdminPage({ profile, active, onProfileUpdate, onModpacksUpdate, onManageMods, badges = [], onBadgesUpdate, showConfirm, showAlert }) {
   const [adminTab, setAdminTab] = useState('users');
   const [users, setUsers] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -203,10 +203,10 @@ export default function AdminPage({ profile, active, onProfileUpdate, onModpacks
         setShowBadgeModal(false);
         setEditingBadge(null);
       } else {
-        alert(res.error || (lang === 'ru' ? 'Ошибка сохранения бейджа' : 'Error saving badge'));
+        showAlert('Ошибка', res.error || (lang === 'ru' ? 'Ошибка сохранения бейджа' : 'Error saving badge'));
       }
     } catch (err) {
-      alert(err.message);
+      showAlert('Ошибка', err.message);
     } finally {
       setActionLoading(false);
     }
@@ -217,17 +217,21 @@ export default function AdminPage({ profile, active, onProfileUpdate, onModpacks
       ? `Вы уверены, что хотите удалить бейдж "${b.text}"? Он будет снят со всех игроков.` 
       : `Are you sure you want to delete badge "${b.text}"? It will be removed from all players.`;
     
-    if (window.confirm(confirmMsg)) {
+    const confirmed = await showConfirm(
+      lang === 'ru' ? 'Удалить бейдж?' : 'Delete Badge?',
+      confirmMsg
+    );
+    if (confirmed) {
       setActionLoading(true);
       try {
         const res = await window.electronAPI.deleteAdminBadge(b.id);
         if (res.success) {
           if (onBadgesUpdate) onBadgesUpdate();
         } else {
-          alert(res.error || 'Error deleting badge');
+          showAlert('Ошибка', res.error || 'Error deleting badge');
         }
       } catch (err) {
-        alert(err.message);
+        showAlert('Ошибка', err.message);
       } finally {
         setActionLoading(false);
       }
@@ -302,10 +306,10 @@ export default function AdminPage({ profile, active, onProfileUpdate, onModpacks
         
         handleCloseEdit();
       } else {
-        alert(res.error || (lang === 'ru' ? 'Ошибка при обновлении пользователя' : 'Error updating user'));
+        showAlert('Ошибка', res.error || (lang === 'ru' ? 'Ошибка при обновлении пользователя' : 'Error updating user'));
       }
     } catch (err) {
-      alert(err.message);
+      showAlert('Ошибка', err.message);
     } finally {
       setActionLoading(false);
     }
@@ -313,10 +317,14 @@ export default function AdminPage({ profile, active, onProfileUpdate, onModpacks
 
   const handleDeleteUser = async (user) => {
     if (user.id === profile.id) {
-      alert(lang === 'ru' ? 'Вы не можете удалить самого себя!' : 'You cannot delete yourself!');
+      showAlert('Ошибка', lang === 'ru' ? 'Вы не можете удалить самого себя!' : 'You cannot delete yourself!');
       return;
     }
-    if (!confirm(lang === 'ru' ? `Вы действительно хотите удалить пользователя ${user.username}?` : `Are you sure you want to delete user ${user.username}?`)) {
+    const confirmed = await showConfirm(
+      lang === 'ru' ? 'Удалить пользователя?' : 'Delete User?',
+      lang === 'ru' ? `Вы действительно хотите удалить пользователя ${user.username}?` : `Are you sure you want to delete user ${user.username}?`
+    );
+    if (!confirmed) {
       return;
     }
 
@@ -326,10 +334,10 @@ export default function AdminPage({ profile, active, onProfileUpdate, onModpacks
       if (res.success) {
         setUsers(prev => prev.filter(u => u.id !== user.id));
       } else {
-        alert(res.error || (lang === 'ru' ? 'Ошибка при удалении пользователя' : 'Error deleting user'));
+        showAlert('Ошибка', res.error || (lang === 'ru' ? 'Ошибка при удалении пользователя' : 'Error deleting user'));
       }
     } catch (err) {
-      alert(err.message);
+      showAlert('Ошибка', err.message);
     } finally {
       setActionLoading(false);
     }
@@ -631,12 +639,27 @@ export default function AdminPage({ profile, active, onProfileUpdate, onModpacks
                             e.currentTarget.style.background = 'rgba(255, 255, 255, 0.015)';
                           }}
                         >
-                          <MinecraftAvatar 
-                            skinDataUrl={user.skin_url} 
-                            size={36} 
-                            authServerUrl={authServerUrl} 
-                            borderColor={`${theme.color}55`}
-                          />
+                          {user.avatar_type === 'custom' && user.avatar_url ? (
+                            <img 
+                              src={user.avatar_url.startsWith('/') ? authServerUrl + user.avatar_url : user.avatar_url} 
+                              alt="Avatar" 
+                              style={{
+                                width: '36px',
+                                height: '36px',
+                                borderRadius: '14px',
+                                border: `2px solid ${theme.color}55`,
+                                display: 'block',
+                                objectFit: 'cover'
+                              }}
+                            />
+                          ) : (
+                            <MinecraftAvatar 
+                              skinDataUrl={user.skin_url} 
+                              size={36} 
+                              authServerUrl={authServerUrl} 
+                              borderColor={`${theme.color}55`}
+                            />
+                          )}
                           
                           <div style={{ flexGrow: 1, minWidth: 0 }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
@@ -646,16 +669,18 @@ export default function AdminPage({ profile, active, onProfileUpdate, onModpacks
                                 </span>
                               )}
                               <span style={{ fontSize: '14px', fontWeight: 800, color: '#fff', fontFamily: 'Montserrat' }}>{user.username}</span>
-                              <span style={{
-                                fontSize: '8px', fontWeight: 800,
-                                color: theme.color,
-                                background: `${theme.color}15`,
-                                border: `1px solid ${theme.color}25`,
-                                padding: '1.5px 7px', borderRadius: '10px', textTransform: 'uppercase',
-                                letterSpacing: '0.5px'
-                              }}>
-                                {theme.label}
-                              </span>
+                              {(!user.badge || theme.label.toUpperCase().trim() !== user.badge.toUpperCase().trim()) && (
+                                <span style={{
+                                  fontSize: '8px', fontWeight: 800,
+                                  color: theme.color,
+                                  background: `${theme.color}15`,
+                                  border: `1px solid ${theme.color}25`,
+                                  padding: '1.5px 7px', borderRadius: '10px', textTransform: 'uppercase',
+                                  letterSpacing: '0.5px'
+                                }}>
+                                  {theme.label}
+                                </span>
+                              )}
                             </div>
                             <div style={{ fontSize: '10px', color: '#52525b', fontFamily: 'monospace', marginTop: '2.5px', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                               UUID: {user.uuid}
@@ -699,6 +724,8 @@ export default function AdminPage({ profile, active, onProfileUpdate, onModpacks
         <AdminModpacksSection 
           onModpacksUpdate={onModpacksUpdate}
           onManageMods={onManageMods}
+          showConfirm={showConfirm}
+          showAlert={showAlert}
         />
       ) : (
         <div style={{ ...glassCard, flexGrow: 1, padding: '20px', display: 'flex', flexDirection: 'column', overflow: 'hidden', gap: '15px' }}>

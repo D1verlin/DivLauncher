@@ -59,6 +59,7 @@ export default function LoginPage({ onLoginSuccess }) {
         }
         if (result.success) {
           onLoginSuccess({
+            ...result,
             id: result.id,
             name: result.name,
             uuid: result.uuid,
@@ -85,6 +86,7 @@ export default function LoginPage({ onLoginSuccess }) {
       const result = await window.electronAPI.startGoogleAuth('login');
       if (result.success) {
         onLoginSuccess({
+          ...result,
           id: result.id,
           name: result.name,
           uuid: result.uuid,

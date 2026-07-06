@@ -84,6 +84,13 @@ const translations = {
     client_playtime_hours: " ч. ",
     client_playtime_less_minute: "Меньше минуты",
     client_username_warning: "⚠️ Авторизуйтесь в настройках!",
+    client_playtime_edit: "Редактировать время",
+    client_playtime_edit_title: "Редактирование игрового времени",
+    client_playtime_hours_label: "Часы:",
+    client_playtime_minutes_label: "Минуты:",
+    client_playtime_reset_btn: "Сбросить в 0",
+    client_playtime_invalid_input: "Некорректное значение времени!",
+    client_another_pack_running: "Запущена другая сборка: ",
 
     // Mods Page
     mods_catalog: "Каталог модов",
@@ -256,6 +263,13 @@ const translations = {
     client_playtime_hours: " h. ",
     client_playtime_less_minute: "Less than a minute",
     client_username_warning: "⚠️ Authorize in settings!",
+    client_playtime_edit: "Edit playtime",
+    client_playtime_edit_title: "Edit Playtime",
+    client_playtime_hours_label: "Hours:",
+    client_playtime_minutes_label: "Minutes:",
+    client_playtime_reset_btn: "Reset to 0",
+    client_playtime_invalid_input: "Invalid time values!",
+    client_another_pack_running: "Another modpack is running: ",
 
     // Mods Page
     mods_catalog: "Mod Catalog",

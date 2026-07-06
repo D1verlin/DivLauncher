@@ -161,12 +161,28 @@ function PlayerCard({ user, authServerUrl, onViewProfile, index, lang }) {
 
       {/* Avatar Area with Glow Frame */}
       <div style={{ position: 'relative', zIndex: 1 }}>
-        <MinecraftAvatar 
-          skinDataUrl={user.skin_url} 
-          size={64} 
-          authServerUrl={authServerUrl} 
-          borderColor={`${theme.color}66`}
-        />
+        {user.avatar_type === 'custom' && user.avatar_url ? (
+          <img 
+            src={user.avatar_url.startsWith('/') ? (authServerUrl || 'https://mcauth.diverlin.ru') + user.avatar_url : user.avatar_url} 
+            alt="Avatar" 
+            style={{
+              width: '64px',
+              height: '64px',
+              borderRadius: '14px',
+              border: `2px solid ${theme.color}66`,
+              display: 'block',
+              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+              objectFit: 'cover'
+            }}
+          />
+        ) : (
+          <MinecraftAvatar 
+            skinDataUrl={user.skin_url} 
+            size={64} 
+            authServerUrl={authServerUrl} 
+            borderColor={`${theme.color}66`}
+          />
+        )}
       </div>
 
       {/* User Content */}
@@ -195,19 +211,21 @@ function PlayerCard({ user, authServerUrl, onViewProfile, index, lang }) {
         </div>
 
         {/* Group / Role Tag */}
-        <div style={{
-          display: 'inline-flex', alignItems: 'center', gap: '5px',
-          marginTop: '6px',
-          fontSize: '9px', fontWeight: 800,
-          color: theme.color,
-          background: `${theme.color}15`,
-          border: `1px solid ${theme.color}25`,
-          padding: '3px 10px', borderRadius: '20px', textTransform: 'uppercase',
-          letterSpacing: '0.6px'
-        }}>
-          <i className={`fa-solid ${theme.icon}`} style={{ fontSize: '9px' }} />
-          {theme.label}
-        </div>
+        {(!user.badge || theme.label.toUpperCase().trim() !== getBadgeText(user.badge).toUpperCase().trim()) && (
+          <div style={{
+            display: 'inline-flex', alignItems: 'center', gap: '5px',
+            marginTop: '6px',
+            fontSize: '9px', fontWeight: 800,
+            color: theme.color,
+            background: `${theme.color}15`,
+            border: `1px solid ${theme.color}25`,
+            padding: '3px 10px', borderRadius: '20px', textTransform: 'uppercase',
+            letterSpacing: '0.6px'
+          }}>
+            <i className={`fa-solid ${theme.icon}`} style={{ fontSize: '9px' }} />
+            {theme.label}
+          </div>
+        )}
       </div>
 
       {/* Bio status (shortened) */}
@@ -217,9 +235,30 @@ function PlayerCard({ user, authServerUrl, onViewProfile, index, lang }) {
         minHeight: '28px',
         display: 'flex',
         alignItems: 'center',
-        justifyContent: 'center'
+        justifyContent: 'center',
+        gap: '4px'
       }}>
-        {user.bio ? (
+        {user.status_text ? (
+          <p style={{
+            margin: 0, 
+            color: '#a1a1aa', 
+            fontSize: '10px', 
+            lineHeight: '1.4',
+            textAlign: 'center', 
+            overflow: 'hidden', 
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '4px',
+            maxWidth: '100%',
+            fontStyle: 'italic'
+          }}>
+            <span>{user.status_emoji || '🎮'}</span>
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {user.status_text}
+            </span>
+          </p>
+        ) : user.bio ? (
           <p style={{
             margin: 0, 
             color: '#a1a1aa', 
