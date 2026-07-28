@@ -1,3 +1,5 @@
+export const DEFAULT_BG = "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=1280";
+
 export const getSafeBgUrl = (url) => {
   if (!url) return '';
   if (url.startsWith('file://')) {

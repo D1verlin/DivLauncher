@@ -78,19 +78,24 @@ function createWindow() {
 app.whenReady().then(() => {
   protocol.handle('local-file', (request) => {
     try {
-      let rawUrl = request.url.replace(/^local-file:\/\//, '');
+      let rawUrl = request.url.replace(/^local-file:\/\//i, '');
       let decodedPath = rawUrl;
       try { decodedPath = decodeURIComponent(rawUrl); } catch (_) {}
       let filePath = decodedPath;
       if (process.platform === 'win32') {
-        if (filePath.startsWith('/') && filePath.charAt(2) === ':') {
+        if (/^\/[a-zA-Z][:|]/.test(filePath)) {
           filePath = filePath.substring(1);
+        }
+        filePath = filePath.replace(/^([a-zA-Z])\|/, '$1:');
+        if (/^[a-zA-Z]\/[^:]/.test(filePath)) {
+          filePath = filePath.charAt(0) + ':/' + filePath.substring(2);
         }
       }
       const normalized = path.normalize(filePath);
       if (fs.existsSync(normalized)) {
         return net.fetch(pathToFileURL(normalized).toString());
       }
+      console.warn('[local-file] file not found:', normalized);
       return new Response('File not found', { status: 404 });
     } catch (err) {
       console.error('[local-file] protocol handle error:', err);

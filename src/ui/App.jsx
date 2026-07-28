@@ -13,7 +13,7 @@ import ModsPage from './pages/ModsPage';
 import ImportExportPage from './pages/ImportExportPage';
 import OfficialBuildManagerPage from './pages/OfficialBuildManagerPage';
 import InitialPathModal from './components/InitialPathModal';
-import { getSafeBgUrl } from './utils/pathUtils';
+import { getSafeBgUrl, DEFAULT_BG } from './utils/pathUtils';
 import { useTranslation } from './utils/i18n';
 import { setLoadedBadges } from './utils/badgeHelper';
 
@@ -856,12 +856,14 @@ export default function App() {
   }
 
   // ОСНОВНОЙ ЭКРАН ЛАУНЧЕРА
+  const activeBgImage = (currentPack && currentPack.bgImage && currentPack.bgImage.trim()) 
+    ? getSafeBgUrl(currentPack.bgImage) 
+    : DEFAULT_BG;
+
   const appStyle = {
     display: 'flex', flexDirection: 'column', width: '100%', height: '100%', position: 'relative',
-    background: (animatedBg && currentPack.bgVideo) 
-      ? 'transparent' 
-      : `linear-gradient(rgba(20, 20, 20, 0.7), rgba(20, 20, 20, 0.9)), url('${getSafeBgUrl(currentPack.bgImage)}') center/cover`,
-    transition: 'background 0.5s ease-in-out'
+    background: '#0a0a10',
+    overflow: 'hidden'
   };
 
   // Функция рендера активной страницы (ленивый рендер — только активная страница в DOM)
@@ -1055,37 +1057,50 @@ export default function App() {
 
   return (
     <div style={appStyle}>
-      {/* Глобальные модалы */}
-      <AnimatePresence>
-        {confirmModal && (
-          <ConfirmModal
-            title={confirmModal.title}
-            message={confirmModal.message}
-            onConfirm={confirmModal.onConfirm}
-            onCancel={confirmModal.onCancel}
+      {/* Dynamic Background Layer */}
+      {animatedBg && currentPack?.bgVideo ? (
+        <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 0, overflow: 'hidden', pointerEvents: 'none' }}>
+          <video 
+            key={currentPack.id + '_video'}
+            src={getSafeBgUrl(currentPack.bgVideo)} 
+            autoPlay loop muted playsInline
+            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
           />
-        )}
-      </AnimatePresence>
-      <AnimatePresence>
-        {alertModal && (
-          <AlertModal
-            title={alertModal.title}
-            message={alertModal.message}
-            onClose={alertModal.onClose}
-          />
-        )}
-      </AnimatePresence>
-
-      {animatedBg && currentPack.bgVideo && (
-        <video 
-          key={currentPack.id}
-          src={getSafeBgUrl(currentPack.bgVideo)} 
-          autoPlay loop muted playsInline
-          style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover', zIndex: -1 }}
-        />
+          <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', background: 'linear-gradient(rgba(20, 20, 20, 0.7), rgba(20, 20, 20, 0.9))' }} />
+        </div>
+      ) : (
+        <div style={{ 
+          position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 0, pointerEvents: 'none',
+          background: `linear-gradient(rgba(20, 20, 20, 0.7), rgba(20, 20, 20, 0.9)), url('${activeBgImage}') center/cover`,
+          transition: 'background 0.5s ease-in-out'
+        }} />
       )}
-      <TopBar />
-      <UpdateNotification />
+
+      {/* Main UI Layer */}
+      <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', width: '100%', height: '100%', overflow: 'hidden' }}>
+        {/* Глобальные модалы */}
+        <AnimatePresence>
+          {confirmModal && (
+            <ConfirmModal
+              title={confirmModal.title}
+              message={confirmModal.message}
+              onConfirm={confirmModal.onConfirm}
+              onCancel={confirmModal.onCancel}
+            />
+          )}
+        </AnimatePresence>
+        <AnimatePresence>
+          {alertModal && (
+            <AlertModal
+              title={alertModal.title}
+              message={alertModal.message}
+              onClose={alertModal.onClose}
+            />
+          )}
+        </AnimatePresence>
+
+        <TopBar />
+        <UpdateNotification />
 
         <div style={{ display: 'flex', flexGrow: 1, padding: '40px 20px 20px 20px', gap: '40px', overflow: 'hidden' }}>
           
@@ -1141,6 +1156,7 @@ export default function App() {
             </motion.div>
           </AnimatePresence>
         </div>
+      </div>
       </div>
       <InitialPathModal
         isOpen={showInitialPathModal}
