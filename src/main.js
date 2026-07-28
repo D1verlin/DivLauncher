@@ -1,5 +1,6 @@
 require('dotenv').config();
-const { app, BrowserWindow, ipcMain, protocol } = require('electron');
+const { app, BrowserWindow, ipcMain, protocol, net } = require('electron');
+const { pathToFileURL } = require('url');
 
 protocol.registerSchemesAsPrivileged([
   { scheme: 'local-file', privileges: { bypassCSP: true, secure: true, supportFetchAPI: true, corsEnabled: true, stream: true } }
@@ -76,15 +77,25 @@ function createWindow() {
 
 app.whenReady().then(() => {
   protocol.handle('local-file', (request) => {
-    const url = request.url.replace('local-file://', '');
-    const decodedPath = decodeURIComponent(url);
-    let filePath = decodedPath;
-    if (process.platform === 'win32') {
-      if (filePath.startsWith('/') && filePath.charAt(2) === ':') {
-        filePath = filePath.substring(1);
+    try {
+      let rawUrl = request.url.replace(/^local-file:\/\//, '');
+      let decodedPath = rawUrl;
+      try { decodedPath = decodeURIComponent(rawUrl); } catch (_) {}
+      let filePath = decodedPath;
+      if (process.platform === 'win32') {
+        if (filePath.startsWith('/') && filePath.charAt(2) === ':') {
+          filePath = filePath.substring(1);
+        }
       }
+      const normalized = path.normalize(filePath);
+      if (fs.existsSync(normalized)) {
+        return net.fetch(pathToFileURL(normalized).toString());
+      }
+      return new Response('File not found', { status: 404 });
+    } catch (err) {
+      console.error('[local-file] protocol handle error:', err);
+      return new Response('Error loading file', { status: 500 });
     }
-    return { responseHeaders: { 'Access-Control-Allow-Origin': '*' }, filePath: path.normalize(filePath) };
   });
 
   createWindow();

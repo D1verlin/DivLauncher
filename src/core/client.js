@@ -2456,7 +2456,9 @@ module.exports = function(ipcMain) {
         if (val.startsWith('http://') || val.startsWith('https://') || val.startsWith('data:') || val.startsWith('fa-')) {
           return;
         }
-        let sourcePath = val.startsWith('local-file://') ? decodeURI(val.replace('local-file://', '')) : val;
+        let raw = val.replace(/^local-file:\/\//, '');
+        let sourcePath = raw;
+        try { sourcePath = decodeURI(raw); } catch (_) {}
         if (sourcePath.startsWith('/') && sourcePath.includes(':')) {
           sourcePath = sourcePath.substring(1);
         }
