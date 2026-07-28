@@ -4,7 +4,7 @@ import { useTranslation } from '../utils/i18n';
 
 export default function LoginPage({ onLoginSuccess }) {
   const { t } = useTranslation();
-  const [isRegister, setIsRegister] = useState(false);
+  const [loginMode, setLoginMode] = useState('login'); // 'login' | 'register' | 'offline'
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -20,12 +20,33 @@ export default function LoginPage({ onLoginSuccess }) {
       setMessage({ type: 'error', text: t('login_err_username_len') });
       return;
     }
+
+    if (loginMode === 'offline') {
+      setLoading(true);
+      try {
+        const result = await window.electronAPI.customOfflineLogin(username.trim());
+        if (result.logs && Array.isArray(result.logs)) {
+          result.logs.forEach(l => console.log("%c[MAIN] " + l, "color: #10b981; font-weight: 500;"));
+        }
+        if (result.success) {
+          onLoginSuccess(result);
+        } else {
+          setMessage({ type: 'error', text: result.error || 'Ошибка входа в офлайн-режим' });
+        }
+      } catch (err) {
+        setMessage({ type: 'error', text: err.message });
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
     if (password.length < 4) {
       setMessage({ type: 'error', text: t('login_err_password_len') });
       return;
     }
 
-    if (isRegister) {
+    if (loginMode === 'register') {
       if (password !== confirmPassword) {
         setMessage({ type: 'error', text: t('login_err_password_match') });
         return;
@@ -39,7 +60,7 @@ export default function LoginPage({ onLoginSuccess }) {
         }
         if (result.success) {
           setMessage({ type: 'success', text: t('login_success_reg') });
-          setIsRegister(false);
+          setLoginMode('login');
           setPassword('');
           setConfirmPassword('');
         } else {
@@ -112,7 +133,7 @@ export default function LoginPage({ onLoginSuccess }) {
     border: '1px solid rgba(255, 255, 255, 0.08)',
     borderRadius: '24px',
     padding: '35px 40px',
-    width: '380px',
+    width: '430px',
     boxShadow: '0 20px 50px rgba(0,0,0,0.4)',
     zIndex: 10
   };
@@ -128,6 +149,7 @@ export default function LoginPage({ onLoginSuccess }) {
     fontFamily: 'Montserrat',
     fontSize: '13px',
     fontWeight: 600,
+    boxSizing: 'border-box',
     transition: 'border-color 0.25s, box-shadow 0.25s',
   };
 
@@ -139,6 +161,18 @@ export default function LoginPage({ onLoginSuccess }) {
     fontWeight: 800,
     marginBottom: '8px',
     letterSpacing: '1.6px',
+  };
+
+  const getSubmitButtonIcon = () => {
+    if (loginMode === 'register') return 'fa-user-plus';
+    if (loginMode === 'offline') return 'fa-wifi-slash';
+    return 'fa-right-to-bracket';
+  };
+
+  const getSubmitButtonText = () => {
+    if (loginMode === 'register') return t('login_register_btn');
+    if (loginMode === 'offline') return t('login_offline_btn');
+    return t('login_submit_btn');
   };
 
   return (
@@ -198,49 +232,74 @@ export default function LoginPage({ onLoginSuccess }) {
           padding: '4px',
           borderRadius: '14px',
           border: '1px solid rgba(255,255,255,0.06)',
-          marginBottom: '25px'
+          marginBottom: '25px',
+          gap: '2px'
         }}>
           <button
-            onClick={() => { setIsRegister(false); setMessage(null); }}
+            type="button"
+            onClick={() => { setLoginMode('login'); setMessage(null); }}
             style={{
               flex: 1,
-              padding: '10px',
+              padding: '10px 2px',
               borderRadius: '10px',
               border: 'none',
               cursor: 'pointer',
-              background: !isRegister ? 'rgba(16,185,129,0.12)' : 'transparent',
-              color: !isRegister ? '#34d399' : '#71717a',
+              background: loginMode === 'login' ? 'rgba(16,185,129,0.12)' : 'transparent',
+              color: loginMode === 'login' ? '#34d399' : '#71717a',
               fontFamily: 'Montserrat',
               fontWeight: 800,
-              fontSize: '12px',
+              fontSize: '11px',
               textTransform: 'uppercase',
-              letterSpacing: '0.8px',
+              letterSpacing: '0.5px',
               transition: 'all 0.2s',
-              outline: !isRegister ? '1px solid rgba(16,185,129,0.2)' : 'none'
+              outline: loginMode === 'login' ? '1px solid rgba(16,185,129,0.2)' : 'none'
             }}
           >
             {t('login_btn_tab')}
           </button>
           <button
-            onClick={() => { setIsRegister(true); setMessage(null); }}
+            type="button"
+            onClick={() => { setLoginMode('register'); setMessage(null); }}
             style={{
               flex: 1,
-              padding: '10px',
+              padding: '10px 2px',
               borderRadius: '10px',
               border: 'none',
               cursor: 'pointer',
-              background: isRegister ? 'rgba(16,185,129,0.12)' : 'transparent',
-              color: isRegister ? '#34d399' : '#71717a',
+              background: loginMode === 'register' ? 'rgba(16,185,129,0.12)' : 'transparent',
+              color: loginMode === 'register' ? '#34d399' : '#71717a',
               fontFamily: 'Montserrat',
               fontWeight: 800,
-              fontSize: '12px',
+              fontSize: '11px',
               textTransform: 'uppercase',
-              letterSpacing: '0.8px',
+              letterSpacing: '0.5px',
               transition: 'all 0.2s',
-              outline: isRegister ? '1px solid rgba(16,185,129,0.2)' : 'none'
+              outline: loginMode === 'register' ? '1px solid rgba(16,185,129,0.2)' : 'none'
             }}
           >
             {t('login_reg_tab')}
+          </button>
+          <button
+            type="button"
+            onClick={() => { setLoginMode('offline'); setMessage(null); }}
+            style={{
+              flex: 1,
+              padding: '10px 2px',
+              borderRadius: '10px',
+              border: 'none',
+              cursor: 'pointer',
+              background: loginMode === 'offline' ? 'rgba(16,185,129,0.12)' : 'transparent',
+              color: loginMode === 'offline' ? '#34d399' : '#71717a',
+              fontFamily: 'Montserrat',
+              fontWeight: 800,
+              fontSize: '11px',
+              textTransform: 'uppercase',
+              letterSpacing: '0.5px',
+              transition: 'all 0.2s',
+              outline: loginMode === 'offline' ? '1px solid rgba(16,185,129,0.2)' : 'none'
+            }}
+          >
+            {t('login_offline_tab')}
           </button>
         </div>
 
@@ -258,20 +317,22 @@ export default function LoginPage({ onLoginSuccess }) {
             />
           </div>
 
-          <div>
-            <label style={labelStyle}>{t('login_password_label')}</label>
-            <motion.input
-              whileFocus={{ borderColor: 'rgba(16,185,129,0.6)', boxShadow: '0 0 10px rgba(16,185,129,0.15)' }}
-              type="password"
-              placeholder={t('login_password_placeholder')}
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              style={inputStyle}
-              required
-            />
-          </div>
+          {(loginMode === 'login' || loginMode === 'register') && (
+            <div>
+              <label style={labelStyle}>{t('login_password_label')}</label>
+              <motion.input
+                whileFocus={{ borderColor: 'rgba(16,185,129,0.6)', boxShadow: '0 0 10px rgba(16,185,129,0.15)' }}
+                type="password"
+                placeholder={t('login_password_placeholder')}
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                style={inputStyle}
+                required
+              />
+            </div>
+          )}
 
-          {isRegister && (
+          {loginMode === 'register' && (
             <motion.div
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: 'auto' }}
@@ -347,46 +408,50 @@ export default function LoginPage({ onLoginSuccess }) {
               </>
             ) : (
               <>
-                <i className={`fa-solid ${isRegister ? 'fa-user-plus' : 'fa-right-to-bracket'}`} />
-                {isRegister ? t('login_register_btn') : t('login_submit_btn')}
+                <i className={`fa-solid ${getSubmitButtonIcon()}`} />
+                {getSubmitButtonText()}
               </>
             )}
           </motion.button>
 
-          <div style={{ display: 'flex', alignItems: 'center', margin: '15px 0 5px 0' }}>
-            <div style={{ flex: 1, height: '1px', background: 'rgba(255,255,255,0.08)' }} />
-            <span style={{ fontSize: '10px', color: '#71717a', padding: '0 10px', textTransform: 'uppercase', fontWeight: 800, letterSpacing: '1px' }}>
-              или
-            </span>
-            <div style={{ flex: 1, height: '1px', background: 'rgba(255,255,255,0.08)' }} />
-          </div>
+          {loginMode !== 'offline' && (
+            <>
+              <div style={{ display: 'flex', alignItems: 'center', margin: '15px 0 5px 0' }}>
+                <div style={{ flex: 1, height: '1px', background: 'rgba(255,255,255,0.08)' }} />
+                <span style={{ fontSize: '10px', color: '#71717a', padding: '0 10px', textTransform: 'uppercase', fontWeight: 800, letterSpacing: '1px' }}>
+                  или
+                </span>
+                <div style={{ flex: 1, height: '1px', background: 'rgba(255,255,255,0.08)' }} />
+              </div>
 
-          <motion.button
-            whileHover={{ scale: 1.02, background: 'rgba(255,255,255,0.08)' }}
-            whileTap={{ scale: 0.98 }}
-            disabled={loading}
-            type="button"
-            onClick={handleGoogleLogin}
-            style={{
-              background: 'rgba(255,255,255,0.04)',
-              border: '1px solid rgba(255, 255, 255, 0.1)',
-              color: '#fff',
-              padding: '12px',
-              borderRadius: '13px',
-              fontSize: '12px',
-              fontWeight: 800,
-              textTransform: 'uppercase',
-              letterSpacing: '1px',
-              cursor: loading ? 'wait' : 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '10px',
-            }}
-          >
-            <i className="fa-brands fa-google" style={{ color: '#ea4335', fontSize: '14px' }} />
-            Войти через Google
-          </motion.button>
+              <motion.button
+                whileHover={{ scale: 1.02, background: 'rgba(255,255,255,0.08)' }}
+                whileTap={{ scale: 0.98 }}
+                disabled={loading}
+                type="button"
+                onClick={handleGoogleLogin}
+                style={{
+                  background: 'rgba(255,255,255,0.04)',
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  color: '#fff',
+                  padding: '12px',
+                  borderRadius: '13px',
+                  fontSize: '12px',
+                  fontWeight: 800,
+                  textTransform: 'uppercase',
+                  letterSpacing: '1px',
+                  cursor: loading ? 'wait' : 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '10px',
+                }}
+              >
+                <i className="fa-brands fa-google" style={{ color: '#ea4335', fontSize: '14px' }} />
+                Войти через Google
+              </motion.button>
+            </>
+          )}
         </form>
       </motion.div>
     </div>

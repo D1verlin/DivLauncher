@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTranslation } from '../utils/i18n';
+import { fetchLoaderVersions } from '../utils/loaderFetcher';
+import { getSafeBgUrl, toDisplayUrl, getFilePath } from '../utils/pathUtils';
 
 const DEFAULT_BG = "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=1280";
 
@@ -351,11 +353,40 @@ export default function CreatePackPage({ onCreate, onBack, isActive, editPack })
   const [faIcon, setFaIcon] = useState('');
   const [titleColor, setTitleColor] = useState('#ffffff');
   const [customDir, setCustomDir] = useState('');
+  const [selectedLoaderVersion, setSelectedLoaderVersion] = useState('');
+  const [loaderVersionsList, setLoaderVersionsList] = useState([]);
+  const [loadingLoaderVersions, setLoadingLoaderVersions] = useState(false);
 
   const [versions, setVersions] = useState([]);
   const [promos, setPromos] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (mcVersion && loaderType && loaderType !== 'vanilla') {
+      setLoadingLoaderVersions(true);
+      fetchLoaderVersions(mcVersion, loaderType).then(list => {
+        setLoaderVersionsList(list);
+        if (list.length > 0) {
+          if (editPack && editPack.loaderVersion && list.some(v => v.version === editPack.loaderVersion)) {
+            setSelectedLoaderVersion(editPack.loaderVersion);
+          } else {
+            setSelectedLoaderVersion(list[0].version);
+          }
+        } else {
+          setSelectedLoaderVersion('');
+        }
+      }).catch(() => {
+        setLoaderVersionsList([]);
+        setSelectedLoaderVersion('');
+      }).finally(() => {
+        setLoadingLoaderVersions(false);
+      });
+    } else {
+      setLoaderVersionsList([]);
+      setSelectedLoaderVersion('');
+    }
+  }, [mcVersion, loaderType, editPack]);
 
   useEffect(() => {
     if (isActive) {
@@ -568,43 +599,35 @@ export default function CreatePackPage({ onCreate, onBack, isActive, editPack })
     };
 
     if (loaderType === 'fabric') {
-      newPack.loaderVersion = '0.16.10'; // Stable Fabric loader version
+      newPack.loaderVersion = selectedLoaderVersion || '0.16.10';
       newPack.installerUrl = 'https://maven.fabricmc.net/net/fabricmc/fabric-installer/1.1.1/fabric-installer-1.1.1.jar';
       newPack.installerName = 'fabric-installer-1.1.1.jar';
     } else if (loaderType === 'quilt') {
-      newPack.loaderVersion = '0.26.3'; // Stable Quilt loader version
+      newPack.loaderVersion = selectedLoaderVersion || '0.26.3';
       newPack.installerUrl = 'https://maven.quiltmc.org/repository/release/org/quiltmc/quilt-installer/0.14.1/quilt-installer-0.14.1.jar';
       newPack.installerName = 'quilt-installer-0.14.1.jar';
     } else if (loaderType === 'forge') {
-      // Find forge version
-      const forgeVersion = promos[`${mcVersion}-recommended`] || promos[`${mcVersion}-latest`] || promos[mcVersion];
+      const forgeVersion = selectedLoaderVersion || promos[`${mcVersion}-recommended`] || promos[`${mcVersion}-latest`] || promos[mcVersion];
       if (!forgeVersion) {
         setError(lang === 'ru' ? `Версия Forge для Minecraft ${mcVersion} не найдена.` : `Forge version for Minecraft ${mcVersion} not found.`);
         return;
       }
       const needsSuffix = mcVersion === '1.8.9' || /^(1\.[0-7]\b)/.test(mcVersion);
       const versionPath = needsSuffix ? `${mcVersion}-${forgeVersion}-${mcVersion}` : `${mcVersion}-${forgeVersion}`;
+      newPack.loaderVersion = forgeVersion;
       newPack.forgeUrl = `https://maven.minecraftforge.net/net/minecraftforge/forge/${versionPath}/forge-${versionPath}-installer.jar`;
       newPack.forgeInstallerName = `forge-${versionPath}-installer.jar`;
     } else if (loaderType === 'neoforge') {
-      const neoForgeVersions = {
-        '1.20.1': '20.1.89',
-        '1.20.2': '20.2.93',
-        '1.20.4': '20.4.251',
-        '1.20.6': '20.6.139',
-        '1.21': '21.0.167',
-        '1.21.1': '21.1.233',
-        '1.21.2': '21.2.1-beta',
-        '1.21.3': '21.3.96',
-        '1.21.4': '21.4.157'
-      };
-      let neoVersion = neoForgeVersions[mcVersion];
+      let neoVersion = selectedLoaderVersion;
       if (!neoVersion) {
-        const parts = mcVersion.split('.');
-        const minor = parts[1] || '21';
-        const patch = parts[2] || '0';
-        neoVersion = `${minor}.${patch}.150`; // Fallback to a higher patch to avoid 404 (e.g., .150 instead of .9)
+        const neoForgeVersions = {
+          '1.20.1': '20.1.89', '1.20.2': '20.2.93', '1.20.4': '20.4.251',
+          '1.20.6': '20.6.139', '1.21': '21.0.167', '1.21.1': '21.1.233',
+          '1.21.2': '21.2.1-beta', '1.21.3': '21.3.96', '1.21.4': '21.4.157'
+        };
+        neoVersion = neoForgeVersions[mcVersion] || `${mcVersion.split('.')[1] || '21'}.${mcVersion.split('.')[2] || '0'}.150`;
       }
+      newPack.loaderVersion = neoVersion;
       newPack.forgeUrl = `https://maven.neoforged.net/releases/net/neoforged/neoforge/${neoVersion}/neoforge-${neoVersion}-installer.jar`;
       newPack.forgeInstallerName = `neoforge-${neoVersion}-installer.jar`;
     }
@@ -721,6 +744,22 @@ export default function CreatePackPage({ onCreate, onBack, isActive, editPack })
                         placeholder={lang === 'ru' ? 'Выберите ядро' : 'Select core'}
                       />
                     </div>
+
+                    {loaderType !== 'vanilla' && (
+                      <div style={{ flex: 1 }}>
+                        <CustomSelect
+                          label={lang === 'ru' ? 'Версия ядра модов' : 'Mod Engine Version'}
+                          value={selectedLoaderVersion}
+                          options={loaderVersionsList.map(v => ({
+                            value: v.version,
+                            label: `${v.version} ${v.isRecommended ? (lang === 'ru' ? '(Реком.)' : '(Recommended)') : v.isLatest ? (lang === 'ru' ? '(Свежая)' : '(Latest)') : ''}`.trim()
+                          }))}
+                          onChange={setSelectedLoaderVersion}
+                          placeholder={loadingLoaderVersions ? (lang === 'ru' ? 'Загрузка версий...' : 'Loading versions...') : (lang === 'ru' ? 'Выберите версию ядра' : 'Select engine version')}
+                          showSearch={true}
+                        />
+                      </div>
+                    )}
                   </div>
 
                   <div>
@@ -749,9 +788,9 @@ export default function CreatePackPage({ onCreate, onBack, isActive, editPack })
                           <motion.input
                             whileFocus={{ borderColor: 'rgba(59,130,246,0.6)' }}
                             type="text"
-                            placeholder={lang === 'ru' ? 'URL изображения...' : 'Image URL...'}
-                            value={customBg}
-                            onChange={e => setCustomBg(e.target.value)}
+                            placeholder={lang === 'ru' ? 'URL или путь к файлу...' : 'URL or file path...'}
+                            value={toDisplayUrl(customBg)}
+                            onChange={e => setCustomBg(getSafeBgUrl(e.target.value))}
                             style={{ ...inputStyle, flexGrow: 1 }}
                           />
                           <label style={{ 
@@ -761,7 +800,10 @@ export default function CreatePackPage({ onCreate, onBack, isActive, editPack })
                           }} onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'} onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}>
                             <i className="fa-solid fa-folder-open" style={{ color: '#60a5fa' }} />
                             <input type="file" accept="image/*" style={{ display: 'none' }} onChange={(e) => {
-                              if(e.target.files[0]) setCustomBg(`local-file://${e.target.files[0].path.replace(/\\/g, '/')}`);
+                              if (e.target.files[0]) {
+                                const filePath = getFilePath(e.target.files[0]);
+                                if (filePath) setCustomBg(getSafeBgUrl(filePath));
+                              }
                             }} />
                           </label>
                         </div>
@@ -774,8 +816,8 @@ export default function CreatePackPage({ onCreate, onBack, isActive, editPack })
                             whileFocus={{ borderColor: 'rgba(59,130,246,0.6)' }}
                             type="text"
                             placeholder={lang === 'ru' ? 'URL видео (.mp4/.webm)' : 'Video URL (.mp4/.webm)'}
-                            value={customBgVideo}
-                            onChange={e => setCustomBgVideo(e.target.value)}
+                            value={toDisplayUrl(customBgVideo)}
+                            onChange={e => setCustomBgVideo(getSafeBgUrl(e.target.value))}
                             style={{ ...inputStyle, flexGrow: 1 }}
                           />
                           <label style={{ 
@@ -785,7 +827,10 @@ export default function CreatePackPage({ onCreate, onBack, isActive, editPack })
                           }} onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'} onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}>
                             <i className="fa-solid fa-folder-open" style={{ color: '#60a5fa' }} />
                             <input type="file" accept="video/*" style={{ display: 'none' }} onChange={(e) => {
-                              if(e.target.files[0]) setCustomBgVideo(`local-file://${e.target.files[0].path.replace(/\\/g, '/')}`);
+                              if (e.target.files[0]) {
+                                const filePath = getFilePath(e.target.files[0]);
+                                if (filePath) setCustomBgVideo(getSafeBgUrl(filePath));
+                              }
                             }} />
                           </label>
                         </div>
@@ -799,8 +844,8 @@ export default function CreatePackPage({ onCreate, onBack, isActive, editPack })
                           whileFocus={{ borderColor: 'rgba(59,130,246,0.6)' }}
                           type="text"
                           placeholder={lang === 'ru' ? 'URL иконки...' : 'Icon URL...'}
-                          value={customIcon}
-                          onChange={e => { setCustomIcon(e.target.value); setFaIcon(''); }}
+                          value={toDisplayUrl(customIcon)}
+                          onChange={e => { setCustomIcon(getSafeBgUrl(e.target.value)); setFaIcon(''); }}
                           style={{ ...inputStyle, flexGrow: 1 }}
                         />
                         <label style={{ 
@@ -810,7 +855,10 @@ export default function CreatePackPage({ onCreate, onBack, isActive, editPack })
                         }} onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'} onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}>
                           <i className="fa-solid fa-folder-open" style={{ color: '#60a5fa' }} />
                           <input type="file" accept="image/*" style={{ display: 'none' }} onChange={(e) => {
-                            if(e.target.files[0]) { setCustomIcon(`local-file://${e.target.files[0].path.replace(/\\/g, '/')}`); setFaIcon(''); }
+                            if (e.target.files[0]) {
+                              const filePath = getFilePath(e.target.files[0]);
+                              if (filePath) { setCustomIcon(getSafeBgUrl(filePath)); setFaIcon(''); }
+                            }
                           }} />
                         </label>
                       </div>

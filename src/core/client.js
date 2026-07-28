@@ -6,6 +6,61 @@ const axios = require('axios');
 const extract = require('extract-zip');
 const AdmZip = require('adm-zip');
 
+require('dotenv').config({ path: path.join(__dirname, '../../.env') });
+const { S3Client } = require('@aws-sdk/client-s3');
+const { Upload } = require('@aws-sdk/lib-storage');
+
+function getR2Client() {
+  const accountId = process.env.R2_PUBLISH_ACCOUNT_ID || '56f46b6d72aab3a75bd5103fe9fa174c';
+  const accessKeyId = process.env.R2_PUBLISH_ACCESS_KEY_ID || 'bc214cac1b1bbd9e233528705c3b162a';
+  const secretAccessKey = process.env.R2_PUBLISH_SECRET_ACCESS_KEY || 'e9c18259a2677459b5f32ff2f3a14a9de19a6e7c99fc70afa8f67d3f20c73bcc';
+  const bucketName = process.env.R2_PUBLISH_BUCKET_NAME || 'minecraft';
+
+  const s3 = new S3Client({
+    endpoint: `https://${accountId}.r2.cloudflarestorage.com`,
+    credentials: {
+      accessKeyId,
+      secretAccessKey
+    },
+    region: 'auto'
+  });
+
+  return { s3, bucketName };
+}
+
+async function uploadToR2Direct(filePath, remoteKey, onProgress) {
+  const { s3, bucketName } = getR2Client();
+  const fileStream = fs.createReadStream(filePath);
+  const fileStats = fs.statSync(filePath);
+
+  const parallelUploads3 = new Upload({
+    client: s3,
+    params: {
+      Bucket: bucketName,
+      Key: remoteKey,
+      Body: fileStream,
+      ContentType: remoteKey.endsWith('.zip') ? 'application/zip' : 'application/octet-stream'
+    },
+    queueSize: 4,
+    partSize: 10 * 1024 * 1024,
+    leavePartsOnError: false
+  });
+
+  if (onProgress) {
+    parallelUploads3.on('httpUploadProgress', (progress) => {
+      const total = progress.total || fileStats.size;
+      const loaded = progress.loaded || 0;
+      if (total > 0) {
+        const percent = Math.round((loaded / total) * 100);
+        onProgress(percent);
+      }
+    });
+  }
+
+  await parallelUploads3.done();
+  return `https://mc.diverlin.ru/${remoteKey}`;
+}
+
 // Устанавливаем стандартный User-Agent браузера для обхода защиты Cloudflare от ботов
 axios.defaults.headers.common['User-Agent'] = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36';
 const { app, shell, dialog, Notification } = require('electron'); 
@@ -13,30 +68,10 @@ const { execSync } = require('child_process');
 const { Worker } = require('worker_threads');
 const { Client, Authenticator } = require('minecraft-launcher-core');
 
+const { getBuildsDir, setBuildsDir, getDefaultBuildsDir, resolveClientPath, resolveServerPath } = require('./buildsConfig');
+
 const launcher = new Client();
 let gameProcess = null;
-
-const resolveClientPath = (clientDir) => {
-  if (!clientDir) return '';
-  if (path.isAbsolute(clientDir)) return clientDir;
-  const isCustom = clientDir.startsWith('custom-packs');
-  if (!isCustom) {
-    const exeDir = path.dirname(app.getPath('exe'));
-    return path.resolve(exeDir, clientDir);
-  }
-  return path.resolve(app.getPath('userData'), clientDir);
-};
-
-const resolveServerPath = (serverDir) => {
-  if (!serverDir) return '';
-  if (path.isAbsolute(serverDir)) return serverDir;
-  const isCustom = serverDir.startsWith('custom-packs');
-  if (!isCustom) {
-    const exeDir = path.dirname(app.getPath('exe'));
-    return path.resolve(exeDir, serverDir);
-  }
-  return path.resolve(app.getPath('userData'), serverDir);
-};
 
 const AUTH_SERVER = process.env.AUTH_SERVER || 'https://mcauth.diverlin.ru';
 
@@ -379,13 +414,15 @@ async function resolveLoaderDetails(pack) {
     }
 
     try {
-      sysLog(`Fetching latest Fabric loader/installer metadata for ${pack.mcVersion}...`);
-      const loaderRes = await axios.get(`https://meta.fabricmc.net/v2/versions/loader/${pack.mcVersion}`, { timeout: 5000 });
-      if (loaderRes.data && loaderRes.data.length > 0) {
-        const latestLoader = loaderRes.data[0].loader;
-        if (latestLoader && latestLoader.version !== pack.loaderVersion) {
-          loaderVersion = latestLoader.version;
-          updated = true;
+      sysLog(`Fetching Fabric loader metadata for ${pack.mcVersion}...`);
+      if (!pack.loaderVersion) {
+        const loaderRes = await axios.get(`https://meta.fabricmc.net/v2/versions/loader/${pack.mcVersion}`, { timeout: 5000 });
+        if (loaderRes.data && loaderRes.data.length > 0) {
+          const latestLoader = loaderRes.data[0].loader;
+          if (latestLoader) {
+            loaderVersion = latestLoader.version;
+            updated = true;
+          }
         }
       }
       
@@ -421,13 +458,15 @@ async function resolveLoaderDetails(pack) {
     }
 
     try {
-      sysLog(`Fetching latest Quilt loader/installer metadata for ${pack.mcVersion}...`);
-      const loaderRes = await axios.get(`https://meta.quiltmc.org/v3/versions/loader/${pack.mcVersion}`, { timeout: 5000 });
-      if (loaderRes.data && loaderRes.data.length > 0) {
-        const latestLoader = loaderRes.data[0].loader;
-        if (latestLoader && latestLoader.version !== pack.loaderVersion) {
-          loaderVersion = latestLoader.version;
-          updated = true;
+      sysLog(`Fetching Quilt loader metadata for ${pack.mcVersion}...`);
+      if (!pack.loaderVersion) {
+        const loaderRes = await axios.get(`https://meta.quiltmc.org/v3/versions/loader/${pack.mcVersion}`, { timeout: 5000 });
+        if (loaderRes.data && loaderRes.data.length > 0) {
+          const latestLoader = loaderRes.data[0].loader;
+          if (latestLoader) {
+            loaderVersion = latestLoader.version;
+            updated = true;
+          }
         }
       }
 
@@ -451,17 +490,20 @@ async function resolveLoaderDetails(pack) {
       await saveCorrectedPackConfig(pack);
     }
   } else if (pack.loaderType === 'neoforge') {
-    let currentUrl = pack.installerUrl || pack.forgeUrl;
-    let resolvedVersion = await resolveNeoForgeVersion(pack.mcVersion);
+    let resolvedVersion = pack.loaderVersion;
+    if (!resolvedVersion || resolvedVersion === 'latest') {
+      resolvedVersion = await resolveNeoForgeVersion(pack.mcVersion);
+    }
     let newUrl = `https://maven.neoforged.net/releases/net/neoforged/neoforge/${resolvedVersion}/neoforge-${resolvedVersion}-installer.jar`;
     let newName = `neoforge-${resolvedVersion}-installer.jar`;
 
-    if (!currentUrl || !currentUrl.includes(resolvedVersion)) {
-      sysLog(`Correcting NeoForge pack "${pack.name}" loader version to "${resolvedVersion}"`);
+    if (!pack.installerUrl || !pack.installerUrl.includes(resolvedVersion)) {
+      sysLog(`Setting NeoForge pack "${pack.name}" loader version to "${resolvedVersion}"`);
       pack.forgeUrl = newUrl;
       pack.forgeInstallerName = newName;
       pack.installerUrl = newUrl;
       pack.installerName = newName;
+      pack.loaderVersion = resolvedVersion;
       await saveCorrectedPackConfig(pack);
     }
   } else if (pack.loaderType === 'forge') {
@@ -490,37 +532,144 @@ async function resolveLoaderDetails(pack) {
   }
 }
 
+function getCurseBaseUrl() {
+  if (process.env.CURSEFORGE_API_KEY) {
+    return 'https://api.curseforge.com/v1';
+  }
+  return 'https://api.curse.tools/v1/cf';
+}
+
+function getCurseHeaders() {
+  const headers = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+    'Accept': 'application/json'
+  };
+  if (process.env.CURSEFORGE_API_KEY) {
+    headers['x-api-key'] = process.env.CURSEFORGE_API_KEY;
+  }
+  return headers;
+}
+
+function findManifestFile(dir) {
+  if (!dir || !fs.existsSync(dir)) return null;
+  const rootManifest = path.join(dir, 'manifest.json');
+  if (fs.existsSync(rootManifest)) return rootManifest;
+
+  try {
+    const items = fs.readdirSync(dir, { withFileTypes: true });
+    for (const item of items) {
+      if (item.isDirectory()) {
+        const subPath = path.join(dir, item.name, 'manifest.json');
+        if (fs.existsSync(subPath)) return subPath;
+      }
+    }
+  } catch (e) {}
+
+  return null;
+}
+
+function parseCurseForgeManifestData(manifest) {
+  const packName = manifest.name || 'CurseForge Pack';
+  const mcVersion = manifest.minecraft?.version || '1.20.1';
+  let loaderType = 'vanilla';
+  let loaderVersion = 'latest';
+  if (manifest.minecraft && manifest.minecraft.modLoaders && manifest.minecraft.modLoaders.length > 0) {
+    const primaryLoader = manifest.minecraft.modLoaders.find(l => l.primary) || manifest.minecraft.modLoaders[0];
+    const loaderId = primaryLoader.id;
+    if (loaderId.startsWith('forge-')) {
+      loaderType = 'forge';
+      loaderVersion = loaderId.replace('forge-', '');
+    } else if (loaderId.startsWith('fabric-')) {
+      loaderType = 'fabric';
+      loaderVersion = loaderId.replace('fabric-', '');
+    } else if (loaderId.startsWith('neoforge-')) {
+      loaderType = 'neoforge';
+      loaderVersion = loaderId.replace('neoforge-', '');
+    } else if (loaderId.startsWith('quilt-')) {
+      loaderType = 'quilt';
+      loaderVersion = loaderId.replace('quilt-', '');
+    }
+  }
+  return {
+    packName,
+    mcVersion,
+    loaderType,
+    loaderVersion,
+    version: manifest.version || '1.0.0',
+    filesCount: manifest.files ? manifest.files.length : 0,
+    overrides: manifest.overrides || 'overrides'
+  };
+}
+
 async function syncModpack(event, rootDir, pack) {
   sysLog(`syncModpack called for rootDir: ${rootDir}`);
   if (!fs.existsSync(rootDir)) fs.mkdirSync(rootDir, { recursive: true });
 
-  if (pack.packZipUrl && pack.packVersion) {
+  const targetVersion = pack.packVersion || pack.version || '1.0.0';
+
+  if (pack.packZipUrl) {
     const versionFile = path.join(rootDir, 'pack_version.txt');
+    const zipPath = path.join(rootDir, 'update.zip');
     const currentVersion = fs.existsSync(versionFile) ? fs.readFileSync(versionFile, 'utf8').trim() : '0';
-    sysLog(`Current zip pack version: ${currentVersion}, target version: ${pack.packVersion}`);
+    sysLog(`Current zip pack version: ${currentVersion}, target version: ${targetVersion}`);
 
-    if (currentVersion !== pack.packVersion) {
-      const zipPath = path.join(rootDir, 'update.zip');
-      event.reply('launch-progress', `Подключение к серверу обновлений...`);
-      await downloadFile(pack.packZipUrl, zipPath, (p) => event.reply('launch-progress', `Загрузка архива: ${p}%`));
-      
-      // Clean up mods and config directory to prevent old files conflicts
-      const modsPath = path.join(rootDir, 'mods');
-      const configPath = path.join(rootDir, 'config');
-      sysLog(`Clearing mods/ and config/ folders before extraction...`);
-      if (fs.existsSync(modsPath)) {
-        try { fs.rmSync(modsPath, { recursive: true, force: true }); } catch (e) { sysLog(`Error clearing mods directory: ${e.message}`); }
-      }
-      if (fs.existsSync(configPath)) {
-        try { fs.rmSync(configPath, { recursive: true, force: true }); } catch (e) { sysLog(`Error clearing config directory: ${e.message}`); }
+    const hasValidZip = fs.existsSync(zipPath) && fs.statSync(zipPath).size > 1000;
+
+    if (currentVersion !== targetVersion) {
+      if (!hasValidZip) {
+        event.reply('launch-progress', `Подключение к серверу обновлений...`);
+        await downloadFile(pack.packZipUrl, zipPath, (p) => event.reply('launch-progress', `Загрузка архива: ${p}%`));
+      } else {
+        sysLog(`Reusing cached archive at: ${zipPath}`);
+        event.reply('launch-progress', `Использование скачанного архива...`);
       }
 
-      event.reply('launch-progress', 'Распаковка файлов...');
-      sysLog(`Extracting pack zip: ${zipPath} -> ${rootDir}`);
-      await extract(zipPath, { dir: rootDir });
-      sysLog(`Extraction complete. Unlinking zip file.`);
-      fs.unlinkSync(zipPath);
-      fs.writeFileSync(versionFile, pack.packVersion);
+      const tempExtractDir = path.join(app.getPath('temp'), `pack_sync_${Date.now()}`);
+      if (fs.existsSync(tempExtractDir)) fs.rmSync(tempExtractDir, { recursive: true, force: true });
+      fs.mkdirSync(tempExtractDir, { recursive: true });
+
+      try {
+        event.reply('launch-progress', 'Распаковка архива сборки...');
+        await extract(zipPath, { dir: tempExtractDir });
+
+        const modsPath = path.join(rootDir, 'mods');
+        const configPath = path.join(rootDir, 'config');
+        sysLog(`Clearing mods/ and config/ folders before extraction...`);
+        if (fs.existsSync(modsPath)) {
+          try { fs.rmSync(modsPath, { recursive: true, force: true }); } catch (e) { sysLog(`Error clearing mods: ${e.message}`); }
+        }
+        if (fs.existsSync(configPath)) {
+          try { fs.rmSync(configPath, { recursive: true, force: true }); } catch (e) { sysLog(`Error clearing config: ${e.message}`); }
+        }
+
+        const manifestPath = findManifestFile(tempExtractDir);
+        if (manifestPath) {
+          const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+          const manifestDir = path.dirname(manifestPath);
+
+          // Core loader check from manifest
+          const parsedData = parseCurseForgeManifestData(manifest);
+          if (parsedData.loaderType && parsedData.loaderType !== 'vanilla') {
+            pack.loaderType = parsedData.loaderType;
+            if (parsedData.loaderVersion && parsedData.loaderVersion !== 'latest') {
+              pack.loaderVersion = parsedData.loaderVersion;
+            }
+            await saveCorrectedPackConfig(pack);
+          }
+
+          const overridesPath = path.join(manifestDir, manifest.overrides || 'overrides');
+          if (fs.existsSync(overridesPath)) {
+            fs.cpSync(overridesPath, rootDir, { recursive: true, force: true });
+          }
+          fs.cpSync(tempExtractDir, rootDir, { recursive: true, force: true });
+        } else {
+          fs.cpSync(tempExtractDir, rootDir, { recursive: true, force: true });
+        }
+
+        fs.writeFileSync(versionFile, targetVersion);
+      } finally {
+        if (fs.existsSync(tempExtractDir)) fs.rmSync(tempExtractDir, { recursive: true, force: true });
+      }
     }
   }
 
@@ -700,6 +849,29 @@ async function ensureAuthlibInjector(event) {
 }
 
 module.exports = function(ipcMain) {
+  ipcMain.handle('select-folder', async () => {
+    const { canceled, filePaths } = await dialog.showOpenDialog({
+      title: 'Выберите папку для сборок',
+      properties: ['openDirectory', 'createDirectory']
+    });
+    if (!canceled && filePaths.length > 0) {
+      return filePaths[0];
+    }
+    return null;
+  });
+
+  ipcMain.handle('get-builds-dir', () => {
+    return getBuildsDir();
+  });
+
+  ipcMain.handle('get-default-builds-dir', () => {
+    return getDefaultBuildsDir();
+  });
+
+  ipcMain.handle('set-builds-dir', (event, dir) => {
+    return setBuildsDir(dir);
+  });
+
   ipcMain.on('open-client-folder', (event, pack) => {
     if (!pack) return;
     shell.openPath(resolveClientPath(pack.clientDir));
@@ -734,26 +906,36 @@ module.exports = function(ipcMain) {
 
       // === CUSTOM YGGDRASIL AUTH ===
       let auth;
+      let isOffline = false;
       const cacheFile = path.join(app.getPath('userData'), 'custom_auth_cache.json');
       if (fs.existsSync(cacheFile)) {
         try {
           const cached = JSON.parse(fs.readFileSync(cacheFile, 'utf8'));
-          auth = {
-            access_token: cached.accessToken,
-            client_token: cached.clientToken || require('crypto').randomUUID(),
-            uuid: cached.selectedProfile.id,
-            name: cached.selectedProfile.name,
-            user_properties: "{}"
-          };
-          options.username = cached.selectedProfile.name; // Use auth username
-          sysLog(`Loaded cached auth profile for: ${options.username}`);
+          isOffline = !!cached.isOffline;
+          if (isOffline) {
+            auth = Authenticator.getAuth(cached.selectedProfile.name);
+            options.username = cached.selectedProfile.name;
+            sysLog(`Loaded cached offline auth profile for: ${options.username}`);
+          } else {
+            auth = {
+              access_token: cached.accessToken,
+              client_token: cached.clientToken || require('crypto').randomUUID(),
+              uuid: cached.selectedProfile.id,
+              name: cached.selectedProfile.name,
+              user_properties: "{}"
+            };
+            options.username = cached.selectedProfile.name; // Use auth username
+            sysLog(`Loaded cached auth profile for: ${options.username}`);
+          }
         } catch (e) {
           sysLog(`Failed to parse auth cache: ${e.message}. Falling back to offline mode.`);
           auth = Authenticator.getAuth(options.username);
+          isOffline = true;
         }
       } else {
         sysLog(`Auth cache file not found. Launching in offline mode for: ${options.username}`);
         auth = Authenticator.getAuth(options.username);
+        isOffline = true;
       }
 
       // 1. EARLY JAVA VERSION RESOLUTION
@@ -789,18 +971,22 @@ module.exports = function(ipcMain) {
         sysLog(`Installer path resolved: ${installerPath}`);
       }
       
-      sysLog(`Checking authlib injector...`);
-      const authlibPath = await ensureAuthlibInjector(event);
-      sysLog(`Authlib injector path: ${authlibPath}`);
+      let authlibPath = null;
+      if (!isOffline) {
+        sysLog(`Checking authlib injector...`);
+        authlibPath = await ensureAuthlibInjector(event);
+        sysLog(`Authlib injector path: ${authlibPath}`);
+      }
       
       sysLog(`Syncing modpack files...`);
       await syncModpack(event, gameRoot, pack);
       sysLog(`Modpack sync complete.`);
 
-      let customArgs = [
-        `-javaagent:${authlibPath}=${AUTH_SERVER}/api/yggdrasil`,
-        '-Dhttp.agent=Mozilla/5.0'
-      ];
+      let customArgs = [];
+      if (!isOffline && authlibPath) {
+        customArgs.push(`-javaagent:${authlibPath}=${AUTH_SERVER}/api/yggdrasil`);
+      }
+      customArgs.push('-Dhttp.agent=Mozilla/5.0');
 
       let opts = {
         clientPackage: null, authorization: auth, root: gameRoot, 
@@ -831,10 +1017,56 @@ module.exports = function(ipcMain) {
         }
         opts.version = { number: pack.mcVersion, type: "release", custom: fabricVersionName };
       } else if (clientLoaderType === 'forge') {
-        sysLog(`Configuring Forge settings. Installer: ${installerPath}`);
-        opts.version = { number: pack.mcVersion, type: "release" };
-        opts.forge = installerPath;
-        opts.customArgs.push('-Dforge.forceNoIgui=true');
+        const parts = pack.mcVersion.split('.');
+        const minor = parseInt(parts[1] || '0', 10);
+        const isLegacyForge = minor < 13;
+        if (isLegacyForge) {
+          sysLog(`Configuring Legacy Forge settings (< 1.13) for version: ${pack.mcVersion}`);
+          const forgeVersionName = `forge-${pack.mcVersion}`;
+          const versionDir = path.join(gameRoot, 'versions', forgeVersionName);
+          if (!fs.existsSync(versionDir)) {
+            fs.mkdirSync(versionDir, { recursive: true });
+          }
+          const versionJsonPath = path.join(versionDir, `${forgeVersionName}.json`);
+          sysLog(`Extracting legacy Forge version details from: ${installerPath}`);
+          const zip = new AdmZip(installerPath);
+          const profileEntry = zip.getEntry('install_profile.json');
+          if (profileEntry) {
+            const profileData = JSON.parse(profileEntry.getData().toString('utf8'));
+            if (profileData.versionInfo) {
+              const versionInfo = profileData.versionInfo;
+              if (versionInfo.libraries) {
+                versionInfo.libraries.forEach(library => {
+                  const lib = library.name.split(':');
+                  if (lib[0] === 'net.minecraftforge' && lib[1] === 'forge') {
+                    if (!library.name.includes(':universal')) {
+                      library.name = library.name + ':universal';
+                    }
+                    if (!library.url) {
+                      library.url = 'https://maven.minecraftforge.net/';
+                    }
+                  } else if (!library.url) {
+                    if (library.serverreq || library.clientreq) {
+                      library.url = 'https://libraries.minecraft.net/';
+                    }
+                  }
+                });
+              }
+              fs.writeFileSync(versionJsonPath, JSON.stringify(versionInfo, null, 2));
+              sysLog(`Successfully created custom legacy Forge version JSON at: ${versionJsonPath}`);
+            } else {
+              throw new Error("Не удалось найти 'versionInfo' в install_profile.json устаревшего установщика Forge");
+            }
+          } else {
+            throw new Error("Не удалось найти 'install_profile.json' в установщике Forge");
+          }
+          opts.version = { number: pack.mcVersion, type: "release", custom: forgeVersionName };
+        } else {
+          sysLog(`Configuring Modern Forge settings (>= 1.13). Installer: ${installerPath}`);
+          opts.version = { number: pack.mcVersion, type: "release" };
+          opts.forge = installerPath;
+          opts.customArgs.push('-Dforge.forceNoIgui=true');
+        }
       } else {
         sysLog(`Configuring vanilla/plugin client launch.`);
         opts.version = { number: pack.mcVersion, type: "release" };
@@ -1089,6 +1321,21 @@ module.exports = function(ipcMain) {
       
       logger.log("Reading cache file...");
       const cached = JSON.parse(fs.readFileSync(cacheFile, 'utf8'));
+      if (cached.isOffline) {
+        logger.log("Offline mode cached session found for:", cached.selectedProfile?.name);
+        return {
+          success: true,
+          id: 'offline',
+          name: cached.selectedProfile.name,
+          uuid: cached.selectedProfile.id,
+          accessToken: 'offline',
+          webToken: 'offline',
+          is_admin: 0,
+          badge: null,
+          isOffline: true,
+          logs: logger.getLogs()
+        };
+      }
       logger.log("Cached access token prefix:", cached.accessToken ? cached.accessToken.slice(0, 8) + "..." : "undefined");
       logger.log("Cached web token prefix:", cached.webToken ? cached.webToken.slice(0, 15) + "..." : "undefined");
       logger.log("Cached username:", cached.selectedProfile?.name, "UUID:", cached.selectedProfile?.id);
@@ -1161,6 +1408,49 @@ module.exports = function(ipcMain) {
     }
   });
 
+  ipcMain.handle('custom-offline-login', async (event, username) => {
+    const logger = createLogger();
+    logger.log("=== [custom-offline-login] START ===");
+    logger.log(`Username: "${username}"`);
+    try {
+      const crypto = require('crypto');
+      const hash = crypto.createHash('md5').update('OfflinePlayer:' + username).digest();
+      hash[6] = (hash[6] & 0x0f) | 0x30;
+      hash[8] = (hash[8] & 0x3f) | 0x80;
+      const offlineUuid = hash.toString('hex').replace(/^(.{8})(.{4})(.{4})(.{4})(.{12})$/, '$1-$2-$3-$4-$5');
+      
+      logger.log(`Generated Offline UUID: ${offlineUuid}`);
+
+      const cacheData = {
+        accessToken: "offline",
+        clientToken: "offline",
+        selectedProfile: {
+          id: offlineUuid,
+          name: username
+        },
+        isOffline: true
+      };
+      fs.writeFileSync(getCustomCacheFile(), JSON.stringify(cacheData));
+      logger.log("Offline auth credentials written to cache file successfully.");
+
+      return {
+        success: true,
+        id: 'offline',
+        name: username,
+        uuid: offlineUuid,
+        accessToken: 'offline',
+        webToken: 'offline',
+        is_admin: 0,
+        badge: null,
+        isOffline: true,
+        logs: logger.getLogs()
+      };
+    } catch (err) {
+      logger.log("Offline login failed! Error:", err.message);
+      return { success: false, error: err.message, logs: logger.getLogs() };
+    }
+  });
+
   ipcMain.handle('custom-logout', () => {
     const cacheFile = getCustomCacheFile();
     if (fs.existsSync(cacheFile)) fs.unlinkSync(cacheFile);
@@ -1171,6 +1461,17 @@ module.exports = function(ipcMain) {
     const logger = createLogger();
     logger.log("=== [get-skin-data] START ===");
     logger.log("Requested UUID:", uuid);
+
+    const cacheFile = getCustomCacheFile();
+    if (fs.existsSync(cacheFile)) {
+      try {
+        const cached = JSON.parse(fs.readFileSync(cacheFile, 'utf8'));
+        if (cached.isOffline) {
+          logger.log("Offline mode: skipping skin fetch from sessionserver");
+          return { success: false, error: 'Офлайн-режим: скин недоступен', logs: logger.getLogs() };
+        }
+      } catch (e) {}
+    }
 
     const getAbsoluteUrl = (url) => {
       if (!url) return null;
@@ -1522,6 +1823,16 @@ module.exports = function(ipcMain) {
     const logger = createLogger();
     logger.log("=== [get-badges] START ===");
     try {
+      const cacheFile = getCustomCacheFile();
+      if (fs.existsSync(cacheFile)) {
+        try {
+          const cached = JSON.parse(fs.readFileSync(cacheFile, 'utf8'));
+          if (cached.isOffline) {
+            logger.log("Offline mode: skipping badges fetch");
+            return { success: true, badges: [] };
+          }
+        } catch (e) {}
+      }
       logger.log(`Fetching badges from Web API: ${AUTH_SERVER}/api/badges`);
       const response = await axios.get(`${AUTH_SERVER}/api/badges`);
       return { success: true, badges: response.data };
@@ -2267,9 +2578,13 @@ module.exports = function(ipcMain) {
         });
 
         worker.on('message', (msg) => {
+          if (msg.stage === 'archiving') {
+            event.sender.send('export-progress', msg);
+            return;
+          }
           sysLog(`[IPC export-custom-pack] worker message: ${JSON.stringify(msg)}`);
           if (msg.success) {
-            resolve({ success: true });
+            resolve({ success: true, filePath });
           } else {
             resolve({ success: false, error: msg.error || 'Ошибка при архивации сборки' });
           }
@@ -2292,7 +2607,7 @@ module.exports = function(ipcMain) {
     }
   });
 
-  ipcMain.handle('import-pack-extended', async (event, type) => {
+  ipcMain.handle('import-pack-extended', async (event, type, customMetadata = {}) => {
     let tempDir = '';
     try {
       let filters = [];
@@ -2317,12 +2632,12 @@ module.exports = function(ipcMain) {
 
       event.sender.send('import-progress', { stage: 'extracting', message: 'Подготовка к распаковке...', progress: 2 });
 
-      let packName = '';
+      let packName = customMetadata.name || '';
       let mcVersion = '';
       let loaderType = 'fabric';
       let loaderVersion = 'latest';
       let packId = 'custom_pack_' + Date.now();
-      let clientDir = `custom-packs/${packId}`;
+      let clientDir = customMetadata.clientDir || `custom-packs/${packId}`;
       let targetClientDir = resolveClientPath(clientDir);
       let isImportedPackOfficial = false;
       let importedPackData = null;
@@ -2630,12 +2945,16 @@ module.exports = function(ipcMain) {
 
       const newPack = {
         id: packId,
-        name: packName,
-        clientDir: clientDir,
+        name: customMetadata?.name || packName,
+        clientDir: customMetadata?.clientDir || clientDir,
         mcVersion: mcVersion,
         loaderType: loaderType,
         loaderVersion: loaderVersion || 'latest',
-        icon: 'fa-cube',
+        icon: customMetadata?.icon || 'fa-cube',
+        bgImage: customMetadata?.bgImage || '',
+        bgVideo: customMetadata?.bgVideo || '',
+        titleColor: customMetadata?.titleColor || '#ffffff',
+        description: customMetadata?.description || '',
         isCustom: true
       };
 
@@ -2697,8 +3016,12 @@ module.exports = function(ipcMain) {
         });
 
         worker.on('message', (msg) => {
+          if (msg.stage === 'archiving') {
+            event.sender.send('export-progress', msg);
+            return;
+          }
           if (msg.success) {
-            resolve({ success: true });
+            resolve({ success: true, filePath });
           } else {
             resolve({ success: false, error: msg.error || 'Ошибка при архивации сборки' });
           }
@@ -2932,7 +3255,7 @@ module.exports = function(ipcMain) {
   };
 
   ipcMain.handle('search-curse', async (event, query, options) => {
-    const { mcVersion, loader, category, limit, offset, sortField, sortOrder } = options || {};
+    const { mcVersion, loader, category, limit, offset, sortField, sortOrder, author } = options || {};
     sysLog(`[IPC search-curse] query: "${query}", options: ${JSON.stringify(options)}`);
     try {
       const loaderId = getCurseLoaderId(loader);
@@ -2945,7 +3268,11 @@ module.exports = function(ipcMain) {
         pageSize: limit || 12
       };
       
-      if (query && query.trim()) params.searchFilter = query;
+      if (query && query.trim()) {
+        params.searchFilter = query;
+      } else if (author && author.trim()) {
+        params.searchFilter = author.trim();
+      }
       if (mcVersion) params.gameVersion = mcVersion;
       if (loaderId !== null) params.modLoaderType = loaderId;
       if (categoryId !== undefined) params.categoryId = categoryId;
@@ -3081,7 +3408,7 @@ module.exports = function(ipcMain) {
   });
 
   ipcMain.handle('search-modrinth', async (event, query, options) => {
-    const { mcVersion, loader, category, limit, offset, sortField, sortOrder, projectType = 'mod' } = options || {};
+    const { mcVersion, loader, category, limit, offset, sortField, sortOrder, projectType = 'mod', author } = options || {};
     sysLog(`[IPC search-modrinth] query: "${query}", options: ${JSON.stringify(options)}`);
     try {
       const facets = [];
@@ -3105,6 +3432,10 @@ module.exports = function(ipcMain) {
         if (cat === 'technology') cat = 'tech';
         else if (cat === 'library') cat = 'utility';
         facets.push([`categories:${cat}`]);
+      }
+
+      if (author && author.trim()) {
+        facets.push([`author:${author.trim()}`]);
       }
 
       // Sorting
@@ -3323,38 +3654,45 @@ module.exports = function(ipcMain) {
     const resolvedKey = key.endsWith('/') ? key + fileName : key;
 
     try {
-      const fileBuffer = fs.readFileSync(targetPath);
-      // Build multipart/form-data manually (no external dep needed)
-      const boundary = `----FormBoundary${require('crypto').randomBytes(8).toString('hex')}`;
-      const CRLF = '\r\n';
-      const header = Buffer.from(
-        `--${boundary}${CRLF}` +
-        `Content-Disposition: form-data; name="file"; filename="${fileName}"${CRLF}` +
-        `Content-Type: application/octet-stream${CRLF}${CRLF}`
-      );
-      const footer = Buffer.from(`${CRLF}--${boundary}--${CRLF}`);
-      const body = Buffer.concat([header, fileBuffer, footer]);
-
-      const resp = await axios.post(`${AUTH_SERVER}/api/admin/r2/upload`, body, {
-        params: { key: resolvedKey },
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': `multipart/form-data; boundary=${boundary}`,
-          'Content-Length': body.length
-        },
-        maxContentLength: Infinity,
-        maxBodyLength: Infinity,
-        onUploadProgress: (progressEvent) => {
-          if (progressEvent.total) {
-            const percent = Math.round((progressEvent.loaded / progressEvent.total) * 100);
-            event.sender.send('r2-upload-progress', percent);
-          }
-        }
+      const publicUrl = await uploadToR2Direct(targetPath, resolvedKey, (percent) => {
+        event.sender.send('r2-upload-progress', percent);
       });
-      return { success: true, ...resp.data, fileName };
+      return { success: true, url: publicUrl, fileName };
     } catch (err) {
-      const msg = err.response?.data?.error || err.message;
-      return { success: false, error: msg };
+      console.error('r2-upload-file direct upload error, falling back:', err);
+      try {
+        const fileBuffer = fs.readFileSync(targetPath);
+        const boundary = `----FormBoundary${require('crypto').randomBytes(8).toString('hex')}`;
+        const CRLF = '\r\n';
+        const header = Buffer.from(
+          `--${boundary}${CRLF}` +
+          `Content-Disposition: form-data; name="file"; filename="${fileName}"${CRLF}` +
+          `Content-Type: application/octet-stream${CRLF}${CRLF}`
+        );
+        const footer = Buffer.from(`${CRLF}--${boundary}--${CRLF}`);
+        const body = Buffer.concat([header, fileBuffer, footer]);
+
+        const resp = await axios.post(`${AUTH_SERVER}/api/admin/r2/upload`, body, {
+          params: { key: resolvedKey },
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': `multipart/form-data; boundary=${boundary}`,
+            'Content-Length': body.length
+          },
+          maxContentLength: Infinity,
+          maxBodyLength: Infinity,
+          onUploadProgress: (progressEvent) => {
+            if (progressEvent.total) {
+              const percent = Math.round((progressEvent.loaded / progressEvent.total) * 100);
+              event.sender.send('r2-upload-progress', percent);
+            }
+          }
+        });
+        return { success: true, ...resp.data, fileName };
+      } catch (fallbackErr) {
+        const msg = fallbackErr.response?.data?.error || fallbackErr.message;
+        return { success: false, error: msg };
+      }
     }
   });
 
@@ -3396,6 +3734,8 @@ module.exports = function(ipcMain) {
       title: 'Выберите файлы для загрузки',
       properties: ['openFile', 'multiSelections'],
       filters: [
+        { name: 'ZIP и Jar файлы', extensions: ['zip', 'jar'] },
+        { name: 'ZIP Архивы', extensions: ['zip'] },
         { name: 'Jar файлы', extensions: ['jar'] },
         { name: 'Все файлы', extensions: ['*'] }
       ]
@@ -3421,6 +3761,8 @@ module.exports = function(ipcMain) {
       return { success: false, error: err.response?.data?.error || err.message };
     }
   });
+
+
 
   // ── FONT SWITCHING IPC HANDLERS ───────────────────────────────────────────
   const getCustomFontsDir = () => path.join(app.getPath('userData'), 'custom-fonts');

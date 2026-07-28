@@ -224,6 +224,39 @@ export default function SettingsPage({ currentPack }) {
   // Game
   const [ram,        setRam]       = useState(localStorage.getItem('launcher_ram')        || '4');
   const [maxRam, setMaxRam] = useState(16);
+  const [buildsDir, setBuildsDir] = useState(localStorage.getItem('launcher_builds_dir') || '');
+  const [defaultBuildsDir, setDefaultBuildsDir] = useState('');
+
+  useEffect(() => {
+    if (window.electronAPI) {
+      if (window.electronAPI.getBuildsDir) {
+        window.electronAPI.getBuildsDir().then(dir => setBuildsDir(dir || ''));
+      }
+      if (window.electronAPI.getDefaultBuildsDir) {
+        window.electronAPI.getDefaultBuildsDir().then(dir => setDefaultBuildsDir(dir || ''));
+      }
+    }
+  }, []);
+
+  const handleBrowseBuildsDir = async () => {
+    if (window.electronAPI?.selectFolder) {
+      const selected = await window.electronAPI.selectFolder();
+      if (selected) {
+        const saved = await window.electronAPI.setBuildsDir(selected);
+        setBuildsDir(saved);
+        localStorage.setItem('launcher_builds_dir', saved);
+      }
+    }
+  };
+
+  const handleResetBuildsDir = async () => {
+    if (window.electronAPI?.getDefaultBuildsDir) {
+      const def = await window.electronAPI.getDefaultBuildsDir();
+      const saved = await window.electronAPI.setBuildsDir(def);
+      setBuildsDir(saved);
+      localStorage.setItem('launcher_builds_dir', saved);
+    }
+  };
 
   useEffect(() => {
     if (window.electronAPI && window.electronAPI.getSystemMemory) {
@@ -370,6 +403,62 @@ export default function SettingsPage({ currentPack }) {
   // ═══════════════════════════════════════════════════════════════════════════
   const renderGame = () => (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+      <Section title={lang === 'ru' ? 'Путь установки сборок' : 'Builds Installation Path'} icon="fa-solid fa-folder-open" color="#a855f7">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          <label style={labelStyle}>{lang === 'ru' ? 'Текущая директория сборок' : 'Current Builds Directory'}</label>
+          <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+            <input
+              type="text"
+              readOnly
+              value={buildsDir}
+              style={{ ...glassInput, flex: 1, cursor: 'default' }}
+            />
+            <motion.button
+              whileHover={{ scale: 1.04 }}
+              whileTap={{ scale: 0.96 }}
+              onClick={handleBrowseBuildsDir}
+              style={{
+                background: 'rgba(168, 85, 247, 0.15)',
+                border: '1px solid rgba(168, 85, 247, 0.3)',
+                color: '#c084fc',
+                borderRadius: '13px',
+                padding: '12px 18px',
+                fontWeight: 700,
+                fontSize: '13px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                whiteSpace: 'nowrap'
+              }}
+            >
+              <i className="fa-solid fa-folder-open" />
+              {lang === 'ru' ? 'Обзор...' : 'Browse...'}
+            </motion.button>
+            {defaultBuildsDir && buildsDir !== defaultBuildsDir && (
+              <motion.button
+                whileHover={{ scale: 1.04 }}
+                whileTap={{ scale: 0.96 }}
+                onClick={handleResetBuildsDir}
+                style={{
+                  background: 'rgba(255, 255, 255, 0.05)',
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  color: '#a1a1aa',
+                  borderRadius: '13px',
+                  padding: '12px 14px',
+                  fontWeight: 600,
+                  fontSize: '12px',
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                {lang === 'ru' ? 'Сбросить' : 'Reset'}
+              </motion.button>
+            )}
+          </div>
+        </div>
+      </Section>
+
       <Section title={t('settings_ram')} icon="fa-solid fa-memory" color="#10b981">
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>

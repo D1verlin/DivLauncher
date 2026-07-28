@@ -1,6 +1,6 @@
 {
   "name": "div-launcher",
-  "version": "1.1.7",
+  "version": "1.2.1",
   "description": "Custom Minecraft Launcher",
   "author": "Diverlin",
   "license": "Proprietary",
@@ -9,7 +9,9 @@
     "dev:ui": "vite",
     "build:ui": "vite build",
     "start": "electron src/main.js",
-    "dist": "npm run build:ui && electron-builder --win"
+    "dist": "npm run build:ui && electron-builder --win",
+    "publish-update": "node scripts/publish-update.js",
+    "dist:publish": "npm run dist && npm run publish-update"
   },
   "build": {
     "appId": "com.diverlin.launcher",
@@ -44,6 +46,7 @@
     "@aws-sdk/client-s3": "^3.1075.0",
     "@aws-sdk/lib-storage": "^3.1075.0",
     "adm-zip": "^0.5.16",
+    "archiver": "^7.0.1",
     "axios": "^1.13.6",
     "discord-rpc": "^4.0.1",
     "dotenv": "^17.3.1",

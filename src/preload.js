@@ -28,7 +28,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
       'update-available', 'update-progress', 'update-downloaded',
       'server-log', 'server-status', 'server-players',
       'r2-upload-progress', 'download-progress', 'update-done',
-      'launch-progress', 'launch-error', 'launch-closed', 'import-progress'
+      'launch-progress', 'launch-error', 'launch-closed', 'import-progress', 'export-progress'
     ];
     if (ALLOWED_CHANNELS.includes(channel)) {
       ipcRenderer.removeAllListeners(channel);
@@ -53,6 +53,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // --- CUSTOM AUTH (для страницы настроек) ---
   customLogin:     (username, password) => ipcRenderer.invoke('custom-login', username, password),
+  customOfflineLogin: (username) => ipcRenderer.invoke('custom-offline-login', username),
   customRegister:  (username, password) => ipcRenderer.invoke('custom-register', username, password),
   customCheckAuth: () => ipcRenderer.invoke('custom-check-auth'),
   customLogout:    () => ipcRenderer.invoke('custom-logout'),
@@ -82,19 +83,23 @@ contextBridge.exposeInMainWorld('electronAPI', {
   saveCustomPack: (pack) => ipcRenderer.invoke('save-custom-pack', pack),
   importCustomPack: () => ipcRenderer.invoke('import-custom-pack'),
   exportCustomPack: (id) => ipcRenderer.invoke('export-custom-pack', id),
-  importPackExtended: (type) => ipcRenderer.invoke('import-pack-extended', type),
+  importPackExtended: (type, customMetadata) => ipcRenderer.invoke('import-pack-extended', type, customMetadata),
   exportPackExtended: (pack) => ipcRenderer.invoke('export-pack-extended', pack),
   onImportProgress: (callback) => {
     ipcRenderer.on('import-progress', (event, data) => callback(data));
   },
+  onExportProgress: (callback) => {
+    ipcRenderer.on('export-progress', (event, data) => callback(data));
+  },
+
   getSystemFonts: () => ipcRenderer.invoke('get-system-fonts'),
   getCustomFonts: () => ipcRenderer.invoke('get-custom-fonts'),
   addCustomFont: () => ipcRenderer.invoke('add-custom-font'),
   deleteCustomPack: (id) => ipcRenderer.invoke('delete-custom-pack', id),
   syncLocalMods: (pack) => ipcRenderer.invoke('sync-local-mods', pack),
   // --- DISCORD RPC ---
-  setDiscordIdle: () => ipcRenderer.send('discord-status-idle'),
-  setDiscordPlaying: (packName) => ipcRenderer.send('discord-status-playing', packName),
+  setDiscordIdle: (username, isOffline, lang) => ipcRenderer.send('discord-status-idle', username, isOffline, lang),
+  setDiscordPlaying: (packName, username, isOffline, lang) => ipcRenderer.send('discord-status-playing', packName, username, isOffline, lang),
   
   // --- MOD MANAGEMENT ---
   getInstalledMods: (clientDir, projectType) => ipcRenderer.invoke('get-installed-mods', clientDir, projectType),
@@ -130,4 +135,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   listBackups: (pack) => ipcRenderer.invoke('list-backups', pack),
   deleteBackup: (pack, fileName) => ipcRenderer.invoke('delete-backup', pack, fileName),
   restoreBackup: (pack, fileName) => ipcRenderer.invoke('restore-backup', pack, fileName),
+
+  // --- BUILDS DIRECTORY & PATH SELECTION ---
+  selectFolder: () => ipcRenderer.invoke('select-folder'),
+  getBuildsDir: () => ipcRenderer.invoke('get-builds-dir'),
+  getDefaultBuildsDir: () => ipcRenderer.invoke('get-default-builds-dir'),
+  setBuildsDir: (dir) => ipcRenderer.invoke('set-builds-dir', dir),
 });

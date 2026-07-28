@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTranslation } from '../utils/i18n';
 
 const CATEGORIES = [
   { id: '', nameKey: 'mods_category_all', icon: 'fa-globe' },
+  { id: 'favorites', nameKey: 'mods_category_fav', icon: 'fa-star' },
   { id: 'optimization', nameKey: 'mods_category_opt', icon: 'fa-bolt' },
   { id: 'magic', nameKey: 'mods_category_magic', icon: 'fa-wand-magic-sparkles' },
   { id: 'technology', nameKey: 'mods_category_tech', icon: 'fa-microchip' },
@@ -50,6 +51,29 @@ export default function ModsPage({ currentPack, onBack, showConfirm, showAlert }
   const [activeScreenshotIndex, setActiveScreenshotIndex] = useState(0);
   const [isLightboxOpen, setIsLightboxOpen] = useState(false);
   const [selectedTab, setSelectedTab] = useState('description'); // 'description' | 'versions' | 'dependencies' | 'gallery'
+
+  const [selectedPublisher, setSelectedPublisher] = useState(null);
+  const [favorites, setFavorites] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('favorite_mods') || '[]');
+    } catch {
+      return [];
+    }
+  });
+
+  const scrollPositionRef = useRef(0);
+  const listScrollRef = useRef(null);
+
+  const catalogScrollRef = useCallback((node) => {
+    if (node !== null && scrollPositionRef.current > 0) {
+      requestAnimationFrame(() => {
+        if (node) {
+          node.scrollTop = scrollPositionRef.current;
+        }
+      });
+    }
+    listScrollRef.current = node;
+  }, []);
 
   const getCurseLoader = (loader) => {
     if (loader === 'hybrid') return 'forge';
@@ -119,30 +143,75 @@ export default function ModsPage({ currentPack, onBack, showConfirm, showAlert }
     
     try {
       const queryStr = search.trim();
+
+      if (activeCategory === 'favorites') {
+        let favs = [];
+        try {
+          favs = JSON.parse(localStorage.getItem('favorite_mods') || '[]');
+        } catch {
+          favs = [];
+        }
+        
+        let filtered = favs.filter(m => 
+          m.source === source && 
+          m.projectType === projectType &&
+          (!queryStr || 
+            (m.title && m.title.toLowerCase().includes(queryStr.toLowerCase())) || 
+            (m.author && m.author.toLowerCase().includes(queryStr.toLowerCase()))
+          )
+        );
+        
+        if (sortBy === 'downloads') {
+          filtered.sort((a, b) => (b.downloads || 0) - (a.downloads || 0));
+        } else if (sortBy === 'updated') {
+          filtered.sort((a, b) => (b.downloads || 0) - (a.downloads || 0));
+        } else if (sortBy === 'name') {
+          filtered.sort((a, b) => (a.title || '').localeCompare(b.title || ''));
+        } else {
+          filtered.sort((a, b) => (b.downloads || 0) - (a.downloads || 0));
+        }
+
+        const pageSize = 12;
+        const offset = isLoadMore ? (page + 1) * pageSize : 0;
+        const paginated = filtered.slice(0, offset + pageSize);
+        
+        if (isLoadMore) {
+          setMods(paginated);
+          setPage(page + 1);
+        } else {
+          setMods(paginated);
+          setPage(0);
+        }
+        setLoading(false);
+        return;
+      }
+      
       const offset = isLoadMore ? (page + 1) * 12 : 0;
       const { sortField, sortOrder } = getSortParams(sortBy);
       
       let res;
       if (source === 'curse') {
-        res = await window.electronAPI.searchCurse(queryStr, {
+        res = await window.electronAPI.searchCurse(selectedPublisher ? '' : queryStr, {
           mcVersion: currentPack.mcVersion,
           loader: loader,
-          category: activeCategory,
-          limit: 12,
-          offset: offset,
-          sortField,
-          sortOrder
-        });
-      } else {
-        res = await window.electronAPI.searchModrinth(queryStr, {
-          mcVersion: currentPack.mcVersion,
-          loader: loader,
-          category: activeCategory,
+          category: selectedPublisher ? '' : activeCategory,
           limit: 12,
           offset: offset,
           sortField,
           sortOrder,
-          projectType
+          author: selectedPublisher || undefined
+        });
+      } else {
+        res = await window.electronAPI.searchModrinth(selectedPublisher ? '' : queryStr, {
+          mcVersion: currentPack.mcVersion,
+          loader: loader,
+          category: selectedPublisher ? '' : activeCategory,
+          limit: 12,
+          offset: offset,
+          sortField,
+          sortOrder,
+          projectType,
+          author: selectedPublisher || undefined
         });
       }
       
@@ -170,18 +239,19 @@ export default function ModsPage({ currentPack, onBack, showConfirm, showAlert }
     } finally {
       setLoading(false);
     }
-  }, [search, activeCategory, sortBy, page, loader, currentPack, source, projectType, t, lang, translateShortDescriptions]);
+  }, [search, activeCategory, sortBy, page, loader, currentPack, source, projectType, t, lang, translateShortDescriptions, selectedPublisher]);
 
   useEffect(() => {
     fetchInstalledMods();
   }, [fetchInstalledMods]);
 
   useEffect(() => {
+    scrollPositionRef.current = 0;
     const delayDebounceFn = setTimeout(() => {
       searchMods(false);
     }, 500);
     return () => clearTimeout(delayDebounceFn);
-  }, [search, activeCategory, sortBy, source, projectType]);
+  }, [search, activeCategory, sortBy, source, projectType, selectedPublisher]);
 
   const getInstalledMap = useCallback(() => {
     if (!currentPack?.id) return {};
@@ -314,6 +384,9 @@ export default function ModsPage({ currentPack, onBack, showConfirm, showAlert }
   };
 
   const handleOpenDetails = async (mod, sourceOverride) => {
+    if (listScrollRef.current) {
+      scrollPositionRef.current = listScrollRef.current.scrollTop;
+    }
     const activeSource = sourceOverride || source;
     if (sourceOverride && sourceOverride !== source) {
       setSource(sourceOverride);
@@ -348,6 +421,54 @@ export default function ModsPage({ currentPack, onBack, showConfirm, showAlert }
     } finally {
       setDetailsLoading(false);
     }
+  };
+
+  const toggleFavorite = (mod, e) => {
+    if (e) e.stopPropagation();
+    const modId = mod.id || mod.project_id;
+    setFavorites(prev => {
+      let updated;
+      const exists = prev.some(f => f.id === modId && f.source === source && f.projectType === projectType);
+      if (exists) {
+        updated = prev.filter(f => !(f.id === modId && f.source === source && f.projectType === projectType));
+      } else {
+        const newFav = {
+          id: modId,
+          project_id: mod.project_id || modId,
+          title: mod.title,
+          icon_url: mod.icon_url,
+          author: mod.author || 'Неизвестен',
+          downloads: mod.downloads || 0,
+          categories: mod.categories || [],
+          description: mod.description || '',
+          slug: mod.slug,
+          source: source,
+          projectType: projectType
+        };
+        updated = [...prev, newFav];
+      }
+      localStorage.setItem('favorite_mods', JSON.stringify(updated));
+      
+      if (activeCategory === 'favorites') {
+        setMods(prevMods => {
+          if (exists) {
+            return prevMods.filter(m => (m.id || m.project_id) !== modId);
+          }
+          return prevMods;
+        });
+      }
+      return updated;
+    });
+  };
+
+  const handlePublisherClick = (authorName, e) => {
+    if (e) e.stopPropagation();
+    if (!authorName || authorName === 'Неизвестен' || authorName === 'Unknown') return;
+    setSelectedPublisher(authorName);
+    setSelectedMod(null);
+    setSelectedModData(null);
+    setMods([]);
+    setPage(0);
   };
 
   const handleOpenFolder = () => {
@@ -614,6 +735,7 @@ export default function ModsPage({ currentPack, onBack, showConfirm, showAlert }
   const renderGridCard = (mod) => {
     const localFile = getInstalledFileName(mod);
     const isInstalled = !!localFile;
+    const isFav = favorites.some(f => f.id === mod.id && f.source === source && f.projectType === projectType);
     
     return (
       <div
@@ -661,20 +783,31 @@ export default function ModsPage({ currentPack, onBack, showConfirm, showAlert }
             ))}
           </div>
           
-          {isInstalled && (
-            <span style={{ 
-              fontSize: '9px', 
-              fontWeight: 800, 
-              background: localFile.endsWith('.disabled') ? 'rgba(245, 158, 11, 0.1)' : 'rgba(16, 185, 129, 0.1)', 
-              border: localFile.endsWith('.disabled') ? '1px solid rgba(245, 158, 11, 0.2)' : '1px solid rgba(16, 185, 129, 0.2)', 
-              color: localFile.endsWith('.disabled') ? '#f59e0b' : '#10b981', 
-              padding: '2px 8px', 
-              borderRadius: '6px', 
-              textTransform: 'uppercase' 
-            }}>
-              {lang === 'ru' ? (localFile.endsWith('.disabled') ? 'Отключен' : 'Установлен') : (localFile.endsWith('.disabled') ? 'Disabled' : 'Installed')}
-            </span>
-          )}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }} onClick={(e) => e.stopPropagation()}>
+            <motion.div
+              whileHover={{ scale: 1.15 }}
+              whileTap={{ scale: 0.9 }}
+              onClick={(e) => toggleFavorite(mod, e)}
+              style={{ color: isFav ? '#fbbf24' : '#71717a', cursor: 'pointer', fontSize: '14px', display: 'flex', alignItems: 'center' }}
+            >
+              <i className={isFav ? "fa-solid fa-star" : "fa-regular fa-star"}></i>
+            </motion.div>
+            
+            {isInstalled && (
+              <span style={{ 
+                fontSize: '9px', 
+                fontWeight: 800, 
+                background: localFile.endsWith('.disabled') ? 'rgba(245, 158, 11, 0.1)' : 'rgba(16, 185, 129, 0.1)', 
+                border: localFile.endsWith('.disabled') ? '1px solid rgba(245, 158, 11, 0.2)' : '1px solid rgba(16, 185, 129, 0.2)', 
+                color: localFile.endsWith('.disabled') ? '#f59e0b' : '#10b981', 
+                padding: '2px 8px', 
+                borderRadius: '6px', 
+                textTransform: 'uppercase' 
+              }}>
+                {lang === 'ru' ? (localFile.endsWith('.disabled') ? 'Отключен' : 'Установлен') : (localFile.endsWith('.disabled') ? 'Disabled' : 'Installed')}
+              </span>
+            )}
+          </div>
         </div>
 
         <div style={{ display: 'flex', gap: '14px', alignItems: 'center' }}>
@@ -690,7 +823,14 @@ export default function ModsPage({ currentPack, onBack, showConfirm, showAlert }
               {mod.title}
             </h3>
             <div style={{ margin: '3px 0 0', fontSize: '11px', color: '#71717a', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <span style={{ color: '#10b981', fontWeight: 800 }}>{mod.author}</span>
+              <span 
+                onClick={(e) => handlePublisherClick(mod.author, e)}
+                style={{ color: '#10b981', fontWeight: 800, cursor: 'pointer', textDecoration: 'underline' }}
+                onMouseEnter={e => e.currentTarget.style.color = '#34d399'}
+                onMouseLeave={e => e.currentTarget.style.color = '#10b981'}
+              >
+                {mod.author}
+              </span>
             </div>
           </div>
         </div>
@@ -730,6 +870,7 @@ export default function ModsPage({ currentPack, onBack, showConfirm, showAlert }
   const renderListCard = (mod) => {
     const localFile = getInstalledFileName(mod);
     const isInstalled = !!localFile;
+    const isFav = favorites.some(f => f.id === mod.id && f.source === source && f.projectType === projectType);
     
     return (
       <div
@@ -768,7 +909,14 @@ export default function ModsPage({ currentPack, onBack, showConfirm, showAlert }
             <h4 style={{ margin: 0, fontSize: '13px', fontWeight: 800, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '200px' }}>
               {mod.title}
             </h4>
-            <span style={{ fontSize: '10px', color: '#10b981', fontWeight: 700 }}>by {mod.author}</span>
+            <span 
+              onClick={(e) => handlePublisherClick(mod.author, e)}
+              style={{ fontSize: '10px', color: '#10b981', fontWeight: 700, cursor: 'pointer', textDecoration: 'underline' }}
+              onMouseEnter={e => e.currentTarget.style.color = '#34d399'}
+              onMouseLeave={e => e.currentTarget.style.color = '#10b981'}
+            >
+              by {mod.author}
+            </span>
             {isInstalled && (
               <span style={{ 
                 fontSize: '8px', 
@@ -793,7 +941,16 @@ export default function ModsPage({ currentPack, onBack, showConfirm, showAlert }
           {formatDownloads(mod.downloads)}
         </div>
 
-        <div onClick={(e) => e.stopPropagation()} style={{ flexShrink: 0 }}>
+        <div onClick={(e) => e.stopPropagation()} style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <motion.div
+            whileHover={{ scale: 1.15 }}
+            whileTap={{ scale: 0.9 }}
+            onClick={(e) => toggleFavorite(mod, e)}
+            style={{ color: isFav ? '#fbbf24' : '#71717a', cursor: 'pointer', fontSize: '14px', display: 'flex', alignItems: 'center' }}
+          >
+            <i className={isFav ? "fa-solid fa-star" : "fa-regular fa-star"}></i>
+          </motion.div>
+
           <motion.button 
             whileHover={installingTarget !== mod.slug ? { scale: 1.03 } : {}}
             whileTap={installingTarget !== mod.slug ? { scale: 0.96 } : {}}
@@ -822,6 +979,7 @@ export default function ModsPage({ currentPack, onBack, showConfirm, showAlert }
   const renderCompactCard = (mod) => {
     const localFile = getInstalledFileName(mod);
     const isInstalled = !!localFile;
+    const isFav = favorites.some(f => f.id === mod.id && f.source === source && f.projectType === projectType);
     
     return (
       <div
@@ -875,7 +1033,14 @@ export default function ModsPage({ currentPack, onBack, showConfirm, showAlert }
           <h4 style={{ margin: 0, fontSize: '11px', fontWeight: 800, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
             {mod.title}
           </h4>
-          <span style={{ fontSize: '9px', color: '#71717a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{mod.author}</span>
+          <span 
+            onClick={(e) => handlePublisherClick(mod.author, e)}
+            style={{ fontSize: '9px', color: '#71717a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', cursor: 'pointer', textDecoration: 'underline' }}
+            onMouseEnter={e => e.currentTarget.style.color = '#10b981'}
+            onMouseLeave={e => e.currentTarget.style.color = '#71717a'}
+          >
+            {mod.author}
+          </span>
         </div>
 
         <div 
@@ -892,10 +1057,20 @@ export default function ModsPage({ currentPack, onBack, showConfirm, showAlert }
             boxSizing: 'border-box'
           }}
         >
-          <span style={{ display: 'flex', alignItems: 'center', gap: '3px', fontSize: '9px', color: '#71717a', fontWeight: 600 }}>
-            <i className="fa-solid fa-download" style={{ fontSize: '8px' }}></i> 
-            {formatDownloads(mod.downloads)}
-          </span>
+          <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+            <motion.div
+              whileHover={{ scale: 1.15 }}
+              whileTap={{ scale: 0.9 }}
+              onClick={(e) => toggleFavorite(mod, e)}
+              style={{ color: isFav ? '#fbbf24' : '#71717a', cursor: 'pointer', fontSize: '11px', display: 'flex', alignItems: 'center' }}
+            >
+              <i className={isFav ? "fa-solid fa-star" : "fa-regular fa-star"}></i>
+            </motion.div>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '3px', fontSize: '9px', color: '#71717a', fontWeight: 600 }}>
+              <i className="fa-solid fa-download" style={{ fontSize: '8px' }}></i> 
+              {formatDownloads(mod.downloads)}
+            </span>
+          </div>
 
           <button 
             disabled={installingTarget === mod.slug}
@@ -1075,7 +1250,15 @@ export default function ModsPage({ currentPack, onBack, showConfirm, showAlert }
                 <motion.button 
                   whileHover={{ scale: 1.05, background: 'rgba(255,255,255,0.06)' }}
                   whileTap={{ scale: 0.96 }}
-                  onClick={onBack}
+                  onClick={() => {
+                    if (selectedPublisher) {
+                      setSelectedPublisher(null);
+                      setMods([]);
+                      setPage(0);
+                    } else {
+                      onBack();
+                    }
+                  }}
                   style={{ 
                     width: '38px', 
                     height: '38px', 
@@ -1095,13 +1278,15 @@ export default function ModsPage({ currentPack, onBack, showConfirm, showAlert }
 
                 <div>
                   <h2 style={{ margin: 0, fontSize: '20px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '1.6px' }}>
-                    {source === 'curse' 
-                      ? t('tab_mods') 
-                      : (projectType === 'mod' 
-                        ? (lang === 'ru' ? 'Моды Modrinth' : 'Modrinth Mods') 
-                        : (projectType === 'resourcepack' 
-                          ? t('mods_type_rp') 
-                          : t('mods_type_shaders')))}
+                    {selectedPublisher 
+                      ? (lang === 'ru' ? `Автор: ${selectedPublisher}` : `Publisher: ${selectedPublisher}`)
+                      : (source === 'curse' 
+                        ? t('tab_mods') 
+                        : (projectType === 'mod' 
+                          ? (lang === 'ru' ? 'Моды Modrinth' : 'Modrinth Mods') 
+                          : (projectType === 'resourcepack' 
+                            ? t('mods_type_rp') 
+                            : t('mods_type_shaders'))))}
                   </h2>
                   <div style={{ display: 'flex', gap: '8px', fontSize: '10px', color: '#10b981', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '1px', marginTop: '2px' }}>
                     <span>{t('mods_installed')}: {installedMods.length}</span>
@@ -1473,7 +1658,7 @@ export default function ModsPage({ currentPack, onBack, showConfirm, showAlert }
                 </div>
 
                 {/* Mods catalog scrollable container */}
-                <div className="custom-scrollbar" style={{ flexGrow: 1, overflowY: 'auto', paddingBottom: '16px', paddingRight: '4px' }}>
+                <div ref={catalogScrollRef} className="custom-scrollbar" style={{ flexGrow: 1, overflowY: 'auto', paddingBottom: '16px', paddingRight: '4px' }}>
                   {error && (
                     <div style={{ background: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.15)', padding: '14px 18px', borderRadius: '13px', color: '#f87171', marginBottom: '20px', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '10px' }}>
                       <i className="fa-solid fa-circle-exclamation"></i>
@@ -1789,13 +1974,43 @@ export default function ModsPage({ currentPack, onBack, showConfirm, showAlert }
                   )}
 
                   <div style={{ flexGrow: 1, minWidth: 200 }}>
-                    <h2 style={{ margin: 0, fontSize: '22px', fontWeight: 900, color: '#fff' }}>
-                      {selectedModData.title}
-                    </h2>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <h2 style={{ margin: 0, fontSize: '22px', fontWeight: 900, color: '#fff' }}>
+                        {selectedModData.title}
+                      </h2>
+                      <motion.button
+                        whileHover={{ scale: 1.1 }}
+                        whileTap={{ scale: 0.9 }}
+                        onClick={(e) => toggleFavorite(selectedModData, e)}
+                        style={{
+                          background: 'rgba(255, 255, 255, 0.03)',
+                          border: '1px solid rgba(255, 255, 255, 0.07)',
+                          color: favorites.some(f => f.id === selectedModData.id && f.source === source && f.projectType === projectType) ? '#fbbf24' : '#a1a1aa',
+                          borderRadius: '8px',
+                          padding: '6px 10px',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          fontSize: '11px',
+                          fontWeight: 700,
+                          fontFamily: 'Montserrat',
+                          textTransform: 'uppercase'
+                        }}
+                      >
+                        <i className={favorites.some(f => f.id === selectedModData.id && f.source === source && f.projectType === projectType) ? "fa-solid fa-star" : "fa-regular fa-star"}></i>
+                        {favorites.some(f => f.id === selectedModData.id && f.source === source && f.projectType === projectType) ? (lang === 'ru' ? 'В избранном' : 'In Favorites') : (lang === 'ru' ? 'В избранное' : 'Add Favorite')}
+                      </motion.button>
+                    </div>
                     <div style={{ margin: '6px 0 0', fontSize: '13px', color: '#71717a', display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-                      <span style={{ color: '#10b981', fontWeight: 800 }}>
+                      <span 
+                        onClick={(e) => handlePublisherClick(selectedMod?.author || selectedModData?.author, e)}
+                        style={{ color: '#10b981', fontWeight: 800, cursor: 'pointer', textDecoration: 'underline' }}
+                        onMouseEnter={e => e.currentTarget.style.color = '#34d399'}
+                        onMouseLeave={e => e.currentTarget.style.color = '#10b981'}
+                      >
                         <i className="fa-solid fa-user" style={{ marginRight: '6px', fontSize: '11px' }}></i>
-                        {selectedMod?.author || (lang === 'ru' ? 'Разработчик' : 'Author')}
+                        {selectedMod?.author || selectedModData?.author || (lang === 'ru' ? 'Разработчик' : 'Author')}
                       </span>
                       <span>•</span>
                       <span style={{ display: 'flex', alignItems: 'center', gap: '5px', color: '#a1a1aa', fontWeight: 600 }}>

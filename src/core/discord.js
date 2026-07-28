@@ -24,12 +24,23 @@ async function initDiscord() {
 }
 
 // Статус: Игрок просто сидит в лаунчере
-function setIdleStatus() {
+function setIdleStatus(username, isOffline, lang) {
   if (!rpc || !rpc.transport || !rpc.transport.socket) return;
+
+  const isRu = lang === 'ru';
+  const detailsText = isRu ? 'Выбирает сборку' : 'Choosing a modpack';
+
+  let stateText = isRu ? 'В главном меню' : 'In Main Menu';
+  if (username) {
+    stateText = isRu
+      ? `${username}${isOffline ? ' (Офлайн)' : ''}`
+      : `${username}${isOffline ? ' (Offline)' : ''}`;
+  }
+
   try {
     rpc.setActivity({
-      details: 'Выбирает сборку',
-      state: 'В главном меню',
+      details: detailsText,
+      state: stateText,
       startTimestamp,
       largeImageKey: 'launcher_logo', // Имя картинки из Art Assets (если загрузил)
       largeImageText: 'DivLauncher',
@@ -41,12 +52,23 @@ function setIdleStatus() {
 }
 
 // Статус: Игрок запустил Minecraft
-function setPlayingStatus(packName) {
+function setPlayingStatus(packName, username, isOffline, lang) {
   if (!rpc || !rpc.transport || !rpc.transport.socket) return;
+
+  const isRu = lang === 'ru';
+  const detailsText = isRu ? `Играет в ${packName}` : `Playing ${packName}`;
+
+  let stateText = '';
+  if (username) {
+    stateText = isRu
+      ? `${username}${isOffline ? ' (Офлайн)' : ''}`
+      : `${username}${isOffline ? ' (Offline)' : ''}`;
+  }
+
   try {
     rpc.setActivity({
-      details: `Играет в ${packName}`,
-      state: '',
+      details: detailsText,
+      state: stateText,
       startTimestamp: new Date(), // Сбрасываем таймер для новой игровой сессии
       largeImageKey: 'launcher_logo',
       largeImageText: packName,

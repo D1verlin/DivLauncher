@@ -63,6 +63,7 @@ export default function ImportExportPage({ onBack, modpacks, fetchModpacks }) {
   // Export state
   const [exportPackId, setExportPackId] = useState('');
   const [exportStatus, setExportStatus] = useState('idle'); // 'idle' | 'exporting' | 'success' | 'error'
+  const [exportProgress, setExportProgress] = useState(0);
   const [exportError, setExportError] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const selectedPack = modpacks.find(p => p.id === exportPackId);
@@ -70,6 +71,15 @@ export default function ImportExportPage({ onBack, modpacks, fetchModpacks }) {
   const hasCustomVideo = selectedPack && selectedPack.bgVideo;
 
   useEffect(() => {
+    if (window.electronAPI?.onExportProgress) {
+      window.electronAPI.onExportProgress((data) => {
+        if (typeof data === 'number') {
+          setExportProgress(data);
+        } else if (data && typeof data.progress === 'number') {
+          setExportProgress(data.progress);
+        }
+      });
+    }
     if (window.electronAPI?.onImportProgress) {
       window.electronAPI.onImportProgress((data) => {
         setProgressData(data);
@@ -108,6 +118,7 @@ export default function ImportExportPage({ onBack, modpacks, fetchModpacks }) {
       return;
     }
     
+    setExportProgress(0);
     setExportStatus('exporting');
     const result = await window.electronAPI.exportPackExtended(selectedPack);
     if (result.success) {
@@ -929,9 +940,25 @@ export default function ImportExportPage({ onBack, modpacks, fetchModpacks }) {
                     <i className="fa-solid fa-file-zipper" style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', fontSize: '32px', color: '#10b981' }} />
                   </div>
 
-                  <p style={{ margin: 0, fontSize: '14px', fontWeight: 700, color: '#e4e4e7' }}>
-                    {lang === 'ru' ? 'Пожалуйста, подождите. Архивация файлов сборки...' : 'Please wait. Archiving build files...'}
-                  </p>
+                  <div style={{ textAlign: 'center', width: '100%', maxWidth: '400px' }}>
+                    <p style={{ margin: '0 0 10px 0', fontSize: '14px', fontWeight: 700, color: '#e4e4e7' }}>
+                      {lang === 'ru' ? 'Пожалуйста, подождите. Архивация файлов сборки...' : 'Please wait. Archiving build files...'}
+                    </p>
+                    
+                    <div style={{ width: '100%', height: '10px', background: 'rgba(255,255,255,0.1)', borderRadius: '20px', overflow: 'hidden', position: 'relative' }}>
+                      <motion.div
+                        animate={{ width: `${exportProgress}%` }}
+                        style={{
+                          height: '100%',
+                          background: 'linear-gradient(90deg, #3b82f6, #10b981)'
+                        }}
+                      />
+                    </div>
+                    
+                    <span style={{ display: 'block', marginTop: '8px', fontSize: '12px', fontWeight: 800, color: '#a1a1aa' }}>
+                      {exportProgress}%
+                    </span>
+                  </div>
                 </motion.div>
               )}
 

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTranslation } from '../utils/i18n';
+import { getSafeBgUrl, toDisplayUrl, getFilePath } from '../utils/pathUtils';
 
 const DEFAULT_BG = "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=1280";
 
@@ -223,6 +224,107 @@ export default function AdminModpacksSection({ onModpacksUpdate, onManageMods, s
   const [uploadProgress, setUploadProgress] = useState({}); // field -> progress percentage
   const [uploadingField, setUploadingField] = useState(null); // current field being uploaded
   
+  // CurseForge Official Creation States
+  const [creationMode, setCreationMode] = useState('standard'); // 'standard' | 'curseforge'
+  const [curseZipPath, setCurseZipPath] = useState('');
+  const [isCurseInspecting, setIsCurseInspecting] = useState(false);
+  const [curseFilesCount, setCurseFilesCount] = useState(0);
+  const [cursePublishing, setCursePublishing] = useState(false);
+  const [curseProgressMsg, setCurseProgressMsg] = useState('');
+  const [curseProgressPct, setCurseProgressPct] = useState(0);
+
+  useEffect(() => {
+    if (window.electronAPI?.onExportProgress) {
+      window.electronAPI.onExportProgress((data) => {
+        if (data.message) setCurseProgressMsg(data.message);
+        if (data.progress !== undefined) setCurseProgressPct(data.progress);
+      });
+    }
+  }, []);
+
+  const handleCurseSelectZip = async () => {
+    try {
+      setIsCurseInspecting(true);
+      const filePaths = await window.electronAPI.r2SelectMultipleFiles();
+      if (!filePaths || filePaths.length === 0) {
+        setIsCurseInspecting(false);
+        return;
+      }
+      const selectedZip = filePaths[0];
+      setCurseZipPath(selectedZip);
+
+      const inspectRes = await window.electronAPI.inspectCurseForgeZip(selectedZip);
+      if (!inspectRes || !inspectRes.success) {
+        alert(inspectRes?.error || 'Не удалось прочитать manifest.json из архива');
+        setIsCurseInspecting(false);
+        return;
+      }
+
+      const meta = inspectRes.metadata;
+      setName(meta.packName || '');
+      setMcVersion(meta.mcVersion || '1.20.1');
+      setLoaderType(meta.loaderType || 'fabric');
+      setLoaderVersion(meta.loaderVersion || 'latest');
+      setCurseFilesCount(meta.filesCount || 0);
+      setPackVersion(meta.version || '1.0.0');
+
+      const slug = (meta.packName || 'curseforge-pack')
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '');
+      setPackId(slug);
+    } catch (err) {
+      alert(`Ошибка анализа ZIP: ${err.message}`);
+    } finally {
+      setIsCurseInspecting(false);
+    }
+  };
+
+  const handleCursePublish = async (e) => {
+    if (e) e.preventDefault();
+    if (!curseZipPath) {
+      alert('Выберите ZIP-архив CurseForge!');
+      return;
+    }
+    if (!cleanId || !name.trim()) {
+      alert('Заполните ID и название сборки!');
+      return;
+    }
+
+    setCursePublishing(true);
+    setCurseProgressMsg('Запуск публикации CurseForge...');
+    setCurseProgressPct(10);
+
+    try {
+      const publishData = {
+        zipPath: curseZipPath,
+        id: cleanId,
+        name: name.trim(),
+        mcVersion,
+        loaderType,
+        loaderVersion,
+        icon: icon || 'fa-cube',
+        bgImage,
+        bgVideo,
+        version: packVersion || '1.0.0'
+      };
+
+      const result = await window.electronAPI.publishCurseForgeOfficialPack(publishData);
+      if (!result || !result.success) {
+        throw new Error(result?.error || 'Не удалось опубликовать сборку');
+      }
+
+      alert('Официальная сборка CurseForge успешно опубликована!');
+      setEditingPack(null);
+      await loadPacks();
+      if (onModpacksUpdate) onModpacksUpdate();
+    } catch (err) {
+      alert(`Ошибка публикации: ${err.message}`);
+    } finally {
+      setCursePublishing(false);
+    }
+  };
+
   // Manifest files
   const [versions, setVersions] = useState([]);
   const [promos, setPromos] = useState({});
@@ -504,6 +606,10 @@ export default function AdminModpacksSection({ onModpacksUpdate, onManageMods, s
     setEditingPack({});
     setIsNew(true);
     setActiveFormTab('basic');
+    setCreationMode('standard');
+    setCurseZipPath('');
+    setCurseFilesCount(0);
+    setCursePublishing(false);
     
     // Clear state
     setPackId('');
@@ -876,35 +982,35 @@ export default function AdminModpacksSection({ onModpacksUpdate, onManageMods, s
         </div>
       </div>
 
-      {/* Form Tabs */}
-      <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
-        {[
-          { id: 'basic', label: lang === 'ru' ? 'Основные параметры' : 'Basic Parameters', icon: 'fa-gears' },
-          { id: 'assets', label: lang === 'ru' ? 'Оформление (R2)' : 'Design (R2)', icon: 'fa-images' },
-          { id: 'server', label: lang === 'ru' ? 'Сервер & Сеть' : 'Server & Network', icon: 'fa-network-wired' }
-        ].map(t => (
-          <button key={t.id} onClick={() => setActiveFormTab(t.id)}
-            style={{
-              display: 'flex', alignItems: 'center', gap: '6px',
-              padding: '6px 14px', borderRadius: '10px', border: 'none', cursor: 'pointer',
-              fontSize: '11px', fontWeight: 800, fontFamily: 'Montserrat',
-              background: activeFormTab === t.id ? 'rgba(99,102,241,0.2)' : 'rgba(255,255,255,0.02)',
-              color: activeFormTab === t.id ? '#818cf8' : '#71717a',
-              border: `1px solid ${activeFormTab === t.id ? 'rgba(99,102,241,0.3)' : 'rgba(255,255,255,0.05)'}`,
-              transition: 'all 0.2s'
-            }}
-          >
-            <i className={`fa-solid ${t.icon}`} /> {t.label}
-          </button>
-        ))}
-      </div>
+          {/* Form Tabs */}
+          <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
+            {[
+              { id: 'basic', label: lang === 'ru' ? 'Основные параметры' : 'Basic Parameters', icon: 'fa-gears' },
+              { id: 'assets', label: lang === 'ru' ? 'Оформление (R2)' : 'Design (R2)', icon: 'fa-images' },
+              { id: 'server', label: lang === 'ru' ? 'Сервер & Сеть' : 'Server & Network', icon: 'fa-network-wired' }
+            ].map(t => (
+              <button key={t.id} type="button" onClick={() => setActiveFormTab(t.id)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '6px',
+                  padding: '6px 14px', borderRadius: '10px', border: 'none', cursor: 'pointer',
+                  fontSize: '11px', fontWeight: 800, fontFamily: 'Montserrat',
+                  background: activeFormTab === t.id ? 'rgba(99,102,241,0.2)' : 'rgba(255,255,255,0.02)',
+                  color: activeFormTab === t.id ? '#818cf8' : '#71717a',
+                  border: `1px solid ${activeFormTab === t.id ? 'rgba(99,102,241,0.3)' : 'rgba(255,255,255,0.05)'}`,
+                  transition: 'all 0.2s'
+                }}
+              >
+                <i className={`fa-solid ${t.icon}`} /> {t.label}
+              </button>
+            ))}
+          </div>
 
-      {/* Form Body */}
-      <form onSubmit={handleSave} style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', gap: '15px' }}>
-        <div style={{ flexGrow: 1, overflowY: 'auto', paddingRight: '4px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
-          
-          {/* TAB 1: BASIC CONFIG */}
-          {activeFormTab === 'basic' && (
+          {/* Form Body */}
+          <form onSubmit={handleSave} style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', gap: '15px' }}>
+            <div style={{ flexGrow: 1, overflowY: 'auto', paddingRight: '4px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              
+              {/* TAB 1: BASIC CONFIG */}
+              {activeFormTab === 'basic' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px' }}>
                 <div>

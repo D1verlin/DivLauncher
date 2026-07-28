@@ -40,7 +40,7 @@ function createWindow() {
   
   // Режим разработчика
   
-   mainWindow.webContents.openDevTools();
+  // mainWindow.webContents.openDevTools();
   
   // Настраиваем автоапдейтер
   autoUpdater.autoDownload = true;
@@ -111,12 +111,12 @@ ipcMain.on('check-for-updates', () => {
 });
 
 // --- DISCORD RPC СОБЫТИЯ ---
-ipcMain.on('discord-status-idle', () => {
-  setIdleStatus();
+ipcMain.on('discord-status-idle', (event, username, isOffline, lang) => {
+  setIdleStatus(username, isOffline, lang);
 });
 
-ipcMain.on('discord-status-playing', (event, packName) => {
-  setPlayingStatus(packName);
+ipcMain.on('discord-status-playing', (event, packName, username, isOffline, lang) => {
+  setPlayingStatus(packName, username, isOffline, lang);
 });
 
 // Умное получение версии (чтобы в dev-режиме не показывало версию Electron)

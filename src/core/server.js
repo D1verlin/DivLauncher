@@ -10,27 +10,7 @@ const axios = require('axios');
 
 let serverProcess = null;
 
-const resolveClientPath = (clientDir) => {
-  if (!clientDir) return '';
-  if (path.isAbsolute(clientDir)) return clientDir;
-  const isCustom = clientDir.startsWith('custom-packs');
-  if (!isCustom) {
-    const exeDir = path.dirname(app.getPath('exe'));
-    return path.resolve(exeDir, clientDir);
-  }
-  return path.resolve(app.getPath('userData'), clientDir);
-};
-
-const resolveServerPath = (serverDir) => {
-  if (!serverDir) return '';
-  if (path.isAbsolute(serverDir)) return serverDir;
-  const isCustom = serverDir.startsWith('custom-packs');
-  if (!isCustom) {
-    const exeDir = path.dirname(app.getPath('exe'));
-    return path.resolve(exeDir, serverDir);
-  }
-  return path.resolve(app.getPath('userData'), serverDir);
-};
+const { resolveClientPath, resolveServerPath } = require('./buildsConfig');
 
 const debugLogPath = 'C:\\Users\\Lenovo\\Desktop\\Projects\\DivLauncher\\div_launcher_debug.log';
 

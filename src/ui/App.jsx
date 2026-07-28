@@ -12,6 +12,8 @@ import CreatePackPage from './pages/CreatePackPage';
 import ModsPage from './pages/ModsPage';
 import ImportExportPage from './pages/ImportExportPage';
 import OfficialBuildManagerPage from './pages/OfficialBuildManagerPage';
+import InitialPathModal from './components/InitialPathModal';
+import { getSafeBgUrl } from './utils/pathUtils';
 import { useTranslation } from './utils/i18n';
 import { setLoadedBadges } from './utils/badgeHelper';
 
@@ -252,6 +254,14 @@ export default function App() {
   const [modpacks, setModpacks] = useState([]);
   const [currentPack, setCurrentPack] = useState(null);
   const [loadingError, setLoadingError] = useState(null); 
+  const [showInitialPathModal, setShowInitialPathModal] = useState(false);
+
+  useEffect(() => {
+    const buildsDir = localStorage.getItem('launcher_builds_dir');
+    if (!buildsDir) {
+      setShowInitialPathModal(true);
+    }
+  }, []);
   
   const [appVersion, setAppVersion] = useState('0.0.0');
   const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
@@ -284,10 +294,15 @@ export default function App() {
   const isLaunchingRef = useRef(false);
   const fullLogsRef = useRef([]);
   const sessionStartRef = useRef(null);
+  const profileRef = useRef(profile);
 
   useEffect(() => {
     currentPackRef.current = currentPack;
   }, [currentPack]);
+
+  useEffect(() => {
+    profileRef.current = profile;
+  }, [profile]);
 
   useEffect(() => {
     runningPackIdRef.current = runningPackId;
@@ -391,20 +406,14 @@ export default function App() {
           fullLogsRef.current.push(...lines);
           setClientConsoleLogs(prev => [...prev, ...lines].slice(-6));
 
-          if (isLaunchingRef.current && (
-              cleanMsg.includes('Render thread/INFO') || 
-              cleanMsg.includes('LWJGL') || 
-              cleanMsg.includes('OpenAL') ||
-              cleanMsg.includes('Sound engine started') ||
-              cleanMsg.includes('Setting user:')
-          )) {
+          if (isLaunchingRef.current) {
             setIsLaunching(false);
             setIsPlaying(true);
             setClientStatus(t('client_playing'));
             sessionStartRef.current = Date.now();
 
             if (currentPackRef.current && window.electronAPI.setDiscordPlaying) {
-              window.electronAPI.setDiscordPlaying(currentPackRef.current.name);
+              window.electronAPI.setDiscordPlaying(currentPackRef.current.name, profileRef.current?.name, !!profileRef.current?.isOffline, lang);
             }
           }
         }
@@ -454,7 +463,7 @@ export default function App() {
       setRunningPackId(null);
 
       if (window.electronAPI.setDiscordIdle) {
-        window.electronAPI.setDiscordIdle();
+        window.electronAPI.setDiscordIdle(profileRef.current?.name, !!profileRef.current?.isOffline, lang);
       }
     });
 
@@ -585,6 +594,16 @@ export default function App() {
     }
   }, []);
 
+  useEffect(() => {
+    if (window.electronAPI?.setDiscordIdle) {
+      if (profile) {
+        window.electronAPI.setDiscordIdle(profile.name, !!profile.isOffline, lang);
+      } else {
+        window.electronAPI.setDiscordIdle(null, false, lang);
+      }
+    }
+  }, [profile, lang]);
+
   const fetchBadges = useCallback(() => {
     if (window.electronAPI?.getBadges) {
       window.electronAPI.getBadges().then(res => {
@@ -598,7 +617,7 @@ export default function App() {
 
   useEffect(() => {
     fetchBadges();
-  }, [fetchBadges]);
+  }, [profile, fetchBadges]);
 
   useEffect(() => {
     const handleSettingsUpdate = () => {
@@ -610,6 +629,36 @@ export default function App() {
 
   const fetchModpacks = () => {
     setLoadingError(null);
+    if (profile?.isOffline) {
+      if (window.electronAPI && window.electronAPI.getCustomPacks) {
+        window.electronAPI.getCustomPacks()
+          .then(localData => {
+            if (localData.length > 0) {
+              setModpacks(localData);
+              const savedPackId = localStorage.getItem('launcher_last_pack');
+              const lastPack = localData.find(p => p.id === savedPackId);
+              const packToSelect = lastPack || localData[0];
+              setCurrentPack(packToSelect);
+              setServerLogs(lang === 'ru' ? `Оффлайн. Выбрана локальная сборка: ${packToSelect.name}.\n` : `Offline. Local pack selected: ${packToSelect.name}.\n`);
+            } else {
+              setModpacks([]);
+              setCurrentPack(null);
+              setCurrentPage('builds');
+            }
+          })
+          .catch(() => {
+            setModpacks([]);
+            setCurrentPack(null);
+            setCurrentPage('builds');
+          });
+      } else {
+        setModpacks([]);
+        setCurrentPack(null);
+        setCurrentPage('builds');
+      }
+      return;
+    }
+
     fetch(`${MODPACKS_URL}?t=${new Date().getTime()}`, { cache: 'no-store' })
       .then(res => {
         if (!res.ok) throw new Error(`HTTP Error: ${res.status}`);
@@ -707,8 +756,6 @@ export default function App() {
 
 
   useEffect(() => {
-    fetchModpacks();
-    
     if (window.electronAPI?.getAppVersion) {
       window.electronAPI.getAppVersion().then(v => setAppVersion(v));
     }
@@ -731,6 +778,12 @@ export default function App() {
       window.electronAPI.removeAllListeners?.('server-players');
     };
   }, []);
+
+  useEffect(() => {
+    if (!authLoading) {
+      fetchModpacks();
+    }
+  }, [profile, authLoading]);
 
   const handleManualUpdate = () => {
     setIsCheckingUpdate(true);
@@ -807,7 +860,7 @@ export default function App() {
     display: 'flex', flexDirection: 'column', width: '100%', height: '100%', position: 'relative',
     background: (animatedBg && currentPack.bgVideo) 
       ? 'transparent' 
-      : `linear-gradient(rgba(20, 20, 20, 0.7), rgba(20, 20, 20, 0.9)), url('${currentPack.bgImage}') center/cover`,
+      : `linear-gradient(rgba(20, 20, 20, 0.7), rgba(20, 20, 20, 0.9)), url('${getSafeBgUrl(currentPack.bgImage)}') center/cover`,
     transition: 'background 0.5s ease-in-out'
   };
 
@@ -834,7 +887,9 @@ export default function App() {
         return (
           <BuildsPage 
             modpacks={modpacks} 
-            currentPack={currentPack} 
+            currentPack={currentPack}
+            profile={profile}
+            fetchModpacks={fetchModpacks}
             onSelect={(pack) => {
               setCurrentPack(pack);
               localStorage.setItem('launcher_last_pack', pack.id);
@@ -1024,7 +1079,7 @@ export default function App() {
       {animatedBg && currentPack.bgVideo && (
         <video 
           key={currentPack.id}
-          src={currentPack.bgVideo} 
+          src={getSafeBgUrl(currentPack.bgVideo)} 
           autoPlay loop muted playsInline
           style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover', zIndex: -1 }}
         />
@@ -1041,8 +1096,12 @@ export default function App() {
               <NavButton icon="fa-gamepad" active={currentPage === 'client'} onClick={() => { setViewedProfile(null); setCurrentPage('client'); }} color="#10b981" title={t('client_play')} />
               <NavButton icon="fa-server" active={currentPage === 'server'} onClick={() => { setViewedProfile(null); setCurrentPage('server'); }} color="#3b82f6" title={t('tab_server')}
                 dot={isServerRunning} dotColor="#10b981" />
-              <NavButton icon="fa-users" active={currentPage === 'users'} onClick={() => { setViewedProfile(null); setCurrentPage('users'); }} color="#6366f1" title={t('tab_users')} />
-              <NavButton icon="fa-circle-user" active={currentPage === 'profile'} onClick={() => { setViewedProfile(null); setCurrentPage('profile'); }} color="#a78bfa" title={t('tab_profile')} />
+              {!profile?.isOffline && (
+                <>
+                  <NavButton icon="fa-users" active={currentPage === 'users'} onClick={() => { setViewedProfile(null); setCurrentPage('users'); }} color="#6366f1" title={t('tab_users')} />
+                  <NavButton icon="fa-circle-user" active={currentPage === 'profile'} onClick={() => { setViewedProfile(null); setCurrentPage('profile'); }} color="#a78bfa" title={t('tab_profile')} />
+                </>
+              )}
               {profile && profile.is_admin === 1 && (
                 <NavButton icon="fa-shield-halved" active={currentPage === 'admin'} onClick={() => { setViewedProfile(null); setCurrentPage('admin'); }} color="#ef4444" title={t('tab_admin')} />
               )}
@@ -1083,6 +1142,10 @@ export default function App() {
           </AnimatePresence>
         </div>
       </div>
+      <InitialPathModal
+        isOpen={showInitialPathModal}
+        onClose={() => setShowInitialPathModal(false)}
+      />
     </div>
   );
 }

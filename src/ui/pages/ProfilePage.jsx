@@ -285,10 +285,11 @@ export default function ProfilePage({ profile: initialProfile, isOwnProfile = tr
 
   // Refresh profile logic (Stale-While-Revalidate trigger)
   const fetchUpdatedProfile = useCallback(async () => {
+    if (profile.isOffline) return;
     try {
       const url = await window.electronAPI.getAuthServerUrl();
       const cacheFile = await window.electronAPI.customCheckAuth();
-      if (cacheFile && cacheFile.webToken) {
+      if (cacheFile && cacheFile.webToken && cacheFile.webToken !== 'offline' && !cacheFile.isOffline) {
         // Fetch background details for target profile (either viewed user or own profile)
         const targetUuid = profile.uuid;
         const response = await fetch(`${url}/api/profile?uuid=${targetUuid}`, {
@@ -322,7 +323,7 @@ export default function ProfilePage({ profile: initialProfile, isOwnProfile = tr
     } catch (e) {
       console.error('Failed to refresh profile:', e);
     }
-  }, [profile.uuid]);
+  }, [profile.uuid, profile.isOffline]);
 
   // Load profile skin/cape data
   const loadSkinData = useCallback(async () => {
@@ -942,87 +943,145 @@ export default function ProfilePage({ profile: initialProfile, isOwnProfile = tr
                 </div>
 
                 {/* Skin and Cape Upload Action Buttons */}
-                <div style={{ ...glassCard, padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                  <motion.button
-                    whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
-                    onClick={handleUploadSkin}
-                    style={{
-                      background: 'linear-gradient(135deg, rgba(167,139,250,0.12), rgba(124,58,237,0.08))',
-                      border: '1px solid rgba(167,139,250,0.25)',
-                      color: '#c4b5fd', padding: '11px', borderRadius: '11px',
-                      cursor: 'pointer', fontFamily: 'Montserrat', fontWeight: 800, fontSize: '11px',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
-                    }}>
-                    <i className="fa-solid fa-arrow-up-from-bracket" /> {lang === 'ru' ? 'Загрузить скин' : 'Upload skin'}
-                  </motion.button>
+                {!profile.isOffline && (
+                  <div style={{ ...glassCard, padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    <motion.button
+                      whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+                      onClick={handleUploadSkin}
+                      style={{
+                        background: 'linear-gradient(135deg, rgba(167,139,250,0.12), rgba(124,58,237,0.08))',
+                        border: '1px solid rgba(167,139,250,0.25)',
+                        color: '#c4b5fd', padding: '11px', borderRadius: '11px',
+                        cursor: 'pointer', fontFamily: 'Montserrat', fontWeight: 800, fontSize: '11px',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+                      }}>
+                      <i className="fa-solid fa-arrow-up-from-bracket" /> {lang === 'ru' ? 'Загрузить скин' : 'Upload skin'}
+                    </motion.button>
 
-                  <motion.button
-                    whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
-                    onClick={handleUploadCape}
-                    style={{
-                      background: 'linear-gradient(135deg, rgba(16,185,129,0.12), rgba(5,150,105,0.08))',
-                      border: '1px solid rgba(16,185,129,0.25)',
-                      color: '#34d399', padding: '11px', borderRadius: '11px',
-                      cursor: 'pointer', fontFamily: 'Montserrat', fontWeight: 800, fontSize: '11px',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
-                    }}>
-                    <i className="fa-solid fa-circle-chevron-up" /> {lang === 'ru' ? 'Загрузить плащ' : 'Upload cape'}
-                  </motion.button>
-                </div>
+                    <motion.button
+                      whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+                      onClick={handleUploadCape}
+                      style={{
+                        background: 'linear-gradient(135deg, rgba(16,185,129,0.12), rgba(5,150,105,0.08))',
+                        border: '1px solid rgba(16,185,129,0.25)',
+                        color: '#34d399', padding: '11px', borderRadius: '11px',
+                        cursor: 'pointer', fontFamily: 'Montserrat', fontWeight: 800, fontSize: '11px',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+                      }}>
+                      <i className="fa-solid fa-circle-chevron-up" /> {lang === 'ru' ? 'Загрузить плащ' : 'Upload cape'}
+                    </motion.button>
+                  </div>
+                )}
               </div>
 
               {/* RIGHT COLUMN: Control/Customization Panels */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                
-                {/* Tabs Selector Navigation */}
-                <div style={{
-                  display: 'flex',
-                  background: 'rgba(0,0,0,0.2)',
-                  padding: '4px',
-                  borderRadius: '14px',
-                  border: '1px solid rgba(255,255,255,0.05)',
-                  flexShrink: 0
-                }}>
-                  <button
-                    onClick={() => setActiveTab('style')}
-                    style={{
-                      flex: 1, padding: '10px', borderRadius: '10px', border: 'none', cursor: 'pointer',
-                      background: activeTab === 'style' ? 'rgba(167,139,250,0.15)' : 'transparent',
-                      color: activeTab === 'style' ? '#c4b5fd' : '#71717a',
-                      fontFamily: 'Montserrat', fontWeight: 800, fontSize: '12px', textTransform: 'uppercase', transition: 'all 0.2s'
-                    }}
-                  >
-                    <i className="fa-solid fa-palette" style={{ marginRight: '6px' }} />
-                    {lang === 'ru' ? 'Стиль' : 'Style'}
-                  </button>
-                  <button
-                    onClick={() => setActiveTab('socials')}
-                    style={{
-                      flex: 1, padding: '10px', borderRadius: '10px', border: 'none', cursor: 'pointer',
-                      background: activeTab === 'socials' ? 'rgba(167,139,250,0.15)' : 'transparent',
-                      color: activeTab === 'socials' ? '#c4b5fd' : '#71717a',
-                      fontFamily: 'Montserrat', fontWeight: 800, fontSize: '12px', textTransform: 'uppercase', transition: 'all 0.2s'
-                    }}
-                  >
-                    <i className="fa-solid fa-share-nodes" style={{ marginRight: '6px' }} />
-                    {lang === 'ru' ? 'Соцсети' : 'Socials'}
-                  </button>
-                  <button
-                    onClick={() => setActiveTab('security')}
-                    style={{
-                      flex: 1, padding: '10px', borderRadius: '10px', border: 'none', cursor: 'pointer',
-                      background: activeTab === 'security' ? 'rgba(167,139,250,0.15)' : 'transparent',
-                      color: activeTab === 'security' ? '#c4b5fd' : '#71717a',
-                      fontFamily: 'Montserrat', fontWeight: 800, fontSize: '12px', textTransform: 'uppercase', transition: 'all 0.2s'
-                    }}
-                  >
-                    <i className="fa-solid fa-shield-halved" style={{ marginRight: '6px' }} />
-                    {lang === 'ru' ? 'Безопасность' : 'Security'}
-                  </button>
-                </div>
+              {profile.isOffline ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                  <div style={{
+                    ...glassCard,
+                    padding: '25px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    textAlign: 'center',
+                    gap: '15px'
+                  }}>
+                    <div style={{
+                      width: '60px',
+                      height: '60px',
+                      borderRadius: '50%',
+                      background: 'rgba(245, 158, 11, 0.1)',
+                      border: '1px solid rgba(245, 158, 11, 0.25)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: '#f59e0b',
+                      fontSize: '24px'
+                    }}>
+                      <i className="fa-solid fa-wifi-slash" />
+                    </div>
+                    <div>
+                      <h3 style={{ color: '#fff', fontSize: '15px', fontWeight: 800, margin: '0 0 8px 0', fontFamily: 'Montserrat', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                        {lang === 'ru' ? 'Офлайн-режим' : 'Offline Mode'}
+                      </h3>
+                      <p style={{ color: '#a1a1aa', fontSize: '12px', lineHeight: '1.6', margin: 0, fontWeight: 500 }}>
+                        {lang === 'ru' 
+                          ? 'Ваш профиль полностью автономен от наших серверов. Изменение скина, привязка соцсетей и настройки безопасности недоступны в офлайн-режиме.' 
+                          : 'Your profile is completely autonomous from our servers. Skin customization, social links, and security settings are unavailable in offline mode.'}
+                      </p>
+                    </div>
+                  </div>
 
-                {/* TAB CONTENTS */}
-                <div style={{ ...glassCard, padding: '20px', flexGrow: 1 }}>
+                  {/* Logout block */}
+                  <div style={{ display: 'flex', justifyContent: 'center' }}>
+                    <motion.button
+                      whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
+                      onClick={onLogout}
+                      style={{
+                        background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)',
+                        color: '#f87171', padding: '12px 24px', borderRadius: '12px',
+                        cursor: 'pointer', fontFamily: 'Montserrat', fontWeight: 800,
+                        fontSize: '12px', display: 'flex', alignItems: 'center', gap: '8px'
+                      }}
+                    >
+                      <i className="fa-solid fa-right-from-bracket" />
+                      {lang === 'ru' ? 'Выйти в меню авторизации' : 'Return to Login Screen'}
+                    </motion.button>
+                  </div>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  
+                  {/* Tabs Selector Navigation */}
+                  <div style={{
+                    display: 'flex',
+                    background: 'rgba(0,0,0,0.2)',
+                    padding: '4px',
+                    borderRadius: '14px',
+                    border: '1px solid rgba(255,255,255,0.05)',
+                    flexShrink: 0
+                  }}>
+                    <button
+                      onClick={() => setActiveTab('style')}
+                      style={{
+                        flex: 1, padding: '10px', borderRadius: '10px', border: 'none', cursor: 'pointer',
+                        background: activeTab === 'style' ? 'rgba(167,139,250,0.15)' : 'transparent',
+                        color: activeTab === 'style' ? '#c4b5fd' : '#71717a',
+                        fontFamily: 'Montserrat', fontWeight: 800, fontSize: '12px', textTransform: 'uppercase', transition: 'all 0.2s'
+                      }}
+                    >
+                      <i className="fa-solid fa-palette" style={{ marginRight: '6px' }} />
+                      {lang === 'ru' ? 'Стиль' : 'Style'}
+                    </button>
+                    <button
+                      onClick={() => setActiveTab('socials')}
+                      style={{
+                        flex: 1, padding: '10px', borderRadius: '10px', border: 'none', cursor: 'pointer',
+                        background: activeTab === 'socials' ? 'rgba(167,139,250,0.15)' : 'transparent',
+                        color: activeTab === 'socials' ? '#c4b5fd' : '#71717a',
+                        fontFamily: 'Montserrat', fontWeight: 800, fontSize: '12px', textTransform: 'uppercase', transition: 'all 0.2s'
+                      }}
+                    >
+                      <i className="fa-solid fa-share-nodes" style={{ marginRight: '6px' }} />
+                      {lang === 'ru' ? 'Соцсети' : 'Socials'}
+                    </button>
+                    <button
+                      onClick={() => setActiveTab('security')}
+                      style={{
+                        flex: 1, padding: '10px', borderRadius: '10px', border: 'none', cursor: 'pointer',
+                        background: activeTab === 'security' ? 'rgba(167,139,250,0.15)' : 'transparent',
+                        color: activeTab === 'security' ? '#c4b5fd' : '#71717a',
+                        fontFamily: 'Montserrat', fontWeight: 800, fontSize: '12px', textTransform: 'uppercase', transition: 'all 0.2s'
+                      }}
+                    >
+                      <i className="fa-solid fa-shield-halved" style={{ marginRight: '6px' }} />
+                      {lang === 'ru' ? 'Безопасность' : 'Security'}
+                    </button>
+                  </div>
+
+                  {/* TAB CONTENTS */}
+                  <div style={{ ...glassCard, padding: '20px', flexGrow: 1 }}>
                   
                   {/* STYLE TAB */}
                   {activeTab === 'style' && (
@@ -1410,14 +1469,14 @@ export default function ProfilePage({ profile: initialProfile, isOwnProfile = tr
                       {lang === 'ru' ? 'Выйти из аккаунта' : 'Logout from Account'}
                     </motion.button>
                   </div>
-
                 </div>
               )}
 
             </div>
           </div>
-        </div>
-
+              )}
+          </div>
+        
         {/* Sync footer warning info */}
         <div style={{ marginTop: '10px', flexShrink: 0 }}>
           <InfoBox color="#3b82f6" icon="fa-solid fa-circle-info">

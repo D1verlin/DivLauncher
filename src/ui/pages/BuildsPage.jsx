@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTranslation } from '../utils/i18n';
+import PromotePackModal from '../components/PromotePackModal';
 
 const glassPanelStyle = {
   background: 'rgba(15, 15, 20, 0.45)',
@@ -31,9 +32,11 @@ const searchInputStyle = {
   transition: 'all 0.3s'
 };
 
-export default function BuildsPage({ modpacks, currentPack, onSelect, onDelete, onEdit, onExport, onCreateClick, onImportClick }) {
+export default function BuildsPage({ modpacks, currentPack, onSelect, onDelete, onEdit, onExport, onCreateClick, onImportClick, profile, fetchModpacks }) {
   const { t, lang } = useTranslation();
   const [search, setSearch] = useState('');
+  const [showPromoteModal, setShowPromoteModal] = useState(false);
+  const [promoteTargetPack, setPromoteTargetPack] = useState(null);
 
   const filteredPacks = modpacks.filter(pack => 
     pack.name.toLowerCase().includes(search.toLowerCase())
@@ -218,6 +221,26 @@ export default function BuildsPage({ modpacks, currentPack, onSelect, onDelete, 
                 {/* Toolbar for custom packs */}
                 {pack.isCustom && (
                   <div style={{ position: 'absolute', top: '12px', right: '12px', display: 'flex', gap: '8px', zIndex: 10 }}>
+                    {profile?.is_admin === 1 && (
+                      <motion.button
+                        whileHover={{ scale: 1.15, background: 'rgba(168, 85, 247, 0.9)' }}
+                        whileTap={{ scale: 0.9 }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setPromoteTargetPack(pack);
+                          setShowPromoteModal(true);
+                        }}
+                        title={lang === 'ru' ? 'Опубликовать как официальную' : 'Publish as Official'}
+                        style={{
+                          width: '28px', height: '28px', borderRadius: '8px',
+                          background: 'rgba(168, 85, 247, 0.25)', border: '1px solid rgba(168, 85, 247, 0.5)',
+                          color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          cursor: 'pointer', fontSize: '12px', transition: 'background 0.2s'
+                        }}
+                      >
+                        <i className="fa-solid fa-cloud-arrow-up" />
+                      </motion.button>
+                    )}
                     <motion.button
                       whileHover={{ scale: 1.15, background: 'rgba(16, 185, 129, 0.9)' }}
                       whileTap={{ scale: 0.9 }}
@@ -453,12 +476,23 @@ export default function BuildsPage({ modpacks, currentPack, onSelect, onDelete, 
               {lang === 'ru' ? 'Импорт / Экспорт' : 'Import / Export'}
             </h4>
             
-            <p style={{ margin: 0, fontSize: '10px', color: '#a1a1aa', textAlign: 'center', lineHeight: 1.3, zIndex: 3 }}>
-              {lang === 'ru' ? 'Перенос сборок с CurseForge, Modrinth и др.' : 'Transfer packs from CurseForge, Modrinth etc.'}
-            </p>
           </motion.div>
         </motion.div>
       </div>
+
+      <PromotePackModal
+        isOpen={showPromoteModal}
+        pack={promoteTargetPack}
+        onClose={() => {
+          setShowPromoteModal(false);
+          setPromoteTargetPack(null);
+        }}
+        onSuccess={() => {
+          setShowPromoteModal(false);
+          setPromoteTargetPack(null);
+          if (fetchModpacks) fetchModpacks();
+        }}
+      />
     </div>
   );
 }
