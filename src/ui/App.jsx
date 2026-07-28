@@ -843,7 +843,7 @@ export default function App() {
         width: '100%',
         height: '100%',
         position: 'relative',
-        background: `linear-gradient(rgba(20, 20, 20, 0.75), rgba(20, 20, 20, 0.95)), url('${currentPack.bgImage}') center/cover`
+        background: `linear-gradient(rgba(20, 20, 20, 0.75), rgba(20, 20, 20, 0.95)), url('${getSafeBgUrl(currentPack?.bgImage)}') center/cover`
       }}>
         <TopBar />
         <LoginPage onLoginSuccess={(prof) => {

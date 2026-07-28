@@ -881,7 +881,7 @@ export default function AdminModpacksSection({ onModpacksUpdate, onManageMods, s
                   {/* Banner background */}
                   <div style={{
                     height: '80px',
-                    background: `linear-gradient(rgba(10, 10, 16, 0.2), rgba(10, 10, 16, 0.8)), url('${pack.bgImage || DEFAULT_BG}') center/cover`,
+                    background: `linear-gradient(rgba(10, 10, 16, 0.2), rgba(10, 10, 16, 0.8)), url('${getSafeBgUrl(pack.bgImage || DEFAULT_BG)}') center/cover`,
                     position: 'relative',
                     display: 'flex',
                     alignItems: 'flex-end',

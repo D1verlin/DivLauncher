@@ -278,9 +278,9 @@ function LivePreviewCard({ name, mcVersion, loaderType, bgImage, bgVideo, icon, 
       }} className="hover-card">
         <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 0, overflow: 'hidden' }}>
           {bgVideo ? (
-            <video src={bgVideo} autoPlay loop muted style={{ position: 'absolute', width: '100%', height: '100%', objectFit: 'cover' }} />
+            <video src={getSafeBgUrl(bgVideo)} autoPlay loop muted style={{ position: 'absolute', width: '100%', height: '100%', objectFit: 'cover' }} />
           ) : (
-            <div style={{ position: 'absolute', width: '100%', height: '100%', background: `url('${finalBg}') center/cover` }} />
+            <div style={{ position: 'absolute', width: '100%', height: '100%', background: `url('${getSafeBgUrl(finalBg)}') center/cover` }} />
           )}
           <div style={{ position: 'absolute', width: '100%', height: '100%', background: 'linear-gradient(to bottom, rgba(15,15,20,0.3), rgba(15,15,20,0.9))' }} />
         </div>

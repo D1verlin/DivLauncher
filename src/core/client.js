@@ -2397,7 +2397,44 @@ module.exports = function(ipcMain) {
       if (!fs.existsSync(file)) {
         return [];
       }
-      return JSON.parse(fs.readFileSync(file, 'utf8'));
+      const packs = JSON.parse(fs.readFileSync(file, 'utf8'));
+      let modified = false;
+
+      packs.forEach(pack => {
+        if (!pack || !pack.clientDir) return;
+        const clientPath = resolveClientPath(pack.clientDir);
+        const assetsPath = path.join(clientPath, 'assets');
+
+        ['bgImage', 'bgVideo', 'icon', 'logo'].forEach(urlProp => {
+          if (pack[urlProp]) {
+            const val = pack[urlProp];
+            if (val.startsWith('http://') || val.startsWith('https://') || val.startsWith('data:') || val.startsWith('fa-')) {
+              return;
+            }
+            const fileName = path.basename(val.replace('local-file://', ''));
+            const localAssetPath = path.join(assetsPath, fileName);
+            if (fs.existsSync(localAssetPath)) {
+              const safeUrl = `local-file://${localAssetPath.replace(/\\/g, '/')}`;
+              if (pack[urlProp] !== safeUrl) {
+                pack[urlProp] = safeUrl;
+                modified = true;
+              }
+            } else if (!val.startsWith('local-file://')) {
+              let clean = val.replace(/\\/g, '/');
+              if (fs.existsSync(clean)) {
+                pack[urlProp] = `local-file://${clean}`;
+                modified = true;
+              }
+            }
+          }
+        });
+      });
+
+      if (modified) {
+        try { fs.writeFileSync(file, JSON.stringify(packs, null, 2)); } catch (_) {}
+      }
+
+      return packs;
     } catch (err) {
       console.error('Error getting custom packs:', err);
       return [];
@@ -2414,18 +2451,30 @@ module.exports = function(ipcMain) {
       }
 
       const processAsset = (urlProp) => {
-        if (pack[urlProp] && pack[urlProp].startsWith('local-file://')) {
-          let sourcePath = decodeURI(pack[urlProp].replace('local-file://', ''));
-          if (sourcePath.startsWith('/') && sourcePath.includes(':')) {
-            sourcePath = sourcePath.substring(1);
+        if (!pack[urlProp]) return;
+        let val = pack[urlProp];
+        if (val.startsWith('http://') || val.startsWith('https://') || val.startsWith('data:') || val.startsWith('fa-')) {
+          return;
+        }
+        let sourcePath = val.startsWith('local-file://') ? decodeURI(val.replace('local-file://', '')) : val;
+        if (sourcePath.startsWith('/') && sourcePath.includes(':')) {
+          sourcePath = sourcePath.substring(1);
+        }
+        sourcePath = sourcePath.replace(/\\/g, '/');
+        if (fs.existsSync(sourcePath)) {
+          const fileName = path.basename(sourcePath);
+          const destPath = path.join(assetsPath, fileName);
+          if (path.resolve(sourcePath) !== path.resolve(destPath)) {
+            fs.copyFileSync(sourcePath, destPath);
           }
-          if (fs.existsSync(sourcePath)) {
-            const fileName = path.basename(sourcePath);
-            const destPath = path.join(assetsPath, fileName);
-            if (sourcePath !== destPath) {
-              fs.copyFileSync(sourcePath, destPath);
-            }
+          pack[urlProp] = `local-file://${destPath.replace(/\\/g, '/')}`;
+        } else {
+          const fileName = path.basename(sourcePath);
+          const destPath = path.join(assetsPath, fileName);
+          if (fs.existsSync(destPath)) {
             pack[urlProp] = `local-file://${destPath.replace(/\\/g, '/')}`;
+          } else if (!val.startsWith('local-file://')) {
+            pack[urlProp] = `local-file://${sourcePath}`;
           }
         }
       };

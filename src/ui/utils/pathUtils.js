@@ -1,5 +1,8 @@
 export const getSafeBgUrl = (url) => {
   if (!url) return '';
+  if (url.startsWith('file://')) {
+    return url.replace(/^file:\/\//, 'local-file://');
+  }
   if (
     url.startsWith('http://') ||
     url.startsWith('https://') ||

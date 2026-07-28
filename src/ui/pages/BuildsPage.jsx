@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTranslation } from '../utils/i18n';
+import { getSafeBgUrl } from '../utils/pathUtils';
 import PromotePackModal from '../components/PromotePackModal';
 
 const glassPanelStyle = {
@@ -192,7 +193,7 @@ export default function BuildsPage({ modpacks, currentPack, onSelect, onDelete, 
                       left: 0,
                       right: 0,
                       bottom: 0,
-                      background: pack.bgImage ? `url('${pack.bgImage}') center/cover` : 'linear-gradient(135deg, #18181b, #27272a)',
+                      background: pack.bgImage ? `url('${getSafeBgUrl(pack.bgImage)}') center/cover` : 'linear-gradient(135deg, #18181b, #27272a)',
                       zIndex: 0
                     }}
                   />
