@@ -398,18 +398,48 @@ export default function UsersPage({ onViewProfile, active }) {
             <span style={{ fontSize: '13px', color: '#a1a1aa', fontWeight: 600, fontFamily: 'Montserrat' }}>{lang === 'ru' ? 'Загрузка списка игроков...' : 'Loading players list...'}</span>
           </div>
         ) : error ? (
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: '10px', color: '#ef4444' }}>
-            <i className="fa-solid fa-triangle-exclamation" style={{ fontSize: '38px', opacity: 0.8 }} />
-            <span style={{ fontSize: '14px', fontWeight: 700, fontFamily: 'Montserrat' }}>{error}</span>
-            <button onClick={fetchUsers} style={{
-              background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)',
-              color: '#f87171', padding: '10px 20px', borderRadius: '12px', cursor: 'pointer',
-              fontSize: '12px', fontWeight: 800, fontFamily: 'Montserrat', marginTop: '8px',
-              boxShadow: '0 4px 12px rgba(239, 68, 68, 0.1)'
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: '16px', color: '#a1a1aa' }}
+          >
+            <div style={{
+              background: 'rgba(167, 139, 250, 0.08)',
+              border: '1px solid rgba(167, 139, 250, 0.2)',
+              width: '72px',
+              height: '72px',
+              borderRadius: '50%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
             }}>
-              {lang === 'ru' ? 'Повторить попытку' : 'Retry'}
+              <i className={`fa-solid ${error === 'OFFLINE_MODE' ? 'fa-wifi' : error === 'NOT_AUTHORIZED' ? 'fa-lock' : 'fa-triangle-exclamation'}`} style={{ fontSize: '28px', color: '#a78bfa' }} />
+            </div>
+            <div style={{ textAlign: 'center', maxWidth: '400px' }}>
+              <span style={{ fontSize: '15px', fontWeight: 800, color: '#fff', fontFamily: 'Montserrat', display: 'block', marginBottom: '6px' }}>
+                {error === 'OFFLINE_MODE'
+                  ? (lang === 'ru' ? 'Офлайн-режим' : 'Offline Mode')
+                  : error === 'NOT_AUTHORIZED'
+                  ? (lang === 'ru' ? 'Требуется авторизация' : 'Authorization Required')
+                  : (lang === 'ru' ? 'Не удалось загрузить игроков' : 'Failed to load players')}
+              </span>
+              <span style={{ fontSize: '12px', color: '#a1a1aa', fontWeight: 500, lineHeight: '1.5' }}>
+                {error === 'OFFLINE_MODE'
+                  ? (lang === 'ru' ? 'Список игроков и статусы игровой активности доступны при авторизации в онлайн-аккаунт.' : 'Player list and activity status are available with online authorization.')
+                  : error === 'NOT_AUTHORIZED'
+                  ? (lang === 'ru' ? 'Пожалуйста, войдите в свой онлайн-аккаунт для просмотра списка игроков.' : 'Please log in to view the player list.')
+                  : error}
+              </span>
+            </div>
+            <button onClick={fetchUsers} style={{
+              background: 'rgba(167,139,250,0.12)', border: '1px solid rgba(167,139,250,0.3)',
+              color: '#c084fc', padding: '10px 22px', borderRadius: '12px', cursor: 'pointer',
+              fontSize: '12px', fontWeight: 800, fontFamily: 'Montserrat', marginTop: '4px',
+              transition: 'all 0.2s'
+            }}>
+              {lang === 'ru' ? 'Попробовать снова' : 'Try Again'}
             </button>
-          </div>
+          </motion.div>
         ) : filteredUsers.length === 0 ? (
           <motion.div 
             initial={{ opacity: 0, scale: 0.95 }}

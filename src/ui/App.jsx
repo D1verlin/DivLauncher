@@ -640,6 +640,7 @@ export default function App() {
   const updateOnlineActivity = useCallback(async (activity, gameName = null) => {
     try {
       if (!window.electronAPI?.updateProfileCustomization) return;
+      if (profileRef.current?.isOffline) return;
       await window.electronAPI.updateProfileCustomization({
         current_activity: activity,
         current_game: gameName

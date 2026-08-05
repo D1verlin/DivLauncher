@@ -1432,15 +1432,22 @@ module.exports = function(ipcMain) {
           });
           logger.log("Web token verification success. Profile data:", webRes.data);
           profileDetails = webRes.data;
+          if (webRes.data && webRes.data.newToken) {
+            webToken = webRes.data.newToken;
+            logger.log("Received rotated web token from server.");
+          }
         } catch (webErr) {
           logger.log("Web token verification failed! Error:", webErr.message);
           if (webErr.response) {
             logger.log("Web token verification error response status:", webErr.response.status, "data:", webErr.response.data);
           }
-          // If webToken is expired, force re-login
-          logger.log("Forcing re-login due to invalid web token.");
-          try { if (fs.existsSync(cacheFile)) fs.unlinkSync(cacheFile); } catch(e){}
-          return null;
+          if (webErr.response && (webErr.response.status === 401 || webErr.response.status === 403)) {
+            logger.log("Forcing re-login due to invalid web token (401/403).");
+            try { if (fs.existsSync(cacheFile)) fs.unlinkSync(cacheFile); } catch(e){}
+            return null;
+          } else {
+            logger.log("Network error during web token verification. Preserving session cache.");
+          }
         }
 
         const updatedCache = {
@@ -2076,12 +2083,15 @@ module.exports = function(ipcMain) {
     try {
       const cacheFile = getCustomCacheFile();
       if (!fs.existsSync(cacheFile)) {
-        return { success: false, error: 'Вы не авторизованы', logs: logger.getLogs() };
+        return { success: false, error: 'NOT_AUTHORIZED', logs: logger.getLogs() };
       }
       const cached = JSON.parse(fs.readFileSync(cacheFile, 'utf8'));
+      if (cached.isOffline) {
+        return { success: false, error: 'OFFLINE_MODE', logs: logger.getLogs() };
+      }
       const webToken = cached.webToken;
-      if (!webToken) {
-        return { success: false, error: 'Токен веб-авторизации не найден', logs: logger.getLogs() };
+      if (!webToken || webToken === 'offline') {
+        return { success: false, error: 'NOT_AUTHORIZED', logs: logger.getLogs() };
       }
 
       logger.log(`Fetching all users from Web API: ${AUTH_SERVER}/api/users`);
@@ -2095,6 +2105,9 @@ module.exports = function(ipcMain) {
       if (err.response && err.response.data) {
         const resData = err.response.data;
         errMsg = resData.errorMessage || resData.error || errMsg;
+      }
+      if (err.response && (err.response.status === 401 || err.response.status === 403)) {
+        errMsg = 'NOT_AUTHORIZED';
       }
       logger.log("get-users failed:", errMsg);
       return { success: false, error: errMsg };
@@ -2305,8 +2318,11 @@ module.exports = function(ipcMain) {
         return { success: false, error: 'Вы не авторизованы', logs: logger.getLogs() };
       }
       const cached = JSON.parse(fs.readFileSync(cacheFile, 'utf8'));
+      if (cached.isOffline) {
+        return { success: true, isOffline: true };
+      }
       const webToken = cached.webToken;
-      if (!webToken) {
+      if (!webToken || webToken === 'offline') {
         return { success: false, error: 'Токен веб-авторизации не найден', logs: logger.getLogs() };
       }
 

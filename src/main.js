@@ -41,7 +41,7 @@ function createWindow() {
   
   // Режим разработчика
   
-   mainWindow.webContents.openDevTools();
+  // mainWindow.webContents.openDevTools();
   
   // Настраиваем автоапдейтер
   autoUpdater.autoDownload = true;

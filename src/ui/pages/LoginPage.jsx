@@ -147,8 +147,8 @@ export default function LoginPage({ onLoginSuccess }) {
     WebkitBackdropFilter: 'blur(30px)',
     border: '1px solid rgba(255, 255, 255, 0.08)',
     borderRadius: '24px',
-    padding: '35px 40px',
-    width: '410px',
+    padding: '26px 30px',
+    width: '390px',
     boxShadow: '0 20px 50px rgba(0,0,0,0.45)',
     zIndex: 10
   };
@@ -159,8 +159,8 @@ export default function LoginPage({ onLoginSuccess }) {
     WebkitBackdropFilter: 'blur(30px)',
     border: '1px solid rgba(167, 139, 250, 0.3)',
     borderRadius: '24px',
-    padding: '35px 35px',
-    width: '380px',
+    padding: '26px 26px',
+    width: '360px',
     boxShadow: '0 20px 50px rgba(0,0,0,0.5), 0 0 30px rgba(124, 58, 237, 0.12)',
     zIndex: 10
   };
@@ -170,11 +170,11 @@ export default function LoginPage({ onLoginSuccess }) {
     border: '1px solid rgba(255, 255, 255, 0.1)',
     borderRadius: '13px',
     color: '#fff',
-    padding: '12px 16px',
+    padding: '10px 14px',
     width: '100%',
     outline: 'none',
     fontFamily: 'Montserrat',
-    fontSize: '13px',
+    fontSize: '12.5px',
     fontWeight: 600,
     boxSizing: 'border-box',
     transition: 'border-color 0.25s, box-shadow 0.25s',
@@ -186,7 +186,7 @@ export default function LoginPage({ onLoginSuccess }) {
     fontSize: '10px',
     textTransform: 'uppercase',
     fontWeight: 800,
-    marginBottom: '8px',
+    marginBottom: '6px',
     letterSpacing: '1.6px',
   };
 
@@ -203,15 +203,16 @@ export default function LoginPage({ onLoginSuccess }) {
   };
 
   return (
-    <div style={{
+    <div className="custom-scrollbar" style={{
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
       height: '100%',
       width: '100%',
       position: 'relative',
+      overflowX: 'hidden',
       overflowY: 'auto',
-      padding: '20px',
+      padding: '40px 20px 20px 20px',
       boxSizing: 'border-box'
     }}>
       {/* Background radial glow */}
@@ -244,15 +245,15 @@ export default function LoginPage({ onLoginSuccess }) {
           transition={{ type: "spring", stiffness: 300, damping: 25 }}
           style={glassCard}
         >
-          <div style={{ textAlign: 'center', marginBottom: '22px' }}>
+          <div style={{ textAlign: 'center', marginBottom: '16px' }}>
             <h2 style={{
               fontFamily: 'Montserrat',
               fontWeight: 900,
-              fontSize: '28px',
+              fontSize: '26px',
               letterSpacing: '2px',
               color: '#fff',
               textTransform: 'uppercase',
-              margin: '0 0 5px 0',
+              margin: '0 0 4px 0',
               textShadow: '0 5px 15px rgba(0,0,0,0.5)'
             }}>
               DIVLAUNCHER
@@ -279,14 +280,14 @@ export default function LoginPage({ onLoginSuccess }) {
                 alignItems: 'center',
                 justifyContent: 'center',
                 gap: '8px',
-                padding: '8px 12px',
+                padding: '6px 12px',
                 borderRadius: '11px',
                 background: 'rgba(167, 139, 250, 0.12)',
                 border: '1px solid rgba(167, 139, 250, 0.3)',
                 color: '#c084fc',
                 fontSize: '11px',
                 fontWeight: 800,
-                marginBottom: '18px',
+                marginBottom: '14px',
                 letterSpacing: '0.5px'
               }}
             >
@@ -302,7 +303,7 @@ export default function LoginPage({ onLoginSuccess }) {
             padding: '4px',
             borderRadius: '14px',
             border: '1px solid rgba(255,255,255,0.06)',
-            marginBottom: '22px',
+            marginBottom: '16px',
             gap: '2px'
           }}>
             <button
@@ -588,9 +589,10 @@ export default function LoginPage({ onLoginSuccess }) {
                       boxShadow: '0 0 16px rgba(167, 139, 250, 0.3)'
                     }}
                     type="text"
+                    maxLength={9}
                     placeholder={t('login_2fa_placeholder')}
                     value={twoFactorCode}
-                    onChange={e => setTwoFactorCode(e.target.value)}
+                    onChange={e => setTwoFactorCode(e.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, '').slice(0, 9))}
                     style={{
                       ...inputStyle,
                       borderColor: 'rgba(167, 139, 250, 0.35)',
