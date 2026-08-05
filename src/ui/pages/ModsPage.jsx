@@ -846,21 +846,52 @@ export default function ModsPage({ currentPack, onBack, showConfirm, showAlert }
             {formatDownloads(mod.downloads)}
           </span>
 
-          <motion.button 
-            whileHover={installingTarget !== mod.slug ? {  } : {}}
-            whileTap={installingTarget !== mod.slug ? { scale: 0.96 } : {}}
-            onClick={() => handleInstallToggle(mod)}
-            disabled={installingTarget === mod.slug}
-            style={actionButtonAccentStyle(isInstalled)}
-          >
-            {installingTarget === mod.slug ? (
-              <i className="fa-solid fa-spinner fa-spin"></i>
-            ) : isInstalled ? (
-              <><i className="fa-solid fa-trash"></i> {t('mods_uninstall_btn')}</>
-            ) : (
-              <><i className="fa-solid fa-download"></i> {t('mods_install_btn')}</>
+          <div style={{ display: 'flex', gap: '6px' }}>
+            {mod.websiteUrl && (
+              <motion.button
+                whileHover={{ background: 'rgba(255, 255, 255, 0.1)' }}
+                whileTap={{ scale: 0.9 }}
+                onClick={(e) => { e.stopPropagation(); window.electronAPI.openExternalLink(mod.websiteUrl); }}
+                style={{
+                  background: 'rgba(255, 255, 255, 0.05)',
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  color: '#a1a1aa',
+                  borderRadius: '11px',
+                  width: '32px',
+                  height: '32px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s'
+                }}
+                title={lang === 'ru' ? 'Открыть в браузере' : 'Open in browser'}
+              >
+                <i className="fa-solid fa-arrow-up-right-from-square" style={{ fontSize: '11px' }}></i>
+              </motion.button>
             )}
-          </motion.button>
+
+            <motion.button 
+              whileHover={installingTarget !== mod.slug ? {  } : {}}
+              whileTap={installingTarget !== mod.slug ? { scale: 0.96 } : {}}
+              onClick={() => handleInstallToggle(mod)}
+              disabled={installingTarget === mod.slug}
+              style={{
+                ...actionButtonAccentStyle(isInstalled),
+                padding: '0 12px',
+                height: '32px',
+                fontSize: '10px'
+              }}
+            >
+              {installingTarget === mod.slug ? (
+                <i className="fa-solid fa-spinner fa-spin"></i>
+              ) : isInstalled ? (
+                <><i className="fa-solid fa-trash"></i> {t('mods_uninstall_btn')}</>
+              ) : (
+                <><i className="fa-solid fa-download"></i> {t('mods_install_btn')}</>
+              )}
+            </motion.button>
+          </div>
         </div>
       </div>
     );
@@ -949,26 +980,53 @@ export default function ModsPage({ currentPack, onBack, showConfirm, showAlert }
             <i className={isFav ? "fa-solid fa-star" : "fa-regular fa-star"}></i>
           </motion.div>
 
-          <motion.button 
-            whileHover={installingTarget !== mod.slug ? {  } : {}}
-            whileTap={installingTarget !== mod.slug ? { scale: 0.96 } : {}}
-            onClick={() => handleInstallToggle(mod)}
-            disabled={installingTarget === mod.slug}
-            style={{
-              ...actionButtonAccentStyle(isInstalled),
-              padding: '6px 12px',
-              fontSize: '10px',
-              borderRadius: '8px'
-            }}
-          >
-            {installingTarget === mod.slug ? (
-              <i className="fa-solid fa-spinner fa-spin"></i>
-            ) : isInstalled ? (
-              <><i className="fa-solid fa-trash"></i></>
-            ) : (
-              <><i className="fa-solid fa-download"></i></>
+          <div style={{ display: 'flex', gap: '6px' }}>
+            {mod.websiteUrl && (
+              <motion.button
+                whileHover={{ background: 'rgba(255, 255, 255, 0.1)' }}
+                whileTap={{ scale: 0.9 }}
+                onClick={(e) => { e.stopPropagation(); window.electronAPI.openExternalLink(mod.websiteUrl); }}
+                style={{
+                  background: 'rgba(255, 255, 255, 0.05)',
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  color: '#a1a1aa',
+                  borderRadius: '8px',
+                  width: '26px',
+                  height: '26px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s'
+                }}
+                title={lang === 'ru' ? 'Открыть в браузере' : 'Open in browser'}
+              >
+                <i className="fa-solid fa-arrow-up-right-from-square" style={{ fontSize: '10px' }}></i>
+              </motion.button>
             )}
-          </motion.button>
+
+            <motion.button 
+              whileHover={installingTarget !== mod.slug ? {  } : {}}
+              whileTap={installingTarget !== mod.slug ? { scale: 0.96 } : {}}
+              onClick={() => handleInstallToggle(mod)}
+              disabled={installingTarget === mod.slug}
+              style={{
+                ...actionButtonAccentStyle(isInstalled),
+                padding: '0 10px',
+                height: '26px',
+                fontSize: '10px',
+                borderRadius: '8px'
+              }}
+            >
+              {installingTarget === mod.slug ? (
+                <i className="fa-solid fa-spinner fa-spin"></i>
+              ) : isInstalled ? (
+                <><i className="fa-solid fa-trash"></i></>
+              ) : (
+                <><i className="fa-solid fa-download"></i></>
+              )}
+            </motion.button>
+          </div>
         </div>
       </div>
     );
@@ -1069,29 +1127,54 @@ export default function ModsPage({ currentPack, onBack, showConfirm, showAlert }
             </span>
           </div>
 
-          <button 
-            disabled={installingTarget === mod.slug}
-            onClick={() => handleInstallToggle(mod)}
-            style={{
-              background: 'transparent',
-              border: 'none',
-              color: isInstalled ? '#f87171' : '#34d399',
-              cursor: 'pointer',
-              fontSize: '10px',
-              padding: 0,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center'
-            }}
-          >
-            {installingTarget === mod.slug ? (
-              <i className="fa-solid fa-spinner fa-spin" style={{ fontSize: '9px' }}></i>
-            ) : isInstalled ? (
-              <i className="fa-solid fa-trash" style={{ fontSize: '9px' }}></i>
-            ) : (
-              <i className="fa-solid fa-arrow-down" style={{ fontSize: '9px' }}></i>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            {mod.websiteUrl && (
+              <button
+                onClick={(e) => { e.stopPropagation(); window.electronAPI.openExternalLink(mod.websiteUrl); }}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: '#a1a1aa',
+                  cursor: 'pointer',
+                  fontSize: '10px',
+                  padding: 0,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  transition: 'color 0.2s'
+                }}
+                onMouseEnter={e => e.currentTarget.style.color = '#fff'}
+                onMouseLeave={e => e.currentTarget.style.color = '#a1a1aa'}
+                title={lang === 'ru' ? 'Открыть в браузере' : 'Open in browser'}
+              >
+                <i className="fa-solid fa-arrow-up-right-from-square"></i>
+              </button>
             )}
-          </button>
+
+            <button 
+              disabled={installingTarget === mod.slug}
+              onClick={() => handleInstallToggle(mod)}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: isInstalled ? '#f87171' : '#34d399',
+                cursor: 'pointer',
+                fontSize: '10px',
+                padding: 0,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+            >
+              {installingTarget === mod.slug ? (
+                <i className="fa-solid fa-spinner fa-spin" style={{ fontSize: '9px' }}></i>
+              ) : isInstalled ? (
+                <i className="fa-solid fa-trash" style={{ fontSize: '9px' }}></i>
+              ) : (
+                <i className="fa-solid fa-arrow-down" style={{ fontSize: '9px' }}></i>
+              )}
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -1997,6 +2080,30 @@ export default function ModsPage({ currentPack, onBack, showConfirm, showAlert }
                         <i className={favorites.some(f => f.id === selectedModData.id && f.source === source && f.projectType === projectType) ? "fa-solid fa-star" : "fa-regular fa-star"}></i>
                         {favorites.some(f => f.id === selectedModData.id && f.source === source && f.projectType === projectType) ? (lang === 'ru' ? 'В избранном' : 'In Favorites') : (lang === 'ru' ? 'В избранное' : 'Add Favorite')}
                       </motion.button>
+                      {selectedModData.websiteUrl && (
+                        <motion.button
+                          whileTap={{ scale: 0.9 }}
+                          onClick={() => window.electronAPI.openExternalLink(selectedModData.websiteUrl)}
+                          style={{
+                            background: 'rgba(255, 255, 255, 0.03)',
+                            border: '1px solid rgba(255, 255, 255, 0.07)',
+                            color: '#a1a1aa',
+                            borderRadius: '8px',
+                            padding: '6px 10px',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            fontSize: '11px',
+                            fontWeight: 700,
+                            fontFamily: 'Montserrat',
+                            textTransform: 'uppercase'
+                          }}
+                        >
+                          <i className="fa-solid fa-arrow-up-right-from-square"></i>
+                          {lang === 'ru' ? 'В браузере' : 'In Browser'}
+                        </motion.button>
+                      )}
                     </div>
                     <div style={{ margin: '6px 0 0', fontSize: '13px', color: '#71717a', display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
                       <span 

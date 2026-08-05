@@ -3441,7 +3441,8 @@ module.exports = function(ipcMain) {
         author: mod.authors?.[0]?.name || 'Неизвестен',
         downloads: mod.downloadCount || 0,
         description: mod.summary || '',
-        categories: (mod.categories || []).map(cat => cat.name)
+        categories: (mod.categories || []).map(cat => cat.name),
+        websiteUrl: mod.links?.websiteUrl || `https://www.curseforge.com/minecraft/mc-mods/${mod.slug}`
       }));
       
       sysLog(`[IPC search-curse] success. Received ${hits.length} hits.`);
@@ -3541,6 +3542,7 @@ module.exports = function(ipcMain) {
         gallery: (mod.screenshots || []).map(scr => ({ url: scr.url || scr.thumbnailUrl })),
         client_side: 'optional',
         server_side: 'optional',
+        websiteUrl: mod.links?.websiteUrl || `https://www.curseforge.com/minecraft/mc-mods/${mod.slug}`,
         license: { name: 'См. на CurseForge' },
         dependencies: resolvedDeps
       };
@@ -3618,7 +3620,8 @@ module.exports = function(ipcMain) {
         downloads: hit.downloads || 0,
         description: hit.description || '',
         categories: hit.categories || [],
-        project_type: hit.project_type
+        project_type: hit.project_type,
+        websiteUrl: `https://modrinth.com/${hit.project_type === 'mod' ? 'mod' : (hit.project_type === 'resourcepack' ? 'resourcepack' : (hit.project_type === 'shader' ? 'shader' : 'mod'))}/${hit.slug}`
       }));
 
       sysLog(`[IPC search-modrinth] success. Received ${hits.length} hits.`);
@@ -3728,6 +3731,7 @@ module.exports = function(ipcMain) {
         gallery: (project.gallery || []).map(g => ({ url: g.url })),
         client_side: project.client_side || 'optional',
         server_side: project.server_side || 'optional',
+        websiteUrl: `https://modrinth.com/${project.project_type === 'mod' ? 'mod' : (project.project_type === 'resourcepack' ? 'resourcepack' : (project.project_type === 'shader' ? 'shader' : 'mod'))}/${project.slug}`,
         license: { name: project.license?.name || 'Open Source' },
         dependencies: resolvedDeps
       };
