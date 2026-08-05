@@ -176,9 +176,15 @@ function FormSelect({ label, value, options, onChange, placeholder, showSearch =
 export default function AdminModpacksSection({ onModpacksUpdate, onManageMods, showConfirm, showAlert }) {
   const { t, lang } = useTranslation();
 
-  const alert = (msg) => {
+  const alert = (msg, type = 'auto') => {
     if (showAlert) {
-      showAlert(t('error'), msg);
+      if (type === 'error' || (type === 'auto' && (msg.toLowerCase().includes('ошибка') || msg.toLowerCase().includes('error') || msg.toLowerCase().includes('не удалось')))) {
+        showAlert(lang === 'ru' ? 'Ошибка' : 'Error', msg, 'error');
+      } else if (type === 'success' || (type === 'auto' && (msg.toLowerCase().includes('успешно') || msg.toLowerCase().includes('сохранена') || msg.toLowerCase().includes('удалена') || msg.toLowerCase().includes('создана')))) {
+        showAlert(lang === 'ru' ? 'Успешно' : 'Success', msg, 'success');
+      } else {
+        showAlert(lang === 'ru' ? 'Информация' : 'Information', msg, type || 'info');
+      }
     } else {
       window.alert(msg);
     }
@@ -816,7 +822,7 @@ export default function AdminModpacksSection({ onModpacksUpdate, onManageMods, s
           </div>
           <div style={{ display: 'flex', gap: '8px' }}>
             <motion.button
-              whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.96 }}
+              whileTap={{ scale: 0.96 }}
               onClick={handleCreateClick}
               style={{
                 background: 'linear-gradient(135deg, #10b981, #059669)', border: 'none',

@@ -1214,11 +1214,36 @@ module.exports = function(ipcMain) {
     };
   }
 
-  ipcMain.handle('custom-login', async (event, username, password) => {
+  ipcMain.handle('custom-login', async (event, username, password, twoFactorCode) => {
     const logger = createLogger();
     logger.log("=== [custom-login] START ===");
     logger.log(`Username: "${username}"`);
     try {
+      // First call Web login to check 2FA requirement and retrieve JWT
+      let webToken = null;
+      let webResponse = null;
+      try {
+        logger.log(`Sending login request to Web API: ${AUTH_SERVER}/api/login`);
+        webResponse = await axios.post(`${AUTH_SERVER}/api/login`, {
+          username: username,
+          password: password,
+          two_factor_code: twoFactorCode
+        });
+        logger.log("Web login response status:", webResponse.status);
+        if (webResponse.data && webResponse.data.requires_2fa) {
+          return { success: false, requires_2fa: true, message: webResponse.data.message, logs: logger.getLogs() };
+        }
+        webToken = webResponse.data.token;
+        logger.log("Web token received:", webToken ? (webToken.slice(0, 15) + "...") : "null");
+      } catch (webErr) {
+        logger.log("Web login failed! Error:", webErr.message);
+        if (webErr.response) {
+          logger.log("Web login error response status:", webErr.response.status, "data:", webErr.response.data);
+        }
+        const errMsg = webErr.response?.data?.errorMessage || webErr.response?.data?.error || webErr.message;
+        return { success: false, error: errMsg, logs: logger.getLogs() };
+      }
+
       const currentClientToken = require('crypto').randomUUID();
       logger.log(`Sending authentication request to Yggdrasil: ${AUTH_SERVER}/authserver/authenticate`);
       const response = await axios.post(`${AUTH_SERVER}/authserver/authenticate`, {
@@ -1233,57 +1258,100 @@ module.exports = function(ipcMain) {
       logger.log("Yggdrasil authenticate response status:", response.status);
       if (data.accessToken && data.selectedProfile) {
         logger.log("Yggdrasil authenticate success. UUID:", data.selectedProfile.id);
-        
-        // Also call Web login to get the JWT token for skin uploads
-        let webToken = null;
-        let webResponse = null;
-        try {
-          logger.log(`Sending login request to Web API: ${AUTH_SERVER}/api/login`);
-          webResponse = await axios.post(`${AUTH_SERVER}/api/login`, {
-            username: username,
-            password: password
-          });
-          logger.log("Web login response status:", webResponse.status);
-          webToken = webResponse.data.token;
-          logger.log("Web token received:", webToken ? (webToken.slice(0, 15) + "...") : "null");
-        } catch (webErr) {
-          logger.log("Web login failed! Error:", webErr.message);
-          if (webErr.response) {
-            logger.log("Web login error response status:", webErr.response.status, "data:", webErr.response.data);
-          }
-          const errMsg = webErr.response?.data?.error || webErr.response?.data?.errorMessage || webErr.message;
-          return { success: false, error: 'Ошибка веб-авторизации: ' + errMsg, logs: logger.getLogs() };
-        }
 
         const cacheData = {
           ...data,
           webToken: webToken
         };
         fs.writeFileSync(getCustomCacheFile(), JSON.stringify(cacheData));
-        logger.log("Auth credentials written to cache file successfully.");
-        // Return all user profile fields (customizations, google link status, etc.) to the UI
+
+        const userProfile = webResponse.data.user || {};
         return { 
-          ...webResponse.data.user,
+          ...userProfile,
           success: true, 
-          id: webResponse.data.user.id,
+          id: userProfile.id || null,
           name: data.selectedProfile.name, 
           uuid: data.selectedProfile.id, 
           accessToken: data.accessToken,
           webToken: webToken,
-          is_admin: webResponse.data.user.is_admin,
-          badge: webResponse.data.user.badge,
-          logs: logger.getLogs()
+          is_admin: userProfile.is_admin || 0,
+          badge: userProfile.badge || null,
+          two_factor_enabled: userProfile.two_factor_enabled || 0,
+          logs: logger.getLogs() 
         };
       }
-      logger.log("Invalid credentials returned from authenticate API.");
-      return { success: false, error: 'Неверные данные авторизации', logs: logger.getLogs() };
+      return { success: false, error: 'Неверный ответ Yggdrasil сервера', logs: logger.getLogs() };
     } catch (err) {
-      logger.log("Yggdrasil authenticate failed! Error:", err.message);
+      logger.log("Login exception! Error:", err.message);
       if (err.response) {
-        logger.log("Yggdrasil authenticate error response status:", err.response.status, "data:", err.response.data);
+        logger.log("Error response status:", err.response.status, "data:", err.response.data);
       }
-      const msg = err.response?.data?.errorMessage || err.message;
-      return { success: false, error: msg, logs: logger.getLogs() };
+      const errMsg = err.response?.data?.errorMessage || err.response?.data?.error || err.message;
+      return { success: false, error: errMsg, logs: logger.getLogs() };
+    }
+  });
+
+  ipcMain.handle('setup-2fa', async () => {
+    try {
+      const cacheFile = getCustomCacheFile();
+      console.log('[setup-2fa] Cache file path:', cacheFile);
+      if (!fs.existsSync(cacheFile)) {
+        console.log('[setup-2fa] ERROR: Cache file not found');
+        return { success: false, error: 'Вы не авторизованы' };
+      }
+      const cached = JSON.parse(fs.readFileSync(cacheFile, 'utf8'));
+      console.log('[setup-2fa] Cache keys:', Object.keys(cached));
+      console.log('[setup-2fa] webToken exists:', !!cached.webToken);
+      if (cached.webToken) console.log('[setup-2fa] webToken prefix:', cached.webToken.substring(0, 20) + '...');
+      if (!cached.webToken) {
+        console.log('[setup-2fa] ERROR: webToken missing from cache');
+        return { success: false, error: 'Токен веб-авторизации не найден. Выйдите и войдите заново.' };
+      }
+
+      console.log('[setup-2fa] Sending request to:', `${AUTH_SERVER}/api/auth/2fa/setup`);
+      const response = await axios.post(`${AUTH_SERVER}/api/auth/2fa/setup`, {}, {
+        headers: { 'Authorization': `Bearer ${cached.webToken}` }
+      });
+      console.log('[setup-2fa] SUCCESS, status:', response.status);
+      return { success: true, ...response.data };
+    } catch (err) {
+      console.log('[setup-2fa] ERROR:', err.response?.status, err.response?.data || err.message);
+      const errMsg = err.response?.data?.errorMessage || err.response?.data?.error || err.message;
+      return { success: false, error: errMsg };
+    }
+  });
+
+  ipcMain.handle('enable-2fa', async (event, secret, code, backupCodes) => {
+    try {
+      const cacheFile = getCustomCacheFile();
+      if (!fs.existsSync(cacheFile)) return { success: false, error: 'Вы не авторизованы' };
+      const cached = JSON.parse(fs.readFileSync(cacheFile, 'utf8'));
+      if (!cached.webToken) return { success: false, error: 'Токен веб-авторизации не найден' };
+
+      const response = await axios.post(`${AUTH_SERVER}/api/auth/2fa/enable`, { secret, code, backupCodes }, {
+        headers: { 'Authorization': `Bearer ${cached.webToken}` }
+      });
+      return { success: true, ...response.data };
+    } catch (err) {
+      const errMsg = err.response?.data?.errorMessage || err.response?.data?.error || err.message;
+      return { success: false, error: errMsg };
+    }
+  });
+
+  ipcMain.handle('disable-2fa', async (event, password, code) => {
+    try {
+      const cacheFile = getCustomCacheFile();
+      if (!fs.existsSync(cacheFile)) return { success: false, error: 'Вы не авторизованы' };
+      const cached = JSON.parse(fs.readFileSync(cacheFile, 'utf8'));
+      if (!cached.webToken) return { success: false, error: 'Токен веб-авторизации не найден' };
+
+      const response = await axios.post(`${AUTH_SERVER}/api/auth/2fa/disable`, { password, code }, {
+        headers: { 'Authorization': `Bearer ${cached.webToken}` }
+      });
+      return { success: true, ...response.data };
+    } catch (err) {
+      const errMsg = err.response?.data?.errorMessage || err.response?.data?.error || err.message;
+      return { success: false, error: errMsg };
     }
   });
 
@@ -2034,6 +2102,17 @@ module.exports = function(ipcMain) {
   });
   ipcMain.handle('get-auth-server-url', () => {
     return AUTH_SERVER;
+  });
+
+  ipcMain.handle('get-web-token', () => {
+    try {
+      const cacheFile = getCustomCacheFile();
+      if (fs.existsSync(cacheFile)) {
+        const cached = JSON.parse(fs.readFileSync(cacheFile, 'utf8'));
+        return cached.webToken || null;
+      }
+    } catch(e) {}
+    return null;
   });
 
   ipcMain.handle('start-google-auth', async (event, action) => {
@@ -3815,91 +3894,4 @@ module.exports = function(ipcMain) {
 
 
 
-  // ── FONT SWITCHING IPC HANDLERS ───────────────────────────────────────────
-  const getCustomFontsDir = () => path.join(app.getPath('userData'), 'custom-fonts');
-
-  ipcMain.handle('get-system-fonts', async () => {
-    try {
-      if (process.platform === 'win32') {
-        const cmd = `powershell -Command "[System.Reflection.Assembly]::LoadWithPartialName('System.Drawing') | Out-Null; (New-Object System.Drawing.Text.InstalledFontCollection).Families | Select-Object -ExpandProperty Name"`;
-        const stdout = execSync(cmd, { encoding: 'utf8', timeout: 8000 });
-        const fonts = stdout.split(/\r?\n/).map(f => f.trim()).filter(f => f.length > 0);
-        return fonts;
-      } else if (process.platform === 'darwin') {
-        const stdout = execSync(`system_profiler SPFontsDataType | grep "Family:" | cut -d: -f2`, { encoding: 'utf8', timeout: 5000 });
-        const fonts = stdout.split(/\r?\n/).map(f => f.trim()).filter(f => f.length > 0);
-        return [...new Set(fonts)];
-      } else {
-        const stdout = execSync(`fc-list : family | sort -u`, { encoding: 'utf8', timeout: 5000 });
-        const fonts = stdout.split(/\r?\n/).map(f => f.split(',')[0].trim()).filter(f => f.length > 0);
-        return fonts;
-      }
-    } catch (err) {
-      console.error('Error fetching system fonts:', err);
-      return ['Arial', 'Verdana', 'Georgia', 'Impact', 'Segoe UI', 'Courier New', 'Times New Roman'];
-    }
-  });
-
-  ipcMain.handle('get-custom-fonts', async () => {
-    try {
-      const dir = getCustomFontsDir();
-      if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true });
-        return [];
-      }
-      const files = fs.readdirSync(dir).filter(f => {
-        const lower = f.toLowerCase();
-        return lower.endsWith('.ttf') || lower.endsWith('.otf') || lower.endsWith('.woff') || lower.endsWith('.woff2');
-      });
-      return files.map(file => {
-        const ext = path.extname(file);
-        const name = path.basename(file, ext);
-        const filePath = path.join(dir, file);
-        return {
-          family: name,
-          path: filePath
-        };
-      });
-    } catch (err) {
-      console.error('Error getting custom fonts:', err);
-      return [];
-    }
-  });
-
-  ipcMain.handle('add-custom-font', async () => {
-    try {
-      const { canceled, filePaths } = await dialog.showOpenDialog({
-        title: 'Выберите файл шрифта',
-        properties: ['openFile'],
-        filters: [
-          { name: 'Шрифты (TTF, OTF, WOFF)', extensions: ['ttf', 'otf', 'woff', 'woff2'] }
-        ]
-      });
-
-      if (canceled || filePaths.length === 0) return { success: false, error: 'Отменено' };
-      const selectedPath = filePaths[0];
-      const dir = getCustomFontsDir();
-      if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true });
-      }
-
-      const fileName = path.basename(selectedPath);
-      const dest = path.join(dir, fileName);
-      fs.copyFileSync(selectedPath, dest);
-
-      const ext = path.extname(fileName);
-      const name = path.basename(fileName, ext);
-
-      return {
-        success: true,
-        font: {
-          family: name,
-          path: dest
-        }
-      };
-    } catch (err) {
-      console.error('Error adding custom font:', err);
-      return { success: false, error: err.message };
-    }
-  });
 };

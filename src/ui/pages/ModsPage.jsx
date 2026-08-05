@@ -518,7 +518,7 @@ export default function ModsPage({ currentPack, onBack, showConfirm, showAlert }
               : 'Vanilla modpacks do not support modifications. Choose or create a pack based on Fabric, Forge or NeoForge in the settings.'}
           </p>
           <motion.button 
-            whileHover={{ scale: 1.03, background: 'rgba(16, 185, 129, 0.2)' }}
+            whileHover={{ background: 'rgba(16, 185, 129, 0.2)' }}
             whileTap={{ scale: 0.96 }}
             onClick={onBack} 
             style={{ padding: '12px 24px', background: 'rgba(16, 185, 129, 0.1)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.3)', borderRadius: '11px', cursor: 'pointer', fontWeight: 800, fontSize: '13px', textTransform: 'uppercase', letterSpacing: '1.6px' }}
@@ -785,7 +785,6 @@ export default function ModsPage({ currentPack, onBack, showConfirm, showAlert }
           
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }} onClick={(e) => e.stopPropagation()}>
             <motion.div
-              whileHover={{ scale: 1.15 }}
               whileTap={{ scale: 0.9 }}
               onClick={(e) => toggleFavorite(mod, e)}
               style={{ color: isFav ? '#fbbf24' : '#71717a', cursor: 'pointer', fontSize: '14px', display: 'flex', alignItems: 'center' }}
@@ -848,7 +847,7 @@ export default function ModsPage({ currentPack, onBack, showConfirm, showAlert }
           </span>
 
           <motion.button 
-            whileHover={installingTarget !== mod.slug ? { scale: 1.03 } : {}}
+            whileHover={installingTarget !== mod.slug ? {  } : {}}
             whileTap={installingTarget !== mod.slug ? { scale: 0.96 } : {}}
             onClick={() => handleInstallToggle(mod)}
             disabled={installingTarget === mod.slug}
@@ -943,7 +942,6 @@ export default function ModsPage({ currentPack, onBack, showConfirm, showAlert }
 
         <div onClick={(e) => e.stopPropagation()} style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: '10px' }}>
           <motion.div
-            whileHover={{ scale: 1.15 }}
             whileTap={{ scale: 0.9 }}
             onClick={(e) => toggleFavorite(mod, e)}
             style={{ color: isFav ? '#fbbf24' : '#71717a', cursor: 'pointer', fontSize: '14px', display: 'flex', alignItems: 'center' }}
@@ -952,7 +950,7 @@ export default function ModsPage({ currentPack, onBack, showConfirm, showAlert }
           </motion.div>
 
           <motion.button 
-            whileHover={installingTarget !== mod.slug ? { scale: 1.03 } : {}}
+            whileHover={installingTarget !== mod.slug ? {  } : {}}
             whileTap={installingTarget !== mod.slug ? { scale: 0.96 } : {}}
             onClick={() => handleInstallToggle(mod)}
             disabled={installingTarget === mod.slug}
@@ -1059,7 +1057,6 @@ export default function ModsPage({ currentPack, onBack, showConfirm, showAlert }
         >
           <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
             <motion.div
-              whileHover={{ scale: 1.15 }}
               whileTap={{ scale: 0.9 }}
               onClick={(e) => toggleFavorite(mod, e)}
               style={{ color: isFav ? '#fbbf24' : '#71717a', cursor: 'pointer', fontSize: '11px', display: 'flex', alignItems: 'center' }}
@@ -1248,7 +1245,7 @@ export default function ModsPage({ currentPack, onBack, showConfirm, showAlert }
               {/* Title & Back Button */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
                 <motion.button 
-                  whileHover={{ scale: 1.05, background: 'rgba(255,255,255,0.06)' }}
+                  whileHover={{ background: 'rgba(255,255,255,0.06)' }}
                   whileTap={{ scale: 0.96 }}
                   onClick={() => {
                     if (selectedPublisher) {
@@ -1480,7 +1477,7 @@ export default function ModsPage({ currentPack, onBack, showConfirm, showAlert }
 
                 {/* Sidebar Toggle Action */}
                 <motion.button 
-                  whileHover={{ scale: 1.03, background: 'rgba(255, 255, 255, 0.06)' }}
+                  whileHover={{ background: 'rgba(255, 255, 255, 0.06)' }}
                   whileTap={{ scale: 0.96 }}
                   onClick={() => setShowSidebar(!showSidebar)}
                   style={secondaryButtonStyle}
@@ -1491,7 +1488,7 @@ export default function ModsPage({ currentPack, onBack, showConfirm, showAlert }
 
                 {/* Refresh Action */}
                 <motion.button 
-                  whileHover={{ scale: 1.03, background: 'rgba(255, 255, 255, 0.06)' }}
+                  whileHover={{ background: 'rgba(255, 255, 255, 0.06)' }}
                   whileTap={{ scale: 0.96 }}
                   onClick={handleRefresh}
                   disabled={refreshing}
@@ -1503,7 +1500,7 @@ export default function ModsPage({ currentPack, onBack, showConfirm, showAlert }
 
                 {/* Open Folder Action */}
                 <motion.button 
-                  whileHover={{ scale: 1.03, background: 'rgba(255, 255, 255, 0.06)' }}
+                  whileHover={{ background: 'rgba(255, 255, 255, 0.06)' }}
                   whileTap={{ scale: 0.96 }}
                   onClick={handleOpenFolder}
                   style={secondaryButtonStyle}
@@ -1692,7 +1689,7 @@ export default function ModsPage({ currentPack, onBack, showConfirm, showAlert }
                   {!loading && mods.length > 0 && mods.length % 12 === 0 && (
                     <div style={{ display: 'flex', justifyContent: 'center', marginTop: '24px' }}>
                       <motion.button 
-                        whileHover={{ scale: 1.03, background: 'rgba(255,255,255,0.06)' }}
+                        whileHover={{ background: 'rgba(255,255,255,0.06)' }}
                         whileTap={{ scale: 0.96 }}
                         onClick={() => searchMods(true)}
                         style={secondaryButtonStyle}
@@ -1918,7 +1915,7 @@ export default function ModsPage({ currentPack, onBack, showConfirm, showAlert }
             {/* Header bar back redirection details */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '20px', flexShrink: 0 }}>
               <motion.button 
-                whileHover={{ scale: 1.05, background: 'rgba(255,255,255,0.06)' }}
+                whileHover={{ background: 'rgba(255,255,255,0.06)' }}
                 whileTap={{ scale: 0.96 }}
                 onClick={() => { setSelectedMod(null); setSelectedModData(null); }}
                 style={{ 
@@ -1979,7 +1976,6 @@ export default function ModsPage({ currentPack, onBack, showConfirm, showAlert }
                         {selectedModData.title}
                       </h2>
                       <motion.button
-                        whileHover={{ scale: 1.1 }}
                         whileTap={{ scale: 0.9 }}
                         onClick={(e) => toggleFavorite(selectedModData, e)}
                         style={{
@@ -2022,7 +2018,7 @@ export default function ModsPage({ currentPack, onBack, showConfirm, showAlert }
 
                   {/* Large Hero Action Button */}
                   <motion.button 
-                    whileHover={installingTarget !== selectedModData.slug ? { scale: 1.03 } : {}}
+                    whileHover={installingTarget !== selectedModData.slug ? {  } : {}}
                     whileTap={installingTarget !== selectedModData.slug ? { scale: 0.96 } : {}}
                     onClick={() => handleInstallToggle(selectedModData)}
                     disabled={installingTarget === selectedModData.slug}
@@ -2107,7 +2103,7 @@ export default function ModsPage({ currentPack, onBack, showConfirm, showAlert }
                       <div>
                         {lang === 'ru' && !translatedBody && (
                           <motion.button
-                            whileHover={{ scale: 1.02, background: 'rgba(16, 185, 129, 0.2)' }}
+                            whileHover={{ background: 'rgba(16, 185, 129, 0.2)' }}
                             whileTap={{ scale: 0.98 }}
                             onClick={handleTranslateBody}
                             disabled={translatingBody}
@@ -2203,7 +2199,6 @@ export default function ModsPage({ currentPack, onBack, showConfirm, showAlert }
                                 </div>
 
                                 <motion.button
-                                  whileHover={{ scale: 1.03 }}
                                   whileTap={{ scale: 0.96 }}
                                   onClick={() => isCurrentFileInstalled ? handleUninstallVersion(selectedModData, v.fileName) : handleInstallVersion(selectedModData, v)}
                                   style={{
@@ -2302,7 +2297,6 @@ export default function ModsPage({ currentPack, onBack, showConfirm, showAlert }
                             {selectedModData.gallery.map((img, idx) => (
                               <motion.div 
                                 key={idx}
-                                whileHover={{ scale: 1.04 }}
                                 onClick={() => { setActiveScreenshotIndex(idx); setIsLightboxOpen(true); }}
                                 style={{ 
                                   height: '110px', 
@@ -2374,7 +2368,7 @@ export default function ModsPage({ currentPack, onBack, showConfirm, showAlert }
               onClick={(e) => e.stopPropagation()}
             >
               <motion.button 
-                whileHover={{ scale: 1.1, background: 'rgba(255,255,255,0.1)' }}
+                whileHover={{ background: 'rgba(255,255,255,0.1)' }}
                 whileTap={{ scale: 0.9 }}
                 onClick={() => setActiveScreenshotIndex(prev => (prev - 1 + selectedModData.gallery.length) % selectedModData.gallery.length)}
                 style={{ background: 'rgba(255,255,255,0.05)', border: 'none', color: '#fff', padding: '8px 14px', borderRadius: '8px', cursor: 'pointer', fontSize: '16px' }}
@@ -2385,7 +2379,7 @@ export default function ModsPage({ currentPack, onBack, showConfirm, showAlert }
                 {activeScreenshotIndex + 1} / {selectedModData.gallery.length}
               </span>
               <motion.button 
-                whileHover={{ scale: 1.1, background: 'rgba(255,255,255,0.1)' }}
+                whileHover={{ background: 'rgba(255,255,255,0.1)' }}
                 whileTap={{ scale: 0.9 }}
                 onClick={() => setActiveScreenshotIndex(prev => (prev + 1) % selectedModData.gallery.length)}
                 style={{ background: 'rgba(255,255,255,0.05)', border: 'none', color: '#fff', padding: '8px 14px', borderRadius: '8px', cursor: 'pointer', fontSize: '16px' }}

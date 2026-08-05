@@ -173,7 +173,6 @@ export default function PromotePackModal({ isOpen, pack, onClose, onSuccess }) {
 
               <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
                 <motion.button
-                  whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                   onClick={onClose}
                   style={{
@@ -190,7 +189,6 @@ export default function PromotePackModal({ isOpen, pack, onClose, onSuccess }) {
                   {lang === 'ru' ? 'Отмена' : 'Cancel'}
                 </motion.button>
                 <motion.button
-                  whileHover={{ scale: 1.04 }}
                   whileTap={{ scale: 0.96 }}
                   onClick={handlePromote}
                   style={{
@@ -263,7 +261,6 @@ export default function PromotePackModal({ isOpen, pack, onClose, onSuccess }) {
                   : 'The pack is now official and visible to all users in the launcher catalog.'}
               </p>
               <motion.button
-                whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
                 onClick={onClose}
                 style={{
@@ -299,7 +296,6 @@ export default function PromotePackModal({ isOpen, pack, onClose, onSuccess }) {
               </div>
               <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
                 <motion.button
-                  whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                   onClick={onClose}
                   style={{

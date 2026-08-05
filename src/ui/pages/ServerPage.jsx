@@ -386,7 +386,7 @@ export default function ServerPage({ logs, isRunning, players, currentPack, onPa
                     style={{ background: 'transparent', border: 'none', color: '#e4e4e7', flexGrow: 1, outline: 'none', fontFamily: 'Consolas, monospace', fontSize: '13px' }} 
                   />
                   <motion.button 
-                    whileHover={isRunning ? { scale: 1.05, color: '#34d399' } : {}} type="submit" disabled={!isRunning} 
+                    whileHover={isRunning ? { color: '#34d399' } : {}} type="submit" disabled={!isRunning} 
                     style={{ background: 'transparent', color: isRunning ? '#10b981' : '#52525b', border: 'none', cursor: isRunning ? 'pointer' : 'default', display: 'flex', justifyContent: 'center', alignItems: 'center', transition: 'color 0.2s', padding: '4px' }}
                   >
                     <i className="fa-solid fa-paper-plane" style={{ fontSize: '14px' }}></i>
@@ -434,16 +434,16 @@ export default function ServerPage({ logs, isRunning, players, currentPack, onPa
                       </div>
                       
                       <div style={{ display: 'flex', gap: '8px' }}>
-                        <motion.button whileHover={{ scale: 1.1, color: '#10b981' }} onClick={() => handlePlayerAction('op', player)} title={lang === 'ru' ? 'Дать OP' : 'Give OP'} style={{ background: 'transparent', border: 'none', color: '#71717a', cursor: 'pointer', fontSize: '13px' }}>
+                        <motion.button whileHover={{ color: '#10b981' }} onClick={() => handlePlayerAction('op', player)} title={lang === 'ru' ? 'Дать OP' : 'Give OP'} style={{ background: 'transparent', border: 'none', color: '#71717a', cursor: 'pointer', fontSize: '13px' }}>
                           <i className="fa-solid fa-crown" />
                         </motion.button>
-                        <motion.button whileHover={{ scale: 1.1, color: '#6366f1' }} onClick={() => handlePlayerAction('deop', player)} title={lang === 'ru' ? 'Забрать OP' : 'Revoke OP'} style={{ background: 'transparent', border: 'none', color: '#71717a', cursor: 'pointer', fontSize: '13px' }}>
+                        <motion.button whileHover={{ color: '#6366f1' }} onClick={() => handlePlayerAction('deop', player)} title={lang === 'ru' ? 'Забрать OP' : 'Revoke OP'} style={{ background: 'transparent', border: 'none', color: '#71717a', cursor: 'pointer', fontSize: '13px' }}>
                           <i className="fa-solid fa-user-shield" />
                         </motion.button>
-                        <motion.button whileHover={{ scale: 1.1, color: '#f59e0b' }} onClick={() => handlePlayerAction('kick', player)} title={lang === 'ru' ? 'Кикнуть' : 'Kick'} style={{ background: 'transparent', border: 'none', color: '#71717a', cursor: 'pointer', fontSize: '13px' }}>
+                        <motion.button whileHover={{ color: '#f59e0b' }} onClick={() => handlePlayerAction('kick', player)} title={lang === 'ru' ? 'Кикнуть' : 'Kick'} style={{ background: 'transparent', border: 'none', color: '#71717a', cursor: 'pointer', fontSize: '13px' }}>
                           <i className="fa-solid fa-user-minus" />
                         </motion.button>
-                        <motion.button whileHover={{ scale: 1.1, color: '#ef4444' }} onClick={() => handlePlayerAction('ban', player)} title={lang === 'ru' ? 'Забанить' : 'Ban'} style={{ background: 'transparent', border: 'none', color: '#71717a', cursor: 'pointer', fontSize: '13px' }}>
+                        <motion.button whileHover={{ color: '#ef4444' }} onClick={() => handlePlayerAction('ban', player)} title={lang === 'ru' ? 'Забанить' : 'Ban'} style={{ background: 'transparent', border: 'none', color: '#71717a', cursor: 'pointer', fontSize: '13px' }}>
                           <i className="fa-solid fa-gavel" />
                         </motion.button>
                       </div>
@@ -627,7 +627,7 @@ export default function ServerPage({ logs, isRunning, players, currentPack, onPa
                       {t('cancel')}
                     </motion.button>
                     <motion.button 
-                      whileHover={{ scale: 1.05, boxShadow: '0 0 15px rgba(16, 185, 129, 0.3)' }} 
+                      whileHover={{ boxShadow: '0 0 15px rgba(16, 185, 129, 0.3)' }} 
                       whileTap={{ scale: 0.95 }}
                       onClick={saveProps} 
                       style={{ background: 'linear-gradient(135deg, #10b981, #059669)', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: '10px', cursor: 'pointer', fontWeight: 600, fontSize: '12px' }}
@@ -653,7 +653,7 @@ export default function ServerPage({ logs, isRunning, players, currentPack, onPa
                   </p>
                 </div>
                 <motion.button
-                  whileHover={{ scale: 1.05, boxShadow: '0 0 15px rgba(59, 130, 246, 0.3)' }}
+                  whileHover={{ boxShadow: '0 0 15px rgba(59, 130, 246, 0.3)' }}
                   whileTap={{ scale: 0.95 }}
                   onClick={handleCreateBackup}
                   disabled={backupsLoading || isRestoring}
@@ -710,7 +710,7 @@ export default function ServerPage({ logs, isRunning, players, currentPack, onPa
 
                       <div style={{ display: 'flex', gap: '8px' }}>
                         <motion.button
-                          whileHover={{ scale: 1.05, background: 'rgba(16, 185, 129, 0.15)' }}
+                          whileHover={{ background: 'rgba(16, 185, 129, 0.15)' }}
                           whileTap={{ scale: 0.95 }}
                           onClick={() => handleRestoreBackup(backup.name)}
                           disabled={isRestoring || isRunning}
@@ -725,7 +725,7 @@ export default function ServerPage({ logs, isRunning, players, currentPack, onPa
                           <i className="fa-solid fa-clock-rotate-left"></i> {lang === 'ru' ? 'Восстановить' : 'Restore'}
                         </motion.button>
                         <motion.button
-                          whileHover={{ scale: 1.05, background: 'rgba(239, 68, 68, 0.15)' }}
+                          whileHover={{ background: 'rgba(239, 68, 68, 0.15)' }}
                           whileTap={{ scale: 0.95 }}
                           onClick={() => handleDeleteBackup(backup.name)}
                           disabled={isRestoring}

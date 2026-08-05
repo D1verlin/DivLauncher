@@ -52,11 +52,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onUpdateDone: (callback) => ipcRenderer.on('update-done', callback),
 
   // --- CUSTOM AUTH (для страницы настроек) ---
-  customLogin:     (username, password) => ipcRenderer.invoke('custom-login', username, password),
+  customLogin:     (username, password, twoFactorCode) => ipcRenderer.invoke('custom-login', username, password, twoFactorCode),
   customOfflineLogin: (username) => ipcRenderer.invoke('custom-offline-login', username),
   customRegister:  (username, password) => ipcRenderer.invoke('custom-register', username, password),
   customCheckAuth: () => ipcRenderer.invoke('custom-check-auth'),
   customLogout:    () => ipcRenderer.invoke('custom-logout'),
+  setup2FA:        () => ipcRenderer.invoke('setup-2fa'),
+  enable2FA:       (secret, code, backupCodes) => ipcRenderer.invoke('enable-2fa', secret, code, backupCodes),
+  disable2FA:      (password, code) => ipcRenderer.invoke('disable-2fa', password, code),
   getSkinData:     (uuid) => ipcRenderer.invoke('get-skin-data', uuid),
   getDefaultSkin:  () => ipcRenderer.invoke('get-default-skin'),
   saveSkinFile:    (skinDataUrl, username, packClientDir) => ipcRenderer.invoke('save-skin-file', skinDataUrl, username, packClientDir),
@@ -66,6 +69,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   updateBio:       (bio) => ipcRenderer.invoke('update-bio', bio),
   getUsers:        () => ipcRenderer.invoke('get-users'),
   getAuthServerUrl:() => ipcRenderer.invoke('get-auth-server-url'),
+  getWebToken:     () => ipcRenderer.invoke('get-web-token'),
   startGoogleAuth: (action) => ipcRenderer.invoke('start-google-auth', action),
   updateProfileCustomization: (updates) => ipcRenderer.invoke('update-profile-customization', updates),
   uploadBackground: () => ipcRenderer.invoke('upload-background'),
@@ -92,9 +96,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('export-progress', (event, data) => callback(data));
   },
 
-  getSystemFonts: () => ipcRenderer.invoke('get-system-fonts'),
-  getCustomFonts: () => ipcRenderer.invoke('get-custom-fonts'),
-  addCustomFont: () => ipcRenderer.invoke('add-custom-font'),
   deleteCustomPack: (id) => ipcRenderer.invoke('delete-custom-pack', id),
   syncLocalMods: (pack) => ipcRenderer.invoke('sync-local-mods', pack),
   // --- DISCORD RPC ---

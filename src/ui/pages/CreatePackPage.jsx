@@ -641,7 +641,7 @@ export default function CreatePackPage({ onCreate, onBack, isActive, editPack })
       {/* Back button */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '25px', zIndex: 10 }}>
         <motion.button
-          whileHover={{ scale: 1.05, background: 'rgba(255,255,255,0.08)' }}
+          whileHover={{ background: 'rgba(255,255,255,0.08)' }}
           whileTap={{ scale: 0.95 }}
           onClick={onBack}
           style={{
@@ -907,7 +907,7 @@ export default function CreatePackPage({ onCreate, onBack, isActive, editPack })
 
               <div style={{ display: 'flex', gap: '15px', marginTop: '10px' }}>
                 <motion.button
-                  whileHover={{ scale: 1.02, boxShadow: '0 4px 15px rgba(16, 185, 129, 0.4)' }}
+                  whileHover={{ boxShadow: '0 4px 15px rgba(16, 185, 129, 0.4)' }}
                   whileTap={{ scale: 0.98 }}
                   type="submit"
                   style={{

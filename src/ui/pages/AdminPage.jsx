@@ -482,7 +482,7 @@ export default function AdminPage({ profile, active, onProfileUpdate, onModpacks
         {adminTab === 'users' && (
           <div style={{ display: 'flex', gap: '8px' }}>
             <motion.button 
-              whileHover={{ scale: 1.04, boxShadow: '0 0 15px rgba(16,185,129,0.25)' }}
+              whileHover={{ boxShadow: '0 0 15px rgba(16,185,129,0.25)' }}
               whileTap={{ scale: 0.96 }}
               onClick={() => { setCreateError(null); setShowCreateModal(true); }}
               style={{
@@ -564,7 +564,6 @@ export default function AdminPage({ profile, active, onProfileUpdate, onModpacks
                   return (
                     <motion.button
                       key={f}
-                      whileHover={{ scale: 1.03 }}
                       whileTap={{ scale: 0.97 }}
                       onClick={() => setListFilter(f)}
                       style={{
@@ -739,7 +738,7 @@ export default function AdminPage({ profile, active, onProfileUpdate, onModpacks
               </p>
             </div>
             <motion.button 
-              whileHover={{ scale: 1.04, boxShadow: '0 0 15px rgba(16,185,129,0.25)' }}
+              whileHover={{ boxShadow: '0 0 15px rgba(16,185,129,0.25)' }}
               whileTap={{ scale: 0.96 }}
               onClick={handleOpenCreateBadge}
               style={{

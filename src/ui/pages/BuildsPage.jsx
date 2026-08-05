@@ -80,7 +80,7 @@ export default function BuildsPage({ modpacks, currentPack, onSelect, onDelete, 
           </div>
 
           <motion.button
-            whileHover={{ scale: 1.05, backgroundColor: 'rgba(16, 185, 129, 0.2)' }}
+            whileHover={{ backgroundColor: 'rgba(16, 185, 129, 0.2)' }}
             whileTap={{ scale: 0.95 }}
             onClick={onCreateClick}
             style={{
@@ -224,7 +224,7 @@ export default function BuildsPage({ modpacks, currentPack, onSelect, onDelete, 
                   <div style={{ position: 'absolute', top: '12px', right: '12px', display: 'flex', gap: '8px', zIndex: 10 }}>
                     {profile?.is_admin === 1 && (
                       <motion.button
-                        whileHover={{ scale: 1.15, background: 'rgba(168, 85, 247, 0.9)' }}
+                        whileHover={{ background: 'rgba(168, 85, 247, 0.9)' }}
                         whileTap={{ scale: 0.9 }}
                         onClick={(e) => {
                           e.stopPropagation();
@@ -243,7 +243,7 @@ export default function BuildsPage({ modpacks, currentPack, onSelect, onDelete, 
                       </motion.button>
                     )}
                     <motion.button
-                      whileHover={{ scale: 1.15, background: 'rgba(16, 185, 129, 0.9)' }}
+                      whileHover={{ background: 'rgba(16, 185, 129, 0.9)' }}
                       whileTap={{ scale: 0.9 }}
                       onClick={(e) => {
                         e.stopPropagation();
@@ -260,7 +260,7 @@ export default function BuildsPage({ modpacks, currentPack, onSelect, onDelete, 
                       <i className="fa-solid fa-file-export" />
                     </motion.button>
                     <motion.button
-                      whileHover={{ scale: 1.15, background: 'rgba(59, 130, 246, 0.9)' }}
+                      whileHover={{ background: 'rgba(59, 130, 246, 0.9)' }}
                       whileTap={{ scale: 0.9 }}
                       onClick={(e) => {
                         e.stopPropagation();
@@ -277,7 +277,7 @@ export default function BuildsPage({ modpacks, currentPack, onSelect, onDelete, 
                       <i className="fa-solid fa-pen" />
                     </motion.button>
                     <motion.button
-                      whileHover={{ scale: 1.15, background: 'rgba(239, 68, 68, 0.9)' }}
+                      whileHover={{ background: 'rgba(239, 68, 68, 0.9)' }}
                       whileTap={{ scale: 0.9 }}
                       onClick={(e) => {
                         e.stopPropagation();
@@ -424,7 +424,6 @@ export default function BuildsPage({ modpacks, currentPack, onSelect, onDelete, 
           <motion.div
             variants={itemVariants}
             whileHover={{
-              scale: 1.02,
               borderColor: 'rgba(16, 185, 129, 0.4)',
               background: 'linear-gradient(135deg, rgba(25, 25, 30, 0.55), rgba(15, 15, 20, 0.7))'
             }}

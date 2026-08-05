@@ -114,7 +114,7 @@ function TabBar({ active, onChange }) {
   return (
     <div style={{ display: 'flex', gap: '6px', marginBottom: '18px' }}>
       {tabs.map(t => (
-        <motion.button key={t.id} whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
+        <motion.button key={t.id} whileTap={{ scale: 0.97 }}
           onClick={() => onChange(t.id)}
           style={{
             display: 'flex', alignItems: 'center', gap: '8px',
@@ -408,7 +408,7 @@ function ModsTab({ modsKey, modsPrefix, publicBase }) {
                         </button>
                       </motion.div>
                     ) : (
-                      <motion.button key="del" whileHover={{ scale: 1.15 }} whileTap={{ scale: 0.9 }}
+                      <motion.button key="del" whileTap={{ scale: 0.9 }}
                         onClick={() => setConfirmDelete(url)} title={lang === 'ru' ? 'Удалить мод' : 'Delete mod'}
                         style={{ background: 'transparent', border: 'none', color: '#3f3f46', cursor: 'pointer', fontSize: '13px', padding: '3px', flexShrink: 0, transition: 'color 0.15s' }}
                         onMouseEnter={e => e.currentTarget.style.color = '#f87171'}
@@ -428,7 +428,7 @@ function ModsTab({ modsKey, modsPrefix, publicBase }) {
       {!loading && urls.length > 0 && (
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', paddingTop: '8px', borderTop: '1px solid rgba(255,255,255,0.05)', flexShrink: 0 }}>
           <StatusBadge text={lang === 'ru' ? `${urls.length} модов` : `${urls.length} mods`} type="info" />
-          <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
+          <motion.button whileTap={{ scale: 0.95 }}
             onClick={load}
             style={{ marginLeft: 'auto', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', color: '#71717a', padding: '5px 12px', borderRadius: '8px', cursor: 'pointer', fontSize: '11px', fontWeight: 700 }}>
             <i className="fa-solid fa-arrows-rotate" style={{ marginRight: '6px' }} />{lang === 'ru' ? 'Обновить' : 'Refresh'}
@@ -530,7 +530,7 @@ function ModsJsonTab({ modsKey, publicBase, modsPrefix }) {
         </div>
         {parseError && <StatusBadge text={lang === 'ru' ? 'Ошибка JSON' : 'JSON Error'} type="error" />}
         {saved && <StatusBadge text={lang === 'ru' ? 'Сохранено ✓' : 'Saved ✓'} type="success" />}
-        <motion.button whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.96 }}
+        <motion.button whileTap={{ scale: 0.96 }}
           onClick={handleSave} disabled={saving || !!parseError}
           style={{
             padding: '7px 14px', borderRadius: '10px', border: 'none',
@@ -584,7 +584,7 @@ function ModsJsonTab({ modsKey, publicBase, modsPrefix }) {
               onFocus={e => e.target.style.borderColor = 'rgba(99,102,241,0.5)'}
               onBlur={e => e.target.style.borderColor = 'rgba(255,255,255,0.08)'}
             />
-            <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
+            <motion.button whileTap={{ scale: 0.95 }}
               onClick={addUrl} disabled={!newUrl.trim()}
               style={{ padding: '7px 14px', borderRadius: '9px', border: 'none', cursor: 'pointer', fontSize: '12px', fontWeight: 800, background: 'rgba(99,102,241,0.2)', color: '#818cf8' }}>
               <i className="fa-solid fa-plus" />
@@ -611,7 +611,7 @@ function ModsJsonTab({ modsKey, publicBase, modsPrefix }) {
                 onFocus={e => e.target.style.borderColor = 'rgba(99,102,241,0.5)'}
                 onBlur={e => e.target.style.borderColor = 'rgba(255,255,255,0.06)'}
               />
-              <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}
+              <motion.button whileTap={{ scale: 0.9 }}
                 onClick={() => removeUrl(idx)}
                 style={{ background: 'none', border: 'none', color: '#3f3f46', cursor: 'pointer', fontSize: '12px', padding: '3px', flexShrink: 0, transition: 'color 0.15s' }}
                 onMouseEnter={e => e.currentTarget.style.color = '#f87171'}
@@ -734,7 +734,7 @@ function FileBrowserTab({ rootPrefix }) {
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: '10px' }}>
       {/* Breadcrumb */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
-        <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}
+        <motion.button whileTap={{ scale: 0.9 }}
           onClick={goUp} disabled={prefix === rootPrefix}
           style={{ width: '30px', height: '30px', borderRadius: '8px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', color: prefix === rootPrefix ? '#3f3f46' : '#a1a1aa', cursor: prefix === rootPrefix ? 'default' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
           <i className="fa-solid fa-arrow-left" style={{ fontSize: '11px' }} />
@@ -742,7 +742,7 @@ function FileBrowserTab({ rootPrefix }) {
         <code style={{ flex: 1, background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '8px', padding: '4px 10px', fontSize: '11px', color: '#71717a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           /{prefix}
         </code>
-        <motion.button whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.96 }}
+        <motion.button whileTap={{ scale: 0.96 }}
           onClick={handleSelectFiles}
           style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 12px', borderRadius: '9px', border: 'none', cursor: 'pointer', fontSize: '12px', fontWeight: 700, background: 'rgba(99,102,241,0.15)', color: '#818cf8', flexShrink: 0 }}>
           {uploading ? <><Spinner size={14} color="#818cf8" />{uploadPct}%</> : <><i className="fa-solid fa-cloud-arrow-up" />{lang === 'ru' ? 'Загрузить' : 'Upload'}</>}
@@ -810,7 +810,7 @@ function FileBrowserTab({ rootPrefix }) {
                       </button>
                     </motion.div>
                   ) : (
-                    <motion.button key="d" whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}
+                    <motion.button key="d" whileTap={{ scale: 0.9 }}
                       onClick={() => setConfirmDelete(file.key)}
                       style={{ background: 'none', border: 'none', color: '#3f3f46', cursor: 'pointer', fontSize: '12px', padding: '3px', transition: 'color 0.15s' }}
                       onMouseEnter={e => e.currentTarget.style.color = '#f87171'}
@@ -872,7 +872,7 @@ export default function OfficialBuildManagerPage({ currentPack, onBack }) {
         padding: '14px 18px', display: 'flex', alignItems: 'center', gap: '12px',
         borderBottom: '1px solid rgba(255,255,255,0.05)', flexShrink: 0
       }}>
-        <motion.button whileHover={{ scale: 1.08, x: -2 }} whileTap={{ scale: 0.92 }} onClick={onBack}
+        <motion.button whileHover={{ x: -2 }} whileTap={{ scale: 0.92 }} onClick={onBack}
           style={{ width: '32px', height: '32px', borderRadius: '9px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', color: '#71717a', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
           <i className="fa-solid fa-arrow-left" style={{ fontSize: '12px' }} />
         </motion.button>

@@ -57,11 +57,11 @@ function ConfirmModal({ title, message, onConfirm, onCancel }) {
           </div>
         </div>
         <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
-          <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={onCancel}
+          <motion.button whileTap={{ scale: 0.97 }} onClick={onCancel}
             style={{ flex: 1, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: '#a1a1aa', borderRadius: '12px', padding: '11px', fontWeight: 700, cursor: 'pointer', fontSize: '13px' }}>
             {t('cancel')}
           </motion.button>
-          <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={onConfirm}
+          <motion.button whileTap={{ scale: 0.97 }} onClick={onConfirm}
             style={{ flex: 1, background: 'linear-gradient(135deg, #ef4444, #dc2626)', border: 'none', color: '#fff', borderRadius: '12px', padding: '11px', fontWeight: 800, cursor: 'pointer', fontSize: '13px' }}>
             {t('confirm')}
           </motion.button>
@@ -71,9 +71,84 @@ function ConfirmModal({ title, message, onConfirm, onCancel }) {
   );
 }
 
-// --- КАСТОМНЫЙ ALERT-МОДАЛ ---
-function AlertModal({ title, message, onClose }) {
+// --- КАСТОМНЫЙ ALERT-МОДАЛ (С ПРИВЯЗКОЙ ТИПА: success | error | warning | info) ---
+function AlertModal({ title, message, type: explicitType, onClose }) {
   const { lang } = useTranslation();
+
+  // Auto-detect modal type based on title/message if not explicitly passed
+  let type = explicitType;
+  if (!type || type === 'auto') {
+    const tLower = (title || '').toLowerCase();
+    const mLower = (message || '').toLowerCase();
+    if (
+      tLower.includes('успешно') || tLower.includes('success') ||
+      tLower.includes('создан') || tLower.includes('сохранено') ||
+      tLower.includes('восстановлена') || tLower.includes('удален') ||
+      tLower.includes('готово') || mLower.includes('успешно') ||
+      mLower.includes('success')
+    ) {
+      type = 'success';
+    } else if (tLower.includes('внимание') || tLower.includes('warning') || tLower.includes('предупреждение')) {
+      type = 'warning';
+    } else if (tLower.includes('инфо') || tLower.includes('info')) {
+      type = 'info';
+    } else {
+      type = 'error';
+    }
+  }
+
+  const getTypeStyles = () => {
+    switch (type) {
+      case 'success':
+        return {
+          icon: 'fa-circle-check',
+          iconColor: '#34d399',
+          iconBg: 'rgba(16, 185, 129, 0.14)',
+          iconBorder: '1px solid rgba(16, 185, 129, 0.35)',
+          modalBorder: '1px solid rgba(16, 185, 129, 0.28)',
+          glow: '0 20px 50px rgba(0,0,0,0.7), 0 0 30px rgba(16, 185, 129, 0.15)',
+          buttonBg: 'linear-gradient(135deg, #10b981, #059669)',
+          buttonBorder: 'none',
+        };
+      case 'warning':
+        return {
+          icon: 'fa-triangle-exclamation',
+          iconColor: '#fbbf24',
+          iconBg: 'rgba(245, 158, 11, 0.14)',
+          iconBorder: '1px solid rgba(245, 158, 11, 0.35)',
+          modalBorder: '1px solid rgba(245, 158, 11, 0.28)',
+          glow: '0 20px 50px rgba(0,0,0,0.7), 0 0 30px rgba(245, 158, 11, 0.15)',
+          buttonBg: 'linear-gradient(135deg, #f59e0b, #d97706)',
+          buttonBorder: 'none',
+        };
+      case 'info':
+        return {
+          icon: 'fa-circle-info',
+          iconColor: '#60a5fa',
+          iconBg: 'rgba(59, 130, 246, 0.14)',
+          iconBorder: '1px solid rgba(59, 130, 246, 0.35)',
+          modalBorder: '1px solid rgba(59, 130, 246, 0.28)',
+          glow: '0 20px 50px rgba(0,0,0,0.7), 0 0 30px rgba(59, 130, 246, 0.15)',
+          buttonBg: 'linear-gradient(135deg, #3b82f6, #2563eb)',
+          buttonBorder: 'none',
+        };
+      case 'error':
+      default:
+        return {
+          icon: 'fa-circle-xmark',
+          iconColor: '#f87171',
+          iconBg: 'rgba(239, 68, 68, 0.14)',
+          iconBorder: '1px solid rgba(239, 68, 68, 0.35)',
+          modalBorder: '1px solid rgba(239, 68, 68, 0.28)',
+          glow: '0 20px 50px rgba(0,0,0,0.7), 0 0 30px rgba(239, 68, 68, 0.15)',
+          buttonBg: 'rgba(255, 255, 255, 0.08)',
+          buttonBorder: '1px solid rgba(255, 255, 255, 0.12)',
+        };
+    }
+  };
+
+  const styleConfig = getTypeStyles();
+
   return (
     <motion.div
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
@@ -88,27 +163,27 @@ function AlertModal({ title, message, onClose }) {
         initial={{ scale: 0.88, y: 16 }} animate={{ scale: 1, y: 0 }}
         exit={{ scale: 0.88, y: 16 }} transition={{ type: 'spring', stiffness: 400, damping: 30 }}
         style={{
-          background: 'rgba(10, 10, 16, 0.92)', backdropFilter: 'blur(24px)',
-          WebkitBackdropFilter: 'blur(24px)', border: '1px solid rgba(255,255,255,0.08)',
-          borderRadius: '20px', padding: '28px', maxWidth: '380px', width: '90%',
-          boxShadow: '0 30px 60px rgba(0,0,0,0.8)',
+          background: 'rgba(10, 10, 16, 0.94)', backdropFilter: 'blur(24px)',
+          WebkitBackdropFilter: 'blur(24px)', border: styleConfig.modalBorder,
+          borderRadius: '20px', padding: '28px', maxWidth: '400px', width: '90%',
+          boxShadow: styleConfig.glow,
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '20px' }}>
           <div style={{
-            width: '42px', height: '42px', borderRadius: '12px', flexShrink: 0,
-            background: 'rgba(239,68,68,0.14)', border: '1px solid rgba(239,68,68,0.3)',
+            width: '46px', height: '46px', borderRadius: '14px', flexShrink: 0,
+            background: styleConfig.iconBg, border: styleConfig.iconBorder,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
           }}>
-            <i className="fa-solid fa-circle-exclamation" style={{ color: '#f59e0b', fontSize: '16px' }} />
+            <i className={`fa-solid ${styleConfig.icon}`} style={{ color: styleConfig.iconColor, fontSize: '20px' }} />
           </div>
           <div>
-            <p style={{ color: '#fff', fontWeight: 900, fontSize: '15px', margin: '0 0 4px 0' }}>{title}</p>
-            <p style={{ color: '#71717a', fontWeight: 600, fontSize: '12px', margin: 0 }}>{message}</p>
+            <p style={{ color: '#fff', fontWeight: 900, fontSize: '15px', margin: '0 0 4px 0', fontFamily: 'Montserrat' }}>{title}</p>
+            <p style={{ color: '#a1a1aa', fontWeight: 600, fontSize: '12px', margin: 0, lineHeight: '1.4' }}>{message}</p>
           </div>
         </div>
-        <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={onClose}
-          style={{ width: '100%', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)', color: '#fff', borderRadius: '12px', padding: '11px', fontWeight: 700, cursor: 'pointer', fontSize: '13px' }}>
+        <motion.button whileTap={{ scale: 0.97 }} onClick={onClose}
+          style={{ width: '100%', background: styleConfig.buttonBg, border: styleConfig.buttonBorder, color: '#fff', borderRadius: '12px', padding: '12px', fontWeight: 800, cursor: 'pointer', fontSize: '13px', fontFamily: 'Montserrat', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
           {lang === 'ru' ? 'Понятно' : 'OK'}
         </motion.button>
       </motion.div>
@@ -209,7 +284,7 @@ function UpdateNotification() {
             </div>
           ) : (
             <motion.button
-              whileHover={{ scale: 1.03, boxShadow: '0 5px 15px rgba(16, 185, 129, 0.4)' }}
+              whileHover={{ boxShadow: '0 5px 15px rgba(16, 185, 129, 0.4)' }}
               whileTap={{ scale: 0.95 }}
               onClick={() => window.electronAPI.restartAndInstall()}
               style={{
@@ -415,6 +490,7 @@ export default function App() {
             if (currentPackRef.current && window.electronAPI.setDiscordPlaying) {
               window.electronAPI.setDiscordPlaying(currentPackRef.current.name, profileRef.current?.name, !!profileRef.current?.isOffline, lang);
             }
+            updateOnlineActivity('playing', currentPackRef.current ? currentPackRef.current.name : 'Minecraft');
           }
         }
         return;
@@ -435,6 +511,7 @@ export default function App() {
       setIsLaunching(false);
       setIsPlaying(false);
       setIsUpdating(false);
+      updateOnlineActivity('online', null);
     });
 
     window.electronAPI.onClosed(() => {
@@ -465,6 +542,7 @@ export default function App() {
       if (window.electronAPI.setDiscordIdle) {
         window.electronAPI.setDiscordIdle(profileRef.current?.name, !!profileRef.current?.isOffline, lang);
       }
+      updateOnlineActivity('online', null);
     });
 
     return () => {
@@ -514,42 +592,7 @@ export default function App() {
   const [confirmModal, setConfirmModal] = useState(null); // { title, message, onConfirm }
   const [alertModal, setAlertModal] = useState(null);     // { title, message }
 
-  // --- ИНИЦИАЛИЗАЦИЯ И ДИНАМИЧЕСКИЙ ИМПОРТ ШРИФТОВ ---
-  useEffect(() => {
-    const applyFont = () => {
-      const savedFont = localStorage.getItem('launcher_font') || 'Montserrat';
-      document.documentElement.style.setProperty('--global-font', `'${savedFont}', sans-serif`);
-    };
 
-    applyFont();
-    window.addEventListener('settings-changed', applyFont);
-
-    if (window.electronAPI?.getCustomFonts) {
-      window.electronAPI.getCustomFonts().then(fonts => {
-        if (Array.isArray(fonts)) {
-          fonts.forEach(font => {
-            const styleId = `custom-font-${font.family}`;
-            if (!document.getElementById(styleId)) {
-              const style = document.createElement('style');
-              style.id = styleId;
-              const normalizedPath = font.path.replace(/\\/g, '/');
-              style.textContent = `
-                @font-face {
-                  font-family: "${font.family}";
-                  src: url("local-file://${normalizedPath}");
-                }
-              `;
-              document.head.appendChild(style);
-            }
-          });
-        }
-      }).catch(err => console.error('Error loading custom fonts:', err));
-    }
-
-    return () => {
-      window.removeEventListener('settings-changed', applyFont);
-    };
-  }, []);
 
   const showConfirm = useCallback((title, message) => {
     return new Promise((resolve) => {
@@ -557,8 +600,8 @@ export default function App() {
     });
   }, []);
 
-  const showAlert = useCallback((title, message) => {
-    setAlertModal({ title, message, onClose: () => setAlertModal(null) });
+  const showAlert = useCallback((title, message, type) => {
+    setAlertModal({ title, message, type, onClose: () => setAlertModal(null) });
   }, []);
 
   const handleLogout = async () => {
@@ -594,6 +637,18 @@ export default function App() {
     }
   }, []);
 
+  const updateOnlineActivity = useCallback(async (activity, gameName = null) => {
+    try {
+      if (!window.electronAPI?.updateProfileCustomization) return;
+      await window.electronAPI.updateProfileCustomization({
+        current_activity: activity,
+        current_game: gameName
+      });
+    } catch (e) {
+      console.error('Failed to update online activity:', e);
+    }
+  }, []);
+
   useEffect(() => {
     if (window.electronAPI?.setDiscordIdle) {
       if (profile) {
@@ -602,7 +657,10 @@ export default function App() {
         window.electronAPI.setDiscordIdle(null, false, lang);
       }
     }
-  }, [profile, lang]);
+    if (profile && !profile.isOffline) {
+      updateOnlineActivity('online', null);
+    }
+  }, [profile, lang, updateOnlineActivity]);
 
   const fetchBadges = useCallback(() => {
     if (window.electronAPI?.getBadges) {
@@ -808,7 +866,7 @@ export default function App() {
               <p style={{ color: '#a1a1aa', marginBottom: '30px', maxWidth: '350px', lineHeight: '1.5' }}>
                 {lang === 'ru' ? 'Не удалось загрузить данные лаунчера.' : 'Failed to load launcher data.'}<br/><span style={{ fontSize: '12px', color: '#52525b' }}>{loadingError}</span>
               </p>
-              <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={fetchModpacks} style={{ background: '#059669', color: '#fff', border: 'none', padding: '12px 30px', borderRadius: '30px', fontWeight: 800, cursor: 'pointer' }}>
+              <motion.button whileTap={{ scale: 0.95 }} onClick={fetchModpacks} style={{ background: '#059669', color: '#fff', border: 'none', padding: '12px 30px', borderRadius: '30px', fontWeight: 800, cursor: 'pointer' }}>
                 {lang === 'ru' ? 'ПОВТОРИТЬ ПОПЫТКУ' : 'RETRY'}
               </motion.button>
             </motion.div>
@@ -874,7 +932,7 @@ export default function App() {
           <i className="fa-solid fa-layer-group" style={{ fontSize: '48px', color: 'rgba(255,255,255,0.2)' }} />
           <div style={{ color: '#a1a1aa', fontSize: '14px', fontWeight: 600 }}>{lang === 'ru' ? 'Пожалуйста, выберите сборку на странице сборок' : 'Please select a pack on the builds page'}</div>
           <motion.button 
-            whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
+            whileTap={{ scale: 0.95 }}
             onClick={() => setCurrentPage('builds')}
             style={{ background: 'linear-gradient(135deg, #3b82f6, #2563eb)', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: '10px', cursor: 'pointer', fontWeight: 700 }}
           >
@@ -1094,6 +1152,7 @@ export default function App() {
             <AlertModal
               title={alertModal.title}
               message={alertModal.message}
+              type={alertModal.type}
               onClose={alertModal.onClose}
             />
           )}
@@ -1169,7 +1228,7 @@ export default function App() {
 function NavButton({ icon, active, onClick, color, title, dot, dotColor }) {
   return (
     <div style={{ position: 'relative' }}>
-      <motion.button title={title} whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={onClick} style={{ width: '40px', height: '40px', borderRadius: '50%', border: 'none', cursor: 'pointer', background: active ? color : 'transparent', color: active ? '#fff' : '#52525b', fontSize: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <motion.button title={title} whileTap={{ scale: 0.9 }} onClick={onClick} style={{ width: '40px', height: '40px', borderRadius: '50%', border: 'none', cursor: 'pointer', background: active ? color : 'transparent', color: active ? '#fff' : '#52525b', fontSize: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <i className={`fa-solid ${icon}`}></i>
       </motion.button>
       {dot && (

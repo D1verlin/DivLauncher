@@ -243,7 +243,7 @@ export default function ClientPage({
             {t('client_playtime')}
             <span style={{ color: '#fff' }}>{formatPlaytime(playtime, t)}</span>
             <motion.button 
-              whileHover={{ scale: 1.15, color: '#f59e0b' }} 
+              whileHover={{ color: '#f59e0b' }} 
               whileTap={{ scale: 0.95 }}
               onClick={handleOpenEditModal}
               title={t('client_playtime_edit')}
@@ -283,7 +283,7 @@ export default function ClientPage({
         
         <motion.div variants={itemVariants} style={{ display: 'flex', gap: '15px', zIndex: 10 }}>
           <motion.button 
-            whileHover={!(isLaunching || isUpdating || isAnotherPackRunning) ? { scale: 1.05, boxShadow: isPlaying ? '0 10px 30px rgba(239, 68, 68, 0.5)' : ((needsInstall || needsUpdate) ? '0 10px 30px rgba(59, 130, 246, 0.5)' : '0 10px 30px rgba(16, 185, 129, 0.5)') } : {}} 
+            whileHover={!(isLaunching || isUpdating || isAnotherPackRunning) ? { boxShadow: isPlaying ? '0 10px 30px rgba(239, 68, 68, 0.5)' : ((needsInstall || needsUpdate) ? '0 10px 30px rgba(59, 130, 246, 0.5)' : '0 10px 30px rgba(16, 185, 129, 0.5)') } : {}} 
             whileTap={!(isLaunching || isUpdating || isAnotherPackRunning) ? { scale: 0.95 } : {}} 
             onClick={!(isLaunching || isUpdating || isAnotherPackRunning) ? handleAction : undefined} 
             style={{ 
@@ -345,7 +345,7 @@ export default function ClientPage({
           </motion.button>
 
           <motion.button 
-            whileHover={!(isLaunching || isUpdating) && !isPlaying ? { background: 'rgba(0,0,0,0.8)', scale: 1.05, borderColor: 'rgba(255,255,255,0.3)' } : {}} 
+            whileHover={!(isLaunching || isUpdating) && !isPlaying ? { background: 'rgba(0,0,0,0.8)', borderColor: 'rgba(255,255,255,0.3)' } : {}} 
             whileTap={!(isLaunching || isUpdating) && !isPlaying ? { scale: 0.95 } : {}} 
             onClick={!(isLaunching || isUpdating) && !isPlaying ? openSettings : undefined} 
             style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(10px)', color: (isLaunching || isUpdating || isPlaying) ? 'rgba(255,255,255,0.3)' : '#fff', border: '1px solid rgba(255,255,255,0.1)', width: '65px', height: '65px', borderRadius: '20px', fontSize: '22px', cursor: (isLaunching || isUpdating || isPlaying) ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 10px 25px rgba(0,0,0,0.5)', transition: 'color 0.3s' }}
@@ -355,7 +355,7 @@ export default function ClientPage({
           </motion.button>
 
           <motion.button 
-            whileHover={!(isLaunching || isUpdating) && !isPlaying ? { background: 'rgba(0,0,0,0.8)', scale: 1.05, borderColor: 'rgba(255,255,255,0.3)' } : {}} 
+            whileHover={!(isLaunching || isUpdating) && !isPlaying ? { background: 'rgba(0,0,0,0.8)', borderColor: 'rgba(255,255,255,0.3)' } : {}} 
             whileTap={!(isLaunching || isUpdating) && !isPlaying ? { scale: 0.95 } : {}} 
             onClick={!(isLaunching || isUpdating) && !isPlaying ? openMods : undefined} 
             style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(10px)', color: (isLaunching || isUpdating || isPlaying) ? 'rgba(255,255,255,0.3)' : '#fff', border: '1px solid rgba(255,255,255,0.1)', width: '65px', height: '65px', borderRadius: '20px', fontSize: '22px', cursor: (isLaunching || isUpdating || isPlaying) ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 10px 25px rgba(0,0,0,0.5)', transition: 'color 0.3s' }}
@@ -365,7 +365,7 @@ export default function ClientPage({
           </motion.button>
 
           <motion.button 
-            whileHover={!(isLaunching || isUpdating) ? { background: 'rgba(0,0,0,0.8)', scale: 1.05, borderColor: 'rgba(255,255,255,0.3)' } : {}} 
+            whileHover={!(isLaunching || isUpdating) ? { background: 'rgba(0,0,0,0.8)', borderColor: 'rgba(255,255,255,0.3)' } : {}} 
             whileTap={!(isLaunching || isUpdating) ? { scale: 0.95 } : {}} onClick={!(isLaunching || isUpdating) ? () => window.electronAPI.openClientFolder(currentPack) : undefined} 
             style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(10px)', color: (isLaunching || isUpdating) ? 'rgba(255,255,255,0.3)' : '#fff', border: '1px solid rgba(255,255,255,0.1)', width: '65px', height: '65px', borderRadius: '20px', fontSize: '22px', cursor: (isLaunching || isUpdating) ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 10px 25px rgba(0,0,0,0.5)', transition: 'color 0.3s' }}
             title={lang === 'ru' ? 'Папка сборки' : 'Pack Folder'}
@@ -377,7 +377,7 @@ export default function ClientPage({
             <motion.button 
               initial={{ scale: 0.8, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              whileHover={{ background: 'rgba(0,0,0,0.8)', scale: 1.05, borderColor: 'rgba(255,255,255,0.3)' }} 
+              whileHover={{ background: 'rgba(0,0,0,0.8)', borderColor: 'rgba(255,255,255,0.3)' }} 
               whileTap={{ scale: 0.95 }}
               onClick={onExportLogs} 
               style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(10px)', color: '#fff', border: '1px solid rgba(255,255,255,0.1)', width: '65px', height: '65px', borderRadius: '20px', fontSize: '22px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 10px 25px rgba(0,0,0,0.5)', transition: 'color 0.3s' }}
@@ -485,7 +485,7 @@ export default function ClientPage({
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '20px' }}>
                 <div style={{ display: 'flex', gap: '10px' }}>
                   <motion.button 
-                    whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} 
+                    whileTap={{ scale: 0.98 }} 
                     onClick={() => setShowEditModal(false)}
                     style={{
                       flex: 1, padding: '12px', borderRadius: '12px',
@@ -496,7 +496,7 @@ export default function ClientPage({
                     {t('cancel')}
                   </motion.button>
                   <motion.button 
-                    whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} 
+                    whileTap={{ scale: 0.98 }} 
                     onClick={handleSavePlaytime}
                     style={{
                       flex: 1, padding: '12px', borderRadius: '12px',
@@ -509,7 +509,7 @@ export default function ClientPage({
                 </div>
 
                 <motion.button 
-                  whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }} 
+                  whileTap={{ scale: 0.99 }} 
                   onClick={handleResetPlaytime}
                   style={{
                     width: '100%', padding: '10px', borderRadius: '12px',

@@ -232,7 +232,7 @@ export default function ImportExportPage({ onBack, modpacks, fetchModpacks }) {
         </div>
 
         <motion.button
-          whileHover={{ scale: 1.08, backgroundColor: 'rgba(255,255,255,0.08)' }}
+          whileHover={{ backgroundColor: 'rgba(255,255,255,0.08)' }}
           whileTap={{ scale: 0.95 }}
           onClick={onBack}
           style={{
@@ -283,7 +283,6 @@ export default function ImportExportPage({ onBack, modpacks, fetchModpacks }) {
                     {/* DivLauncher Card */}
                     <motion.div
                       whileHover={{ 
-                        scale: 1.02, 
                         borderColor: getPlatformBorder('divlauncher'),
                         background: 'rgba(255, 255, 255, 0.06)'
                       }}
@@ -317,7 +316,6 @@ export default function ImportExportPage({ onBack, modpacks, fetchModpacks }) {
                     {/* CurseForge Card */}
                     <motion.div
                       whileHover={{ 
-                        scale: 1.02, 
                         borderColor: getPlatformBorder('curseforge'),
                         background: 'rgba(255, 255, 255, 0.06)'
                       }}
@@ -351,7 +349,6 @@ export default function ImportExportPage({ onBack, modpacks, fetchModpacks }) {
                     {/* Modrinth Card */}
                     <motion.div
                       whileHover={{ 
-                        scale: 1.02, 
                         borderColor: getPlatformBorder('modrinth'),
                         background: 'rgba(255, 255, 255, 0.06)'
                       }}
@@ -385,7 +382,6 @@ export default function ImportExportPage({ onBack, modpacks, fetchModpacks }) {
                     {/* Prism Card */}
                     <motion.div
                       whileHover={{ 
-                        scale: 1.02, 
                         borderColor: getPlatformBorder('prism'),
                         background: 'rgba(255, 255, 255, 0.06)'
                       }}
@@ -419,7 +415,6 @@ export default function ImportExportPage({ onBack, modpacks, fetchModpacks }) {
                     {/* MultiMC Card */}
                     <motion.div
                       whileHover={{ 
-                        scale: 1.02, 
                         borderColor: getPlatformBorder('multimc'),
                         background: 'rgba(255, 255, 255, 0.06)'
                       }}
@@ -546,7 +541,6 @@ export default function ImportExportPage({ onBack, modpacks, fetchModpacks }) {
                   </div>
 
                   <motion.button
-                    whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
                     onClick={() => setImportStatus('idle')}
                     style={{
@@ -593,7 +587,6 @@ export default function ImportExportPage({ onBack, modpacks, fetchModpacks }) {
                   </div>
 
                   <motion.button
-                    whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
                     onClick={() => setImportStatus('idle')}
                     style={{
@@ -673,7 +666,6 @@ export default function ImportExportPage({ onBack, modpacks, fetchModpacks }) {
                             <motion.div
                               key={pack.id}
                               whileHover={{ 
-                                scale: 1.02, 
                                 borderColor: 'rgba(16, 185, 129, 0.4)', 
                                 background: 'rgba(255, 255, 255, 0.05)' 
                               }}
@@ -881,7 +873,7 @@ export default function ImportExportPage({ onBack, modpacks, fetchModpacks }) {
 
                           <motion.button
                             disabled={!exportPackId}
-                            whileHover={exportPackId ? { scale: 1.02 } : {}}
+                            whileHover={exportPackId ? {  } : {}}
                             whileTap={exportPackId ? { scale: 0.98 } : {}}
                             onClick={handleStartExport}
                             style={{
@@ -989,7 +981,6 @@ export default function ImportExportPage({ onBack, modpacks, fetchModpacks }) {
                   </div>
 
                   <motion.button
-                    whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
                     onClick={() => setExportStatus('idle')}
                     style={{
@@ -1030,7 +1021,6 @@ export default function ImportExportPage({ onBack, modpacks, fetchModpacks }) {
                   </div>
 
                   <motion.button
-                    whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
                     onClick={() => setExportStatus('idle')}
                     style={{

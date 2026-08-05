@@ -232,7 +232,6 @@ export default function PublishCurseForgeModal({ isOpen, onClose, onSuccess }) {
               </div>
 
               <motion.button
-                whileHover={{ scale: 1.03 }}
                 whileTap={{ scale: 0.97 }}
                 disabled={isInspecting || isPublishing}
                 onClick={handleSelectFile}
@@ -440,7 +439,6 @@ export default function PublishCurseForgeModal({ isOpen, onClose, onSuccess }) {
             </button>
 
             <motion.button
-              whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
               disabled={isPublishing || !zipPath || !packId}
               onClick={handlePublish}

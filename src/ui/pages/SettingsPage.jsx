@@ -79,7 +79,7 @@ function ConfirmModal({ title, message, onConfirm, onCancel }) {
           </div>
         </div>
         <div style={{ display: 'flex', gap: '8px', marginTop: '18px' }}>
-          <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={onCancel}
+          <motion.button whileTap={{ scale: 0.97 }} onClick={onCancel}
             style={{
               flex: 1, padding: '12px', borderRadius: '11px',
               border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.05)',
@@ -87,7 +87,7 @@ function ConfirmModal({ title, message, onConfirm, onCancel }) {
             }}>
             {t('cancel')}
           </motion.button>
-          <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={onConfirm}
+          <motion.button whileTap={{ scale: 0.97 }} onClick={onConfirm}
             style={{
               flex: 1, padding: '12px', borderRadius: '11px',
               border: '1px solid rgba(239,68,68,0.3)', background: 'rgba(239,68,68,0.14)',
@@ -167,7 +167,7 @@ function SegmentControl({ value, options, onChange }) {
         const active = value === opt.value;
         return (
           <motion.button key={opt.value} onClick={() => onChange(opt.value)}
-            whileHover={{ scale: active ? 1 : 1.02 }} whileTap={{ scale: 0.97 }}
+            whileTap={{ scale: 0.97 }}
             style={{
               flex: 1, padding: '10px 8px', borderRadius: '10px', border: 'none', cursor: 'pointer',
               background: active ? `${opt.color}1e` : 'transparent',
@@ -187,7 +187,7 @@ function SegmentControl({ value, options, onChange }) {
 
 function PresetBtn({ active, color, onClick, children }) {
   return (
-    <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.94 }} onClick={onClick}
+    <motion.button whileTap={{ scale: 0.94 }} onClick={onClick}
       style={{
         background: active ? `${color}1e` : 'rgba(255,255,255,0.04)',
         border: `1px solid ${active ? color + '40' : 'rgba(255,255,255,0.07)'}`,
@@ -212,7 +212,400 @@ function InfoBox({ color = '#a1a1aa', icon = 'fa-solid fa-circle-info', children
   );
 }
 
-// Helper components for profile removed
+// ─── 2FA Modals ─────────────────────────────────────────────────────────────
+
+function TwoFactorSetupModal({ setupData, onClose, onComplete, lang }) {
+  const [code, setCode] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [copiedSecret, setCopiedSecret] = useState(false);
+
+  const handleEnable = async () => {
+    if (!code || code.trim().length !== 6) {
+      setError(lang === 'ru' ? 'Введите 6-значный код из приложения' : 'Enter 6-digit code from app');
+      return;
+    }
+    setLoading(true);
+    setError('');
+    try {
+      const res = await window.electronAPI.enable2FA(setupData.secret, code.trim(), setupData.backupCodes);
+      if (res.success) {
+        onComplete();
+      } else {
+        setError(res.error || (lang === 'ru' ? 'Неверный код 2FA' : 'Invalid 2FA code'));
+      }
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const copySecret = () => {
+    if (setupData?.secret) {
+      navigator.clipboard.writeText(setupData.secret);
+      setCopiedSecret(true);
+      setTimeout(() => setCopiedSecret(false), 2000);
+    }
+  };
+
+  const copyBackupCodes = () => {
+    if (setupData?.backupCodes) {
+      navigator.clipboard.writeText(setupData.backupCodes.join('\n'));
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 1000,
+      background: 'rgba(0, 0, 0, 0.75)',
+      backdropFilter: 'blur(16px)',
+      WebkitBackdropFilter: 'blur(16px)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      padding: '20px'
+    }}>
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.95 }}
+        style={{
+          background: 'rgba(18, 18, 26, 0.95)',
+          border: '1px solid rgba(255, 255, 255, 0.1)',
+          borderRadius: '20px',
+          width: '100%',
+          maxWidth: '500px',
+          padding: '28px',
+          boxShadow: 'none',
+          color: '#fff',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '20px',
+          maxHeight: '90vh',
+          overflowY: 'auto'
+        }}
+      >
+        {/* Header */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <i className="fa-solid fa-qrcode" style={{ color: '#c084fc', fontSize: '20px' }} />
+            <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 900, fontFamily: 'Montserrat' }}>
+              {lang === 'ru' ? 'Настройка 2FA' : 'Setup 2FA'}
+            </h3>
+          </div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#71717a', cursor: 'pointer', fontSize: '16px' }}>
+            <i className="fa-solid fa-xmark" />
+          </button>
+        </div>
+
+        {/* Step 1: QR Code & Manual Secret */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          <span style={{ fontSize: '12px', color: '#a1a1aa', fontWeight: 600 }}>
+            1. {lang === 'ru' ? 'Отсканируйте QR-код в приложении аутентификации:' : 'Scan QR code in your authenticator app:'}
+          </span>
+          <div style={{ display: 'flex', gap: '16px', alignItems: 'center', background: 'rgba(255,255,255,0.03)', padding: '16px', borderRadius: '14px', border: '1px solid rgba(255,255,255,0.07)' }}>
+            {setupData.qrCodeUrl ? (
+              <img src={setupData.qrCodeUrl} alt="QR Code" style={{ width: '130px', height: '130px', borderRadius: '10px', background: '#fff', padding: '6px' }} />
+            ) : null}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', flex: 1 }}>
+              <span style={{ fontSize: '11px', color: '#71717a', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px' }}>
+                {lang === 'ru' ? 'Ключ вручную:' : 'Manual Secret:'}
+              </span>
+              <div style={{ fontSize: '13px', fontFamily: 'monospace', fontWeight: 800, color: '#c084fc', wordBreak: 'break-all', background: 'rgba(0,0,0,0.4)', padding: '8px 10px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.08)' }}>
+                {setupData.secret}
+              </div>
+              <motion.button
+                whileTap={{ scale: 0.98 }}
+                onClick={copySecret}
+                style={{
+                  background: 'rgba(192, 132, 252, 0.12)',
+                  border: '1px solid rgba(192, 132, 252, 0.3)',
+                  color: '#c084fc',
+                  padding: '6px 12px',
+                  borderRadius: '10px',
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  width: 'fit-content'
+                }}
+              >
+                <i className={`fa-solid ${copiedSecret ? 'fa-check' : 'fa-copy'}`} />
+                {copiedSecret ? (lang === 'ru' ? 'Скопировано!' : 'Copied!') : (lang === 'ru' ? 'Скопировать ключ' : 'Copy key')}
+              </motion.button>
+            </div>
+          </div>
+        </div>
+
+        {/* Step 2: Verification Code */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          <span style={{ fontSize: '12px', color: '#a1a1aa', fontWeight: 600 }}>
+            2. {lang === 'ru' ? 'Введите 6-значный код из приложения:' : 'Enter 6-digit code from app:'}
+          </span>
+          <input
+            type="text"
+            maxLength={6}
+            placeholder="000000"
+            value={code}
+            onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
+            style={{
+              background: 'rgba(255, 255, 255, 0.05)',
+              border: '1px solid rgba(192, 132, 252, 0.4)',
+              borderRadius: '12px',
+              color: '#fff',
+              padding: '12px',
+              fontSize: '22px',
+              fontWeight: 900,
+              letterSpacing: '8px',
+              textAlign: 'center',
+              outline: 'none',
+              fontFamily: 'Montserrat'
+            }}
+          />
+        </div>
+
+        {/* Step 3: Backup Codes */}
+        {setupData.backupCodes && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '12px', color: '#a1a1aa', fontWeight: 600 }}>
+                3. {lang === 'ru' ? 'Сохраните резервные коды:' : 'Save backup codes:'}
+              </span>
+              <button
+                onClick={copyBackupCodes}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: '#c084fc',
+                  fontSize: '11px',
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px'
+                }}
+              >
+                <i className={`fa-solid ${copied ? 'fa-check' : 'fa-copy'}`} />
+                {copied ? (lang === 'ru' ? 'Скопированы!' : 'Copied!') : (lang === 'ru' ? 'Скопировать все' : 'Copy all')}
+              </button>
+            </div>
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr',
+              gap: '8px',
+              background: 'rgba(0,0,0,0.4)',
+              padding: '12px',
+              borderRadius: '12px',
+              border: '1px solid rgba(255,255,255,0.08)'
+            }}>
+              {setupData.backupCodes.map((c, i) => (
+                <div key={i} style={{ fontSize: '12px', fontFamily: 'monospace', fontWeight: 800, color: '#e4e4e7', textAlign: 'center' }}>
+                  {c}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {error && (
+          <div style={{ color: '#f87171', fontSize: '12px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <i className="fa-solid fa-triangle-exclamation" /> {error}
+          </div>
+        )}
+
+        {/* Actions */}
+        <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
+          <button
+            onClick={onClose}
+            style={{
+              flex: 1,
+              background: 'rgba(255, 255, 255, 0.05)',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+              color: '#a1a1aa',
+              padding: '12px',
+              borderRadius: '12px',
+              fontWeight: 800,
+              fontSize: '13px',
+              cursor: 'pointer'
+            }}
+          >
+            {lang === 'ru' ? 'Отмена' : 'Cancel'}
+          </button>
+          <motion.button
+            whileTap={{ scale: 0.98 }}
+            onClick={handleEnable}
+            disabled={loading}
+            style={{
+              flex: 1,
+              background: 'rgba(192, 132, 252, 0.2)',
+              border: '1px solid rgba(192, 132, 252, 0.4)',
+              color: '#c084fc',
+              padding: '12px',
+              borderRadius: '12px',
+              fontWeight: 800,
+              fontSize: '13px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px'
+            }}
+          >
+            {loading ? <i className="fa-solid fa-spinner fa-spin" /> : <i className="fa-solid fa-shield-halved" />}
+            {lang === 'ru' ? 'Подключить 2FA' : 'Enable 2FA'}
+          </motion.button>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
+function TwoFactorDisableModal({ onClose, onComplete, lang }) {
+  const [authInput, setAuthInput] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleDisable = async () => {
+    if (!authInput.trim()) {
+      setError(lang === 'ru' ? 'Введите текущий пароль или 6-значный код' : 'Enter current password or 6-digit code');
+      return;
+    }
+    setLoading(true);
+    setError('');
+    try {
+      const isCode = /^\d{6}$/.test(authInput.trim());
+      const res = await window.electronAPI.disable2FA(
+        isCode ? null : authInput.trim(),
+        isCode ? authInput.trim() : null
+      );
+      if (res.success) {
+        onComplete();
+      } else {
+        setError(res.error || (lang === 'ru' ? 'Неверный пароль или код 2FA' : 'Invalid password or 2FA code'));
+      }
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 1000,
+      background: 'rgba(0, 0, 0, 0.75)',
+      backdropFilter: 'blur(16px)',
+      WebkitBackdropFilter: 'blur(16px)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      padding: '20px'
+    }}>
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.95 }}
+        style={{
+          background: 'rgba(18, 18, 26, 0.95)',
+          border: '1px solid rgba(255, 255, 255, 0.1)',
+          borderRadius: '20px',
+          width: '100%',
+          maxWidth: '440px',
+          padding: '24px',
+          boxShadow: 'none',
+          color: '#fff',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '18px'
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <i className="fa-solid fa-unlock" style={{ color: '#ef4444', fontSize: '18px' }} />
+            <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 900, fontFamily: 'Montserrat' }}>
+              {lang === 'ru' ? 'Отключение 2FA' : 'Disable 2FA'}
+            </h3>
+          </div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#71717a', cursor: 'pointer', fontSize: '16px' }}>
+            <i className="fa-solid fa-xmark" />
+          </button>
+        </div>
+
+        <span style={{ fontSize: '12px', color: '#a1a1aa', fontWeight: 600 }}>
+          {lang === 'ru' ? 'Для подтверждения отключения 2FA введите пароль от аккаунта или 6-значный код:' : 'To confirm disabling 2FA, enter your password or 6-digit code:'}
+        </span>
+
+        <input
+          type="password"
+          placeholder={lang === 'ru' ? 'Пароль или 2FA код...' : 'Password or 2FA code...'}
+          value={authInput}
+          onChange={(e) => setAuthInput(e.target.value)}
+          style={{
+            background: 'rgba(255, 255, 255, 0.05)',
+            border: '1px solid rgba(255, 255, 255, 0.1)',
+            borderRadius: '12px',
+            color: '#fff',
+            padding: '12px 14px',
+            fontSize: '13px',
+            fontWeight: 600,
+            outline: 'none',
+            fontFamily: 'Montserrat'
+          }}
+        />
+
+        {error && (
+          <div style={{ color: '#f87171', fontSize: '12px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <i className="fa-solid fa-triangle-exclamation" /> {error}
+          </div>
+        )}
+
+        <div style={{ display: 'flex', gap: '10px' }}>
+          <button
+            onClick={onClose}
+            style={{
+              flex: 1,
+              background: 'rgba(255, 255, 255, 0.05)',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+              color: '#a1a1aa',
+              padding: '12px',
+              borderRadius: '12px',
+              fontWeight: 800,
+              fontSize: '13px',
+              cursor: 'pointer'
+            }}
+          >
+            {lang === 'ru' ? 'Отмена' : 'Cancel'}
+          </button>
+          <motion.button
+            whileTap={{ scale: 0.98 }}
+            onClick={handleDisable}
+            disabled={loading}
+            style={{
+              flex: 1,
+              background: 'rgba(239, 68, 68, 0.18)',
+              border: '1px solid rgba(239, 68, 68, 0.35)',
+              color: '#f87171',
+              padding: '12px',
+              borderRadius: '12px',
+              fontWeight: 800,
+              fontSize: '13px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px'
+            }}
+          >
+            {loading ? <i className="fa-solid fa-spinner fa-spin" /> : <i className="fa-solid fa-unlock" />}
+            {lang === 'ru' ? 'Отключить' : 'Disable'}
+          </motion.button>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
@@ -220,6 +613,78 @@ export default function SettingsPage({ currentPack }) {
   const { lang, setLang, t } = useTranslation();
   const [activeTab, setActiveTab] = useState('game');
   const [showConfirm, setShowConfirm] = useState(false);
+
+  // 2FA Security states
+  const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
+  const [show2FASetupModal, setShow2FASetupModal] = useState(false);
+  const [show2FADisableModal, setShow2FADisableModal] = useState(false);
+  const [setupData, setSetupData] = useState(null);
+
+  // Password Change states
+  const [oldPassword, setOldPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [pwdError, setPwdError] = useState('');
+  const [pwdSuccess, setPwdSuccess] = useState('');
+  const [pwdLoading, setPwdLoading] = useState(false);
+
+  useEffect(() => {
+    if (window.electronAPI?.customCheckAuth) {
+      window.electronAPI.customCheckAuth().then(prof => {
+        if (prof && prof.two_factor_enabled) {
+          setTwoFactorEnabled(true);
+        }
+      }).catch(() => {});
+    }
+  }, []);
+
+  const handleStart2FA = async () => {
+    try {
+      const res = await window.electronAPI.setup2FA();
+      if (res.success) {
+        setSetupData(res);
+        setShow2FASetupModal(true);
+      } else {
+        alert(res.error || 'Не удалось запросить секрет 2FA');
+      }
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+
+  const handleChangePassword = async () => {
+    setPwdError('');
+    setPwdSuccess('');
+    if (!oldPassword || !newPassword || !confirmPassword) {
+      setPwdError(lang === 'ru' ? 'Заполните все поля' : 'Fill all fields');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPwdError(lang === 'ru' ? 'Новые пароли не совпадают' : 'New passwords do not match');
+      return;
+    }
+    if (newPassword.length < 4) {
+      setPwdError(lang === 'ru' ? 'Пароль должен быть не менее 4 символов' : 'Password must be at least 4 chars');
+      return;
+    }
+
+    setPwdLoading(true);
+    try {
+      const res = await window.electronAPI.changePassword(oldPassword, newPassword);
+      if (res.success || res.message) {
+        setPwdSuccess(lang === 'ru' ? 'Пароль успешно изменен' : 'Password changed successfully');
+        setOldPassword('');
+        setNewPassword('');
+        setConfirmPassword('');
+      } else {
+        setPwdError(res.error || (lang === 'ru' ? 'Не удалось изменить пароль' : 'Failed to change password'));
+      }
+    } catch (err) {
+      setPwdError(err.message);
+    } finally {
+      setPwdLoading(false);
+    }
+  };
 
   // Game
   const [ram,        setRam]       = useState(localStorage.getItem('launcher_ram')        || '4');
@@ -286,64 +751,6 @@ export default function SettingsPage({ currentPack }) {
   // Network
   const [mode, setMode] = useState(localStorage.getItem('launcher_mode') || 'host');
   const [ip,   setIp]   = useState(localStorage.getItem('launcher_server_ip') || '');
-
-  // Fonts
-  const [selectedFont, setSelectedFont] = useState(localStorage.getItem('launcher_font') || 'Montserrat');
-  const [systemFonts, setSystemFonts] = useState([]);
-  const [customFonts, setCustomFonts] = useState([]);
-
-  useEffect(() => {
-    if (window.electronAPI) {
-      if (window.electronAPI.getSystemFonts) {
-        window.electronAPI.getSystemFonts().then(fonts => {
-          if (Array.isArray(fonts)) {
-            const unique = [...new Set(fonts)].sort((a, b) => a.localeCompare(b));
-            setSystemFonts(unique);
-          }
-        }).catch(err => console.error(err));
-      }
-      if (window.electronAPI.getCustomFonts) {
-        window.electronAPI.getCustomFonts().then(fonts => {
-          if (Array.isArray(fonts)) {
-            setCustomFonts(fonts);
-          }
-        }).catch(err => console.error(err));
-      }
-    }
-  }, []);
-
-  const handleFontChange = (fontName) => {
-    setSelectedFont(fontName);
-    localStorage.setItem('launcher_font', fontName);
-    window.dispatchEvent(new Event('settings-changed'));
-  };
-
-  const handleAddFont = async () => {
-    if (!window.electronAPI?.addCustomFont) return;
-    try {
-      const res = await window.electronAPI.addCustomFont();
-      if (res && res.success && res.font) {
-        const styleId = `custom-font-${res.font.family}`;
-        if (!document.getElementById(styleId)) {
-          const style = document.createElement('style');
-          style.id = styleId;
-          const normalizedPath = res.font.path.replace(/\\/g, '/');
-          style.textContent = `
-            @font-face {
-              font-family: "${res.font.family}";
-              src: url("local-file://${normalizedPath}");
-            }
-          `;
-          document.head.appendChild(style);
-        }
-        setCustomFonts(prev => [...prev, res.font]);
-        handleFontChange(res.font.family);
-      }
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
   const importRef    = useRef(null);
 
   // ── Persist ───────────────────────────────────────────────────────────────
@@ -414,7 +821,6 @@ export default function SettingsPage({ currentPack }) {
               style={{ ...glassInput, flex: 1, cursor: 'default' }}
             />
             <motion.button
-              whileHover={{ scale: 1.04 }}
               whileTap={{ scale: 0.96 }}
               onClick={handleBrowseBuildsDir}
               style={{
@@ -437,7 +843,6 @@ export default function SettingsPage({ currentPack }) {
             </motion.button>
             {defaultBuildsDir && buildsDir !== defaultBuildsDir && (
               <motion.button
-                whileHover={{ scale: 1.04 }}
                 whileTap={{ scale: 0.96 }}
                 onClick={handleResetBuildsDir}
                 style={{
@@ -613,89 +1018,9 @@ export default function SettingsPage({ currentPack }) {
         </div>
       </Section>
 
-      <Section title={t('settings_font')} icon="fa-solid fa-font" color="#ec4899">
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-          <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-            <div style={{ flexGrow: 1 }}>
-              <select
-                value={selectedFont}
-                onChange={(e) => handleFontChange(e.target.value)}
-                style={{
-                  background: 'rgba(255, 255, 255, 0.05)',
-                  border: '1px solid rgba(255, 255, 255, 0.1)',
-                  borderRadius: '12px',
-                  color: '#fff',
-                  padding: '12px',
-                  fontFamily: 'inherit',
-                  fontWeight: 600,
-                  outline: 'none',
-                  cursor: 'pointer',
-                  width: '100%'
-                }}
-              >
-                {/* Standard out of the box fonts */}
-                <optgroup label={t('settings_font_standard')} style={{ background: '#18181b', color: '#a1a1aa' }}>
-                  {['Montserrat', 'Jura', 'Stalinist One', 'Cascadia Code', 'Arial', 'Verdana', 'Georgia'].map(f => (
-                    <option key={f} value={f} style={{ background: '#18181b', color: '#fff', fontFamily: f }}>{f}</option>
-                  ))}
-                </optgroup>
-
-                {/* Custom fonts uploaded by the user */}
-                {customFonts.length > 0 && (
-                  <optgroup label={t('settings_font_custom')} style={{ background: '#18181b', color: '#a1a1aa' }}>
-                    {customFonts.map(f => (
-                      <option key={f.family} value={f.family} style={{ background: '#18181b', color: '#fff', fontFamily: f.family }}>{f.family}</option>
-                    ))}
-                  </optgroup>
-                )}
-
-                {/* OS System Fonts */}
-                {systemFonts.length > 0 && (
-                  <optgroup label={t('settings_font_system')} style={{ background: '#18181b', color: '#a1a1aa' }}>
-                    {systemFonts.map(f => (
-                      <option key={f} value={f} style={{ background: '#18181b', color: '#fff', fontFamily: f }}>{f}</option>
-                    ))}
-                  </optgroup>
-                )}
-              </select>
-            </div>
-
-            <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              onClick={handleAddFont}
-              style={{
-                background: 'rgba(236, 72, 153, 0.15)',
-                border: '1px solid rgba(236, 72, 153, 0.3)',
-                color: '#f472b6',
-                borderRadius: '12px',
-                padding: '12px 20px',
-                fontWeight: 800,
-                fontSize: '12px',
-                textTransform: 'uppercase',
-                letterSpacing: '1px',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                transition: 'all 0.2s',
-                whiteSpace: 'nowrap',
-                height: '46px'
-              }}
-            >
-              <i className="fa-solid fa-plus" />
-              {t('settings_font_add')}
-            </motion.button>
-          </div>
-          <InfoBox color="#ec4899" icon="fa-solid fa-circle-info">
-            {t('settings_font_desc')}
-          </InfoBox>
-        </div>
-      </Section>
-
       <Section title={t('settings_profile_config')} icon="fa-solid fa-floppy-disk" color="#f59e0b">
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-          <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={handleExport}
+          <motion.button whileTap={{ scale: 0.97 }} onClick={handleExport}
             style={{
               background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.28)',
               color: '#fbbf24', padding: '14px', borderRadius: '12px', cursor: 'pointer',
@@ -705,7 +1030,7 @@ export default function SettingsPage({ currentPack }) {
             <i className="fa-solid fa-file-export" /> {t('settings_export')}
           </motion.button>
           <label style={{ cursor: 'pointer', display: 'block' }}>
-            <motion.div whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
+            <motion.div whileTap={{ scale: 0.97 }}
               style={{
                 background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.28)',
                 color: '#818cf8', padding: '14px', borderRadius: '12px',
@@ -721,7 +1046,7 @@ export default function SettingsPage({ currentPack }) {
       </Section>
 
       <Section title={t('settings_reset')} icon="fa-solid fa-rotate-left" color="#ef4444">
-        <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
+        <motion.button whileTap={{ scale: 0.97 }}
           onClick={() => setShowConfirm(true)}
           style={{
             background: 'rgba(239,68,68,0.07)', border: '1px solid rgba(239,68,68,0.2)',
@@ -771,7 +1096,7 @@ export default function SettingsPage({ currentPack }) {
               const active = activeTab === tab.id;
               return (
                 <motion.button key={tab.id} onClick={() => setActiveTab(tab.id)}
-                  whileHover={{ scale: active ? 1 : 1.03 }} whileTap={{ scale: 0.96 }}
+                  whileTap={{ scale: 0.96 }}
                   style={{
                     position: 'relative', flex: 1, padding: '9px 6px',
                     borderRadius: '11px', border: 'none', cursor: 'pointer', background: 'transparent',
