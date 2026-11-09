@@ -7,6 +7,7 @@ const { app, dialog, shell } = require('electron');
 const AdmZip = require('adm-zip');
 const { execSync, spawn } = require('child_process');
 const axios = require('axios');
+axios.defaults.proxy = false;
 
 let serverProcess = null;
 

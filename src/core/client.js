@@ -63,6 +63,8 @@ async function uploadToR2Direct(filePath, remoteKey, onProgress) {
 
 // Устанавливаем стандартный User-Agent браузера для обхода защиты Cloudflare от ботов
 axios.defaults.headers.common['User-Agent'] = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36';
+// Отключаем проксирование для внутренних запросов лаунчера
+axios.defaults.proxy = false;
 const { app, shell, dialog, Notification } = require('electron'); 
 const { execSync } = require('child_process');
 const { Worker } = require('worker_threads');
@@ -72,6 +74,7 @@ const { getBuildsDir, setBuildsDir, getDefaultBuildsDir, resolveClientPath, reso
 
 const launcher = new Client();
 let gameProcess = null;
+let currentLaunchLogFile = null;
 
 const AUTH_SERVER = process.env.AUTH_SERVER || 'https://mcauth.diverlin.ru';
 
@@ -87,6 +90,12 @@ function sysLog(...args) {
       fs.appendFileSync(logFile, formatted + '\n');
     }
   } catch (e) {}
+
+  if (currentLaunchLogFile) {
+    try {
+      fs.appendFileSync(currentLaunchLogFile, formatted + '\n');
+    } catch (e) {}
+  }
 }
 
 function uploadFileNative(targetUrl, webToken, boundary, payload) {
@@ -261,9 +270,9 @@ async function ensureJava(event, version = 17, exeName = 'javaw.exe') {
     const url = urls[i];
     const sourceName = url.includes('adoptium.net') ? 'Adoptium API' : url.includes('azul.com') ? 'Azul Zulu CDN' : 'GitHub Releases';
     sysLog(`Attempting to download Java ${version} from ${sourceName}: ${url} (attempt ${i + 1}/${urls.length})`);
-    event.reply('launch-progress', `Подключение к источнику Java ${version} (${sourceName})...`);
+    event.reply('launch-progress', { stage: 'init', percent: 0, detail: `Подключение к источнику Java ${version} (${sourceName})...` });
     try {
-      await downloadFile(url, zipPath, (p) => event.reply('launch-progress', `Загрузка Java ${version}: ${p}%`));
+      await downloadFile(url, zipPath, (p) => event.reply('launch-progress', { stage: 'init', percent: p, detail: `Java ${version}: ${p}%` }));
       downloadSuccess = true;
       sysLog(`Successfully downloaded JRE from ${sourceName}`);
       break;
@@ -281,7 +290,7 @@ async function ensureJava(event, version = 17, exeName = 'javaw.exe') {
     throw new Error(`Не удалось загрузить Java ${version} из доступных источников: ${lastError?.message}`);
   }
 
-  event.reply('launch-progress', `Распаковка Java ${version} (один раз)...`);
+  event.reply('launch-progress', { stage: 'init', percent: 99, detail: `Распаковка Java ${version}...` });
   sysLog(`Extracting JRE zip: ${zipPath} -> ${jreDir}`);
   await extract(zipPath, { dir: jreDir });
   sysLog(`Extraction complete. Unlinking zip file.`);
@@ -506,7 +515,7 @@ async function resolveLoaderDetails(pack) {
       pack.loaderVersion = resolvedVersion;
       await saveCorrectedPackConfig(pack);
     }
-  } else if (pack.loaderType === 'forge') {
+  /* old forge loader
     let currentUrl = pack.installerUrl || pack.forgeUrl;
     if (currentUrl && currentUrl.includes('maven.minecraftforge.net')) {
       const mcVersion = pack.mcVersion;
@@ -532,7 +541,188 @@ async function resolveLoaderDetails(pack) {
   }
 }
 
+*/
+
+  } else if (pack.loaderType === 'forge') {
+    let currentUrl = pack.installerUrl || pack.forgeUrl;
+    let forgeVersion = pack.loaderVersion;
+
+    if (!forgeVersion || forgeVersion === 'latest' || forgeVersion === 'recommended') {
+      try {
+        sysLog(`Fetching Forge promotions for ${pack.mcVersion}...`);
+        const promoRes = await axios.get('https://files.minecraftforge.net/net/minecraftforge/forge/promotions_slim.json', { timeout: 6000 });
+        const promos = promoRes.data?.promos || {};
+        forgeVersion = promos[`${pack.mcVersion}-recommended`] || promos[`${pack.mcVersion}-latest`] || promos[pack.mcVersion];
+        if (forgeVersion) {
+          sysLog(`Resolved Forge version from promotions for ${pack.mcVersion}: ${forgeVersion}`);
+        }
+      } catch (e) {
+        sysLog(`Failed to fetch Forge promotions: ${e.message}`);
+      }
+    }
+
+    if (!forgeVersion && pack.installerName) {
+      const match = pack.installerName.match(/forge-(?:[0-9.]+)-([0-9.]+)(?:-[0-9.]+)?-installer\.jar/);
+      if (match) forgeVersion = match[1];
+    }
+
+    if (forgeVersion) {
+      const mcVersion = pack.mcVersion;
+      const needsSuffix = mcVersion === '1.8.9' || /^(1\.[0-7]\b)/.test(mcVersion);
+      const expectedVersionStr = needsSuffix ? `${mcVersion}-${forgeVersion}-${mcVersion}` : `${mcVersion}-${forgeVersion}`;
+      const newUrl = `https://maven.minecraftforge.net/net/minecraftforge/forge/${expectedVersionStr}/forge-${expectedVersionStr}-installer.jar`;
+      const newName = `forge-${expectedVersionStr}-installer.jar`;
+
+      if (currentUrl !== newUrl || !pack.installerUrl || !pack.installerName) {
+        sysLog(`Setting Forge pack "${pack.name}" loader version to "${expectedVersionStr}"`);
+        pack.forgeUrl = newUrl;
+        pack.forgeInstallerName = newName;
+        pack.installerUrl = newUrl;
+        pack.installerName = newName;
+        pack.loaderVersion = forgeVersion;
+        await saveCorrectedPackConfig(pack);
+      }
+    }
+  }
+}
+
+const DEFAULT_CURSE_API_KEY = process.env.CURSEFORGE_API_KEY || '$2a$10$bL4bIL5pUWqfcO7KQtnMReakwtfHbNKh6v1uTpKlzhwoueEJQnPnm';
+
 function getCurseBaseUrl() {
+  return 'https://api.curseforge.com/v1';
+}
+
+function getCurseHeaders() {
+  return {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+    'Accept': 'application/json',
+    'x-api-key': DEFAULT_CURSE_API_KEY
+  };
+}
+
+function getCurseCdnUrls(fileId, fileName) {
+  if (!fileId || !fileName) return [];
+  const part1 = Math.floor(fileId / 1000).toString();
+  const part2 = (fileId % 1000).toString();
+  const encodedName = encodeURIComponent(fileName);
+  return [
+    `https://edge.forgecdn.net/files/${part1}/${part2}/${encodedName}`,
+    `https://media.forgecdn.net/files/${part1}/${part2}/${encodedName}`
+  ];
+}
+
+async function fetchCurseFilesBatch(fileIds) {
+  if (!fileIds || fileIds.length === 0) return new Map();
+  const resultsMap = new Map();
+  const chunkSize = 50;
+
+  for (let i = 0; i < fileIds.length; i += chunkSize) {
+    const chunk = fileIds.slice(i, i + chunkSize);
+    try {
+      const res = await axios.post(
+        `${getCurseBaseUrl()}/mods/files`,
+        { fileIds: chunk },
+        { headers: getCurseHeaders(), timeout: 20000 }
+      );
+      if (res.data && Array.isArray(res.data.data)) {
+        for (const fileData of res.data.data) {
+          if (fileData && fileData.id) {
+            resultsMap.set(fileData.id, fileData);
+          }
+        }
+      }
+    } catch (err) {
+      sysLog(`[fetchCurseFilesBatch] Batch POST failed: ${err.message}. Retrying files individually...`);
+      for (const singleId of chunk) {
+        try {
+          const res = await axios.get(
+            `${getCurseBaseUrl()}/mods/files/${singleId}`,
+            { headers: getCurseHeaders(), timeout: 10000 }
+          );
+          if (res.data && res.data.data) {
+            resultsMap.set(singleId, res.data.data);
+          }
+        } catch (singleErr) {
+          sysLog(`[fetchCurseFilesBatch] Single file ${singleId} lookup failed: ${singleErr.message}`);
+        }
+      }
+    }
+  }
+  return resultsMap;
+}
+
+async function resolveCurseDownloadUrl(projectId, fileId, fileData) {
+  if (fileData && fileData.downloadUrl) {
+    return fileData.downloadUrl;
+  }
+  if (projectId && fileId) {
+    try {
+      const res = await axios.get(
+        `${getCurseBaseUrl()}/mods/${projectId}/files/${fileId}/download-url`,
+        { headers: getCurseHeaders(), timeout: 8000 }
+      );
+      if (res.data && res.data.data) {
+        return res.data.data;
+      }
+    } catch (e) {}
+  }
+  return null;
+}
+
+async function downloadCurseModFile(fileData, projectId, fileId, modsFolder) {
+  let fileName = fileData?.fileName;
+  if (!fileName) {
+    fileName = `mod-${fileId}.jar`;
+  }
+
+  const destPath = path.join(modsFolder, fileName);
+  if (fs.existsSync(destPath) && fs.statSync(destPath).size > 1000) {
+    return fileName;
+  }
+
+  const candidateUrls = [];
+  if (fileData?.downloadUrl) {
+    candidateUrls.push(fileData.downloadUrl);
+  }
+
+  const resolvedApiUrl = await resolveCurseDownloadUrl(projectId, fileId, fileData);
+  if (resolvedApiUrl && !candidateUrls.includes(resolvedApiUrl)) {
+    candidateUrls.push(resolvedApiUrl);
+  }
+
+  if (fileData?.fileName) {
+    const cdnUrls = getCurseCdnUrls(fileId, fileData.fileName);
+    for (const cdnUrl of cdnUrls) {
+      if (!candidateUrls.includes(cdnUrl)) {
+        candidateUrls.push(cdnUrl);
+      }
+    }
+  }
+
+  if (candidateUrls.length === 0) {
+    throw new Error(`Не удалось сформировать ссылку для скачивания (fileId: ${fileId})`);
+  }
+
+  let lastError = null;
+  for (const url of candidateUrls) {
+    try {
+      await downloadFile(url, destPath);
+      if (fs.existsSync(destPath) && fs.statSync(destPath).size > 500) {
+        return fileName;
+      }
+    } catch (err) {
+      lastError = err;
+      sysLog(`[downloadCurseModFile] Download failed from ${url}: ${err.message}. Trying next mirror...`);
+      if (fs.existsSync(destPath)) {
+        try { fs.unlinkSync(destPath); } catch (_) {}
+      }
+    }
+  }
+
+  throw lastError || new Error(`Не удалось загрузить мод ${fileName}`);
+}
+
+/* old curseforge api
   if (process.env.CURSEFORGE_API_KEY) {
     return 'https://api.curseforge.com/v1';
   }
@@ -549,6 +739,8 @@ function getCurseHeaders() {
   }
   return headers;
 }
+
+*/
 
 function findManifestFile(dir) {
   if (!dir || !fs.existsSync(dir)) return null;
@@ -617,11 +809,11 @@ async function syncModpack(event, rootDir, pack) {
 
     if (currentVersion !== targetVersion) {
       if (!hasValidZip) {
-        event.reply('launch-progress', `Подключение к серверу обновлений...`);
-        await downloadFile(pack.packZipUrl, zipPath, (p) => event.reply('launch-progress', `Загрузка архива: ${p}%`));
+        event.reply('launch-progress', { stage: 'download_mods', percent: 0, detail: 'Подключение к серверу обновлений...' });
+        await downloadFile(pack.packZipUrl, zipPath, (p) => event.reply('launch-progress', { stage: 'download_mods', percent: p, detail: `Загрузка архива: ${p}%` }));
       } else {
         sysLog(`Reusing cached archive at: ${zipPath}`);
-        event.reply('launch-progress', `Использование скачанного архива...`);
+        event.reply('launch-progress', { stage: 'download_mods', percent: 50, detail: 'Использование кэша...' });
       }
 
       const tempExtractDir = path.join(app.getPath('temp'), `pack_sync_${Date.now()}`);
@@ -629,7 +821,7 @@ async function syncModpack(event, rootDir, pack) {
       fs.mkdirSync(tempExtractDir, { recursive: true });
 
       try {
-        event.reply('launch-progress', 'Распаковка архива сборки...');
+        event.reply('launch-progress', { stage: 'download_mods', percent: 99, detail: 'Распаковка архива сборки...' });
         await extract(zipPath, { dir: tempExtractDir });
 
         const modsPath = path.join(rootDir, 'mods');
@@ -662,6 +854,43 @@ async function syncModpack(event, rootDir, pack) {
             fs.cpSync(overridesPath, rootDir, { recursive: true, force: true });
           }
           fs.cpSync(tempExtractDir, rootDir, { recursive: true, force: true });
+
+          const manifestFiles = manifest.files || [];
+          if (manifestFiles.length > 0) {
+            const modsFolder = path.join(rootDir, 'mods');
+            if (!fs.existsSync(modsFolder)) fs.mkdirSync(modsFolder, { recursive: true });
+
+            event.reply('launch-progress', { stage: 'download_mods', percent: 10, detail: `Получение списка модов (${manifestFiles.length})...` });
+            const fileIds = manifestFiles.map(f => f.fileID).filter(Boolean);
+            const filesMetaMap = await fetchCurseFilesBatch(fileIds);
+
+            let downloadedCount = 0;
+            const concurrency = 4;
+            for (let i = 0; i < manifestFiles.length; i += concurrency) {
+              const chunk = manifestFiles.slice(i, i + concurrency);
+              await Promise.all(chunk.map(async (file) => {
+                const fileData = filesMetaMap.get(file.fileID);
+                try {
+                  await downloadCurseModFile(fileData, file.projectID, file.fileID, modsFolder);
+                } catch (err) {
+                  sysLog(`[syncModpack] Error downloading mod ${file.projectID} / ${file.fileID}: ${err.message}`);
+                } finally {
+                  downloadedCount++;
+                  const pct = Math.min(99, Math.round(10 + (downloadedCount / manifestFiles.length) * 88));
+                  event.reply('launch-progress', {
+                    stage: 'download_mods',
+                    percent: pct,
+                    detail: `Загрузка модов (${downloadedCount}/${manifestFiles.length}): ${fileData?.fileName || file.fileID}`
+                  });
+                }
+              }));
+            }
+          }
+          /* old_extract_sync */
+          if (fs.existsSync(overridesPath)) {
+            fs.cpSync(overridesPath, rootDir, { recursive: true, force: true });
+          }
+          fs.cpSync(tempExtractDir, rootDir, { recursive: true, force: true });
         } else {
           fs.cpSync(tempExtractDir, rootDir, { recursive: true, force: true });
         }
@@ -677,11 +906,11 @@ async function syncModpack(event, rootDir, pack) {
     const modsDir = path.join(rootDir, 'mods');
     if (!fs.existsSync(modsDir)) fs.mkdirSync(modsDir, { recursive: true });
 
-    event.reply('launch-progress', 'Проверка целостности модов...');
+    event.reply('launch-progress', { stage: 'download_mods', percent: 0, detail: 'Проверка целостности модов...' });
     sysLog(`Fetching mods list from: ${pack.modsJsonUrl}`);
     let modsUrls = [];
     try {
-      const res = await axios.get(`${pack.modsJsonUrl}?t=${Date.now()}`, { timeout: 15000 });
+      const res = await axios.get(`${pack.modsJsonUrl}?t=${Date.now()}`, { timeout: 30000 });
       modsUrls = res.data;
     } catch (e) {
       sysLog(`Failed to fetch mods.json: ${e.message}`);
@@ -697,7 +926,7 @@ async function syncModpack(event, rootDir, pack) {
     for (const file of localFiles) {
       if (!expectedFilenames.includes(file)) {
         sysLog(`Removing unexpected local mod: ${file}`);
-        event.reply('launch-progress', `Удаление лишнего: ${file}`);
+        // Логируем только в sysLog, на UI не отправляем
         try { fs.unlinkSync(path.join(modsDir, file)); } catch(e){}
       }
     }
@@ -707,7 +936,9 @@ async function syncModpack(event, rootDir, pack) {
       sysLog(`Found ${missingFilenames.length} missing mods to download.`);
       for (let i = 0; i < missingFilenames.length; i++) {
         const filename = missingFilenames[i];
-        event.reply('launch-progress', `Скачивание: ${filename} (${i + 1}/${missingFilenames.length})`);
+        const pct = Math.round(((i + 1) / missingFilenames.length) * 100);
+        event.reply('launch-progress', { stage: 'download_mods', percent: pct, detail: `Мод ${i + 1}/${missingFilenames.length}: ${filename}` });
+        sysLog(`Downloading mod: ${filename} (${i + 1}/${missingFilenames.length})`);
         try {
           const modUrl = expectedModsMap.get(filename);
           sysLog(`Downloading mod: ${filename} from ${modUrl}`);
@@ -759,12 +990,12 @@ async function ensureInstallerLibraries(event, installerPath, gameRoot) {
     }
 
     sysLog(`Downloading ${missingLibraries.length} missing installer libraries...`);
-    event.reply('launch-progress', `Загрузка библиотек ядра...`);
+    event.reply('launch-progress', { stage: 'init', percent: 0, detail: 'Загрузка библиотек ядра...' });
 
     for (let i = 0; i < missingLibraries.length; i++) {
       const item = missingLibraries[i];
       const percent = Math.round((i / missingLibraries.length) * 100);
-      event.reply('launch-progress', `Загрузка библиотек ядра: ${percent}%`);
+      event.reply('launch-progress', { stage: 'init', percent, detail: `Библиотеки ядра: ${percent}%` });
       
       const dir = path.dirname(item.destPath);
       if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
@@ -781,7 +1012,7 @@ async function ensureInstallerLibraries(event, installerPath, gameRoot) {
         }
       }
     }
-    event.reply('launch-progress', `Библиотеки ядра загружены 100%`);
+    event.reply('launch-progress', { stage: 'init', percent: 100, detail: 'Библиотеки ядра загружены!' });
   } catch (e) {
     sysLog(`Error in ensureInstallerLibraries: ${e.message}`);
     if (e.message.includes('Не удалось загрузить')) {
@@ -809,8 +1040,8 @@ async function ensureLoader(event, pack) {
   
   if (!fs.existsSync(installerPath)) {
     sysLog(`Downloading loader installer to ${installerPath} from ${installerUrl}`);
-    event.reply('launch-progress', `Подключение для загрузки ядра...`);
-    await downloadFile(installerUrl, installerPath, (p) => event.reply('launch-progress', `Загрузка ядра: ${p}%`));
+    event.reply('launch-progress', { stage: 'init', percent: 0, detail: 'Загрузка ядра...' });
+    await downloadFile(installerUrl, installerPath, (p) => event.reply('launch-progress', { stage: 'init', percent: p, detail: `Ядро: ${p}%` }));
   } else {
     sysLog(`Loader installer already cached at: ${installerPath}`);
   }
@@ -833,14 +1064,14 @@ async function ensureAuthlibInjector(event) {
   
   if (!fs.existsSync(injectorPath)) {
     sysLog(`Downloading authlib-injector to ${injectorPath}`);
-    event.reply('launch-progress', `Подключение для загрузки authlib...`);
+    event.reply('launch-progress', { stage: 'init', percent: 0, detail: 'Загрузка authlib-injector...' });
     try {
-      await downloadFile(injectorUrl, injectorPath, (p) => event.reply('launch-progress', `Загрузка authlib-injector: ${p}%`));
+      await downloadFile(injectorUrl, injectorPath, (p) => event.reply('launch-progress', { stage: 'init', percent: p, detail: `authlib: ${p}%` }));
     } catch (e) {
       sysLog(`Download failed from Github, trying mirror: ${e.message}`);
-      event.reply('launch-progress', `Ошибка загрузки. Пробуем зеркало...`);
+      event.reply('launch-progress', { stage: 'init', percent: 0, detail: 'Ошибка, пробуем зеркало...' });
       const mirrorUrl = 'https://mirror.ghproxy.com/https://github.com/yushijinhun/authlib-injector/releases/download/v1.2.5/authlib-injector-1.2.5.jar';
-      await downloadFile(mirrorUrl, injectorPath, (p) => event.reply('launch-progress', `Загрузка authlib-injector (Зеркало): ${p}%`));
+      await downloadFile(mirrorUrl, injectorPath, (p) => event.reply('launch-progress', { stage: 'init', percent: p, detail: `authlib (зеркало): ${p}%` }));
     }
   } else {
     sysLog(`authlib-injector already cached at: ${injectorPath}`);
@@ -891,12 +1122,22 @@ module.exports = function(ipcMain) {
   });
 
   ipcMain.on('launch-game', async (event, options) => {
-    sysLog("=== [launch-game] START ===");
-    sysLog("Options RAM:", options.ram, "PlayMode:", options.playMode, "JavaPath setting:", options.javaPath);
     try {
       const pack = options.pack;
-      sysLog(`Pack ID: ${pack.id}, Name: ${pack.name}, Version: ${pack.mcVersion}, Loader: ${pack.loaderType}`);
       const gameRoot = resolveClientPath(pack.clientDir);
+
+      // Инициализируем файл логов запуска в папке сборки
+      try {
+        if (!fs.existsSync(gameRoot)) fs.mkdirSync(gameRoot, { recursive: true });
+        currentLaunchLogFile = path.join(gameRoot, 'launcher_launch.log');
+        fs.writeFileSync(currentLaunchLogFile, `=== LAUNCH LOG FOR PACK: ${pack.name} ===\nTime: ${new Date().toISOString()}\n\n`);
+      } catch (err) {
+        console.error("Failed to initialize launch log file:", err);
+      }
+
+      sysLog("=== [launch-game] START ===");
+      sysLog("Options RAM:", options.ram, "PlayMode:", options.playMode, "JavaPath setting:", options.javaPath);
+      sysLog(`Pack ID: ${pack.id}, Name: ${pack.name}, Version: ${pack.mcVersion}, Loader: ${pack.loaderType}`);
       sysLog(`Game root directory: ${gameRoot}`);
       launcher.removeAllListeners();
       if (!fs.existsSync(gameRoot)) {
@@ -1006,7 +1247,7 @@ module.exports = function(ipcMain) {
         const versionDir = path.join(gameRoot, 'versions', fabricVersionName);
         if (!fs.existsSync(versionDir)) {
           sysLog(`Installing ${isFabric ? 'Fabric' : 'Quilt'} core to: ${versionDir}`);
-          event.reply('launch-progress', `Установка ядра ${isFabric ? 'Fabric' : 'Quilt'}...`);
+          event.reply('launch-progress', { stage: 'init', percent: 0, detail: `Установка ядра ${isFabric ? 'Fabric' : 'Quilt'}...` });
           const profilesPath = path.join(gameRoot, 'launcher_profiles.json');
           if (!fs.existsSync(profilesPath)) fs.writeFileSync(profilesPath, JSON.stringify({ profiles: {} }));
           
@@ -1101,13 +1342,34 @@ module.exports = function(ipcMain) {
         });
       }
 
+      let overallAssetsPercent = 0;
+
       launcher.on('download-status', (e) => {
         sysLog(`[MCLC download-status] Name: ${e.name}, Progress: ${e.current}/${e.total}`);
-        event.reply('launch-progress', `Библиотеки: ${e.name}`);
+        event.reply('launch-progress', { stage: 'download_assets', percent: overallAssetsPercent, detail: e.name });
       });
       launcher.on('progress', (e) => {
         sysLog(`[MCLC progress] Type: ${e.type}, Task: ${e.task}/${e.total}`);
-        event.reply('launch-progress', `Этап: ${e.type} (${e.task}/${e.total})`);
+        const pct = e.total > 0 ? Math.round((e.task / e.total) * 100) : 0;
+        
+        let mappedPct = 0;
+        if (e.type === 'classes-maven-custom' || e.type === 'classes-custom') {
+          mappedPct = Math.round(pct * 0.3);
+        } else if (e.type === 'classes') {
+          mappedPct = 30 + Math.round(pct * 0.35);
+        } else if (e.type === 'assets') {
+          mappedPct = 65 + Math.round(pct * 0.3);
+        } else if (e.type === 'natives') {
+          mappedPct = 95 + Math.round(pct * 0.05);
+        } else {
+          mappedPct = pct;
+        }
+
+        if (mappedPct > overallAssetsPercent) {
+          overallAssetsPercent = mappedPct;
+        }
+
+        event.reply('launch-progress', { stage: 'download_assets', percent: overallAssetsPercent, detail: `${e.type} ${e.task}/${e.total}` });
       });
       launcher.on('close', () => {
         sysLog(`[MCLC close] Game process closed.`);
@@ -1163,14 +1425,17 @@ module.exports = function(ipcMain) {
       }
 
       sysLog(`Launching game client...`);
-      event.reply('launch-progress', 'Запуск Minecraft...');
-      
       if (Notification.isSupported()) {
-        new Notification({ title: 'DivLauncher', body: `Сборка ${pack.name} успешно установлена и запускается!` }).show();
+        new Notification({ 
+          title: 'DivLauncher', 
+          body: `Сборка ${pack.name} успешно установлена и запускается!`,
+          icon: path.join(__dirname, '..', '..', 'icon.ico')
+        }).show();
       }
 
       gameProcess = await launcher.launch(opts);
       sysLog(`Minecraft launch command completed (process spawned).`);
+      event.reply('launch-progress', { stage: 'launch', percent: 100, detail: 'Запуск Minecraft...' });
     } catch (error) {
       sysLog(`[launch-game] CRITICAL ERROR: ${error.stack || error.message}`);
       event.reply('launch-error', error.message);
@@ -1228,7 +1493,7 @@ module.exports = function(ipcMain) {
           username: username,
           password: password,
           two_factor_code: twoFactorCode
-        });
+        }, { proxy: false });
         logger.log("Web login response status:", webResponse.status);
         if (webResponse.data && webResponse.data.requires_2fa) {
           return { success: false, requires_2fa: true, message: webResponse.data.message, logs: logger.getLogs() };
@@ -1264,6 +1529,7 @@ module.exports = function(ipcMain) {
           webToken: webToken
         };
         fs.writeFileSync(getCustomCacheFile(), JSON.stringify(cacheData));
+        global.launcherAuthToken = webToken;
 
         const userProfile = webResponse.data.user || {};
         return { 
@@ -1456,6 +1722,7 @@ module.exports = function(ipcMain) {
         };
         fs.writeFileSync(cacheFile, JSON.stringify(updatedCache));
         logger.log("Updated auth cache written back to file.");
+        global.launcherAuthToken = webToken;
         // Return all user profile fields (customizations, google link status, etc.) to the UI
         return { 
           ...profileDetails,
@@ -1526,11 +1793,40 @@ module.exports = function(ipcMain) {
     }
   });
 
-  ipcMain.handle('custom-logout', () => {
+  ipcMain.handle('custom-logout', async () => {
+    try {
+      const cacheFile = getCustomCacheFile();
+      if (fs.existsSync(cacheFile)) {
+        try {
+          const cached = JSON.parse(fs.readFileSync(cacheFile, 'utf8'));
+          const token = cached.webToken || global.launcherAuthToken;
+          if (token && token !== 'offline') {
+            const headers = { Authorization: `Bearer ${token}` };
+            const data = { current_activity: 'offline', current_game: null };
+            await Promise.allSettled([
+              axios.post(`${AUTH_SERVER}/api/profile/customize`, data, { headers, timeout: 1500 }),
+              axios.post(`${AUTH_SERVER}/api/user/heartbeat`, { status: 'offline' }, { headers, timeout: 1500 })
+            ]);
+          }
+        } catch (_) {}
+        fs.unlinkSync(cacheFile);
+      }
+      global.launcherAuthToken = null;
+      return { success: true };
+    } catch (err) {
+      global.launcherAuthToken = null;
+      return { success: true };
+    }
+  });
+
+  /*
+  ipcMain.handle('custom-logout-legacy', () => {
     const cacheFile = getCustomCacheFile();
     if (fs.existsSync(cacheFile)) fs.unlinkSync(cacheFile);
     return { success: true };
   });
+
+  */
 
   ipcMain.handle('get-skin-data', async (event, uuid) => {
     const logger = createLogger();
@@ -2180,6 +2476,7 @@ module.exports = function(ipcMain) {
               };
 
               fs.writeFileSync(getCustomCacheFile(), JSON.stringify(cacheData));
+              global.launcherAuthToken = token;
               logger.log("Auth credentials written to cache file successfully via Google Auth.");
               
               resolve({
@@ -2755,6 +3052,7 @@ module.exports = function(ipcMain) {
 
   ipcMain.handle('import-pack-extended', async (event, type, customMetadata = {}) => {
     let tempDir = '';
+    let failedMods = [];
     try {
       let filters = [];
       if (type === 'modrinth') {
@@ -2877,7 +3175,7 @@ module.exports = function(ipcMain) {
           fs.cpSync(overridesPath, targetClientDir, { recursive: true, force: true });
         }
 
-        const files = manifest.files || [];
+        /* old_curse_files_start
         const totalFiles = files.length;
         if (totalFiles > 0) {
           const modsFolder = path.join(targetClientDir, 'mods');
@@ -2923,6 +3221,58 @@ module.exports = function(ipcMain) {
                 event.sender.send('import-progress', { 
                   stage: 'downloading_mods', 
                   message: `Загрузка модов (${downloadedCount}/${totalFiles})...`, 
+                  progress: percentage, 
+                  current: downloadedCount, 
+                  total: totalFiles 
+                });
+              }
+            }));
+          }
+        }
+*/
+        const files = manifest.files || [];
+        const totalFiles = files.length;
+        failedMods = [];
+
+        if (totalFiles > 0) {
+          const modsFolder = path.join(targetClientDir, 'mods');
+          if (!fs.existsSync(modsFolder)) {
+            fs.mkdirSync(modsFolder, { recursive: true });
+          }
+
+          event.sender.send('import-progress', {
+            stage: 'fetching_manifest',
+            message: `Запрос метаданных для ${totalFiles} модов CurseForge...`,
+            progress: 8
+          });
+
+          const fileIds = files.map(f => f.fileID).filter(Boolean);
+          const filesMetaMap = await fetchCurseFilesBatch(fileIds);
+
+          let downloadedCount = 0;
+          const concurrency = 4;
+          for (let i = 0; i < files.length; i += concurrency) {
+            const chunk = files.slice(i, i + concurrency);
+            await Promise.all(chunk.map(async (file) => {
+              const fileData = filesMetaMap.get(file.fileID);
+              try {
+                const downloadedName = await downloadCurseModFile(fileData, file.projectID, file.fileID, modsFolder);
+                sysLog(`[import-pack-extended] Successfully downloaded: ${downloadedName}`);
+              } catch (err) {
+                sysLog(`[import-pack-extended] Error downloading mod ${file.projectID} / ${file.fileID}: ${err.message}`);
+                failedMods.push({
+                  projectId: file.projectID,
+                  fileId: file.fileID,
+                  name: fileData?.fileName || `mod-${file.fileID}`,
+                  error: err.message
+                });
+              } finally {
+                downloadedCount++;
+                const percentage = Math.min(94, Math.round(10 + (downloadedCount / totalFiles) * 84));
+                const currentName = fileData?.fileName || `файл ${downloadedCount}`;
+                event.sender.send('import-progress', { 
+                  stage: 'downloading_mods', 
+                  message: `Загрузка модов (${downloadedCount}/${totalFiles}): ${currentName}`, 
                   progress: percentage, 
                   current: downloadedCount, 
                   total: totalFiles 
@@ -3104,6 +3454,8 @@ module.exports = function(ipcMain) {
         isCustom: true
       };
 
+      await resolveLoaderDetails(newPack);
+
       fs.writeFileSync(path.join(targetClientDir, 'divpack.json'), JSON.stringify(newPack, null, 2));
 
       const file = getCustomPacksFile();
@@ -3126,7 +3478,20 @@ module.exports = function(ipcMain) {
         fs.rmSync(tempDir, { recursive: true, force: true });
       }
 
-      return { success: true, pack: newPack };
+      if (failedMods && failedMods.length > 0) {
+        event.sender.send('import-progress', {
+          stage: 'completed',
+          message: `Импорт завершен, но не удалось скачать ${failedMods.length} мод(ов).`,
+          progress: 100,
+          failedMods
+        });
+      }
+
+      return {
+        success: true,
+        pack: newPack,
+        warnings: (failedMods && failedMods.length > 0) ? failedMods : undefined
+      };
     } catch (err) {
       console.error('Extended import error:', err);
       if (tempDir && fs.existsSync(tempDir)) {
@@ -3359,7 +3724,7 @@ module.exports = function(ipcMain) {
     }
   });
 
-  const getCurseBaseUrl = () => {
+  /* duplicate curse config removed
     if (process.env.CURSEFORGE_API_KEY) {
       return 'https://api.curseforge.com/v1';
     }
@@ -3376,6 +3741,7 @@ module.exports = function(ipcMain) {
     return headers;
   };
 
+*/
   const getCurseLoaderId = (loader) => {
     if (!loader) return null;
     const l = loader.toLowerCase();

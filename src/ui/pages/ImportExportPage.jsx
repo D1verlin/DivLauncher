@@ -9,20 +9,18 @@ import modrinthIcon from '../assets/brands/modrinth.png';
 import prismIcon from '../assets/brands/prism.png';
 import multimcIcon from '../assets/brands/multimc.png';
 
-// --- GLASSMORPHIC & ACCENT STYLES ---
-const glassPanelStyle = {
-  background: 'rgba(10, 10, 16, 0.5)',
-  backdropFilter: 'blur(24px)',
-  WebkitBackdropFilter: 'blur(24px)',
-  border: '1px solid rgba(255, 255, 255, 0.07)',
-  borderRadius: '24px',
-  padding: '30px',
+// --- PAGE CONTAINER STYLE (OPEN, NO DARK BOX) ---
+const pageContainerStyle = {
+  background: 'transparent',
+  border: 'none',
+  padding: '0 4px 12px 4px',
   width: '100%',
   height: '100%',
   display: 'flex',
   flexDirection: 'column',
   overflow: 'hidden',
-  color: '#fff'
+  color: '#fff',
+  boxSizing: 'border-box'
 };
 
 const tabButtonStyle = (isActive) => ({
@@ -173,39 +171,76 @@ export default function ImportExportPage({ onBack, modpacks, fetchModpacks }) {
   };
 
   return (
-    <div style={glassPanelStyle} className="tab-enter">
-      {/* Title & Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px', gap: '20px' }}>
-        <div>
-          <h2 style={{ margin: 0, fontSize: '24px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '1.6px' }}>
+    <div style={pageContainerStyle} className="tab-enter">
+      {/* Header: Back button + Title on Left, Mode Switcher on Right */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginBottom: '20px',
+        flexShrink: 0
+      }}>
+        {/* Left: Back button + Title */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+          <motion.button
+            whileHover={{ backgroundColor: 'rgba(255,255,255,0.08)', borderColor: 'rgba(255,255,255,0.2)' }}
+            whileTap={{ opacity: 0.85 }}
+            onClick={onBack}
+            style={{
+              width: '38px',
+              height: '38px',
+              borderRadius: '10px',
+              background: 'rgba(255, 255, 255, 0.04)',
+              border: '1px solid rgba(255, 255, 255, 0.08)',
+              color: '#fff',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '14px',
+              transition: 'all 0.2s',
+              flexShrink: 0
+            }}
+            title={t('mods_back')}
+          >
+            <i className="fa-solid fa-arrow-left" />
+          </motion.button>
+
+          <h2 style={{
+            margin: 0,
+            fontSize: '20px',
+            fontWeight: 800,
+            letterSpacing: '0.4px',
+            color: '#fff',
+            fontFamily: 'Montserrat'
+          }}>
             {t('impexp_title')}
           </h2>
         </div>
 
-        {/* Pill-styled Tabs Switcher */}
+        {/* Right: Pill-styled Tabs Switcher */}
         <div style={{ 
           display: 'flex', 
           background: 'rgba(255, 255, 255, 0.03)', 
           borderRadius: '10px', 
           padding: '3px', 
-          border: '1px solid rgba(255,255,255,0.05)',
+          border: '1px solid rgba(255,255,255,0.06)',
           alignItems: 'center'
         }}>
           <button 
             onClick={() => { setActiveTab('import'); setExportStatus('idle'); }} 
             style={{
-              padding: '8px 16px',
+              padding: '6px 16px',
               borderRadius: '8px',
-              background: activeTab === 'import' ? 'rgba(255, 255, 255, 0.07)' : 'transparent',
+              background: activeTab === 'import' ? 'rgba(255, 255, 255, 0.08)' : 'transparent',
               border: 'none',
               color: activeTab === 'import' ? '#fff' : '#a1a1aa',
-              fontSize: '11px',
-              fontWeight: 800,
-              textTransform: 'uppercase',
-              letterSpacing: '0.8px',
+              fontSize: '12px',
+              fontWeight: 700,
               cursor: 'pointer',
               transition: 'all 0.2s ease',
-              outline: 'none'
+              outline: 'none',
+              fontFamily: 'Montserrat'
             }}
           >
             {t('impexp_import_tab')}
@@ -213,46 +248,22 @@ export default function ImportExportPage({ onBack, modpacks, fetchModpacks }) {
           <button 
             onClick={() => { setActiveTab('export'); setImportStatus('idle'); }} 
             style={{
-              padding: '8px 16px',
+              padding: '6px 16px',
               borderRadius: '8px',
-              background: activeTab === 'export' ? 'rgba(255, 255, 255, 0.07)' : 'transparent',
+              background: activeTab === 'export' ? 'rgba(255, 255, 255, 0.08)' : 'transparent',
               border: 'none',
               color: activeTab === 'export' ? '#fff' : '#a1a1aa',
-              fontSize: '11px',
-              fontWeight: 800,
-              textTransform: 'uppercase',
-              letterSpacing: '0.8px',
+              fontSize: '12px',
+              fontWeight: 700,
               cursor: 'pointer',
               transition: 'all 0.2s ease',
-              outline: 'none'
+              outline: 'none',
+              fontFamily: 'Montserrat'
             }}
           >
             {t('impexp_export_tab')}
           </button>
         </div>
-
-        <motion.button
-          whileHover={{ backgroundColor: 'rgba(255,255,255,0.08)' }}
-          whileTap={{ scale: 0.95 }}
-          onClick={onBack}
-          style={{
-            width: '42px',
-            height: '42px',
-            borderRadius: '12px',
-            background: 'rgba(255, 255, 255, 0.04)',
-            border: '1px solid rgba(255, 255, 255, 0.08)',
-            color: '#fff',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: '16px',
-            transition: 'all 0.2s'
-          }}
-          title={t('mods_back')}
-        >
-          <i className="fa-solid fa-arrow-left" />
-        </motion.button>
       </div>
 
       {/* Content Area */}
@@ -286,7 +297,7 @@ export default function ImportExportPage({ onBack, modpacks, fetchModpacks }) {
                         borderColor: getPlatformBorder('divlauncher'),
                         background: 'rgba(255, 255, 255, 0.06)'
                       }}
-                      whileTap={{ scale: 0.98 }}
+                      whileTap={{ opacity: 0.85 }}
                       onClick={() => handleStartImport('divlauncher')}
                       style={{
                         padding: '24px', 
@@ -319,7 +330,7 @@ export default function ImportExportPage({ onBack, modpacks, fetchModpacks }) {
                         borderColor: getPlatformBorder('curseforge'),
                         background: 'rgba(255, 255, 255, 0.06)'
                       }}
-                      whileTap={{ scale: 0.98 }}
+                      whileTap={{ opacity: 0.85 }}
                       onClick={() => handleStartImport('curseforge')}
                       style={{
                         padding: '24px', 
@@ -352,7 +363,7 @@ export default function ImportExportPage({ onBack, modpacks, fetchModpacks }) {
                         borderColor: getPlatformBorder('modrinth'),
                         background: 'rgba(255, 255, 255, 0.06)'
                       }}
-                      whileTap={{ scale: 0.98 }}
+                      whileTap={{ opacity: 0.85 }}
                       onClick={() => handleStartImport('modrinth')}
                       style={{
                         padding: '24px', 
@@ -385,7 +396,7 @@ export default function ImportExportPage({ onBack, modpacks, fetchModpacks }) {
                         borderColor: getPlatformBorder('prism'),
                         background: 'rgba(255, 255, 255, 0.06)'
                       }}
-                      whileTap={{ scale: 0.98 }}
+                      whileTap={{ opacity: 0.85 }}
                       onClick={() => handleStartImport('prism')}
                       style={{
                         padding: '24px', 
@@ -418,7 +429,7 @@ export default function ImportExportPage({ onBack, modpacks, fetchModpacks }) {
                         borderColor: getPlatformBorder('multimc'),
                         background: 'rgba(255, 255, 255, 0.06)'
                       }}
-                      whileTap={{ scale: 0.98 }}
+                      whileTap={{ opacity: 0.85 }}
                       onClick={() => handleStartImport('multimc')}
                       style={{
                         padding: '24px', 
@@ -541,7 +552,7 @@ export default function ImportExportPage({ onBack, modpacks, fetchModpacks }) {
                   </div>
 
                   <motion.button
-                    whileTap={{ scale: 0.95 }}
+                    whileTap={{ opacity: 0.85 }}
                     onClick={() => setImportStatus('idle')}
                     style={{
                       padding: '10px 24px', borderRadius: '12px', border: '1px solid rgba(16, 185, 129, 0.4)',
@@ -587,7 +598,7 @@ export default function ImportExportPage({ onBack, modpacks, fetchModpacks }) {
                   </div>
 
                   <motion.button
-                    whileTap={{ scale: 0.95 }}
+                    whileTap={{ opacity: 0.85 }}
                     onClick={() => setImportStatus('idle')}
                     style={{
                       padding: '10px 24px', borderRadius: '12px', border: '1px solid rgba(239, 68, 68, 0.4)',
@@ -669,7 +680,7 @@ export default function ImportExportPage({ onBack, modpacks, fetchModpacks }) {
                                 borderColor: 'rgba(16, 185, 129, 0.4)', 
                                 background: 'rgba(255, 255, 255, 0.05)' 
                               }}
-                              whileTap={{ scale: 0.98 }}
+                              whileTap={{ opacity: 0.85 }}
                               onClick={() => setExportPackId(pack.id)}
                               style={{
                                 padding: '12px 16px',
@@ -981,7 +992,7 @@ export default function ImportExportPage({ onBack, modpacks, fetchModpacks }) {
                   </div>
 
                   <motion.button
-                    whileTap={{ scale: 0.95 }}
+                    whileTap={{ opacity: 0.85 }}
                     onClick={() => setExportStatus('idle')}
                     style={{
                       padding: '10px 24px', borderRadius: '12px', border: '1px solid rgba(16, 185, 129, 0.4)',
@@ -1021,7 +1032,7 @@ export default function ImportExportPage({ onBack, modpacks, fetchModpacks }) {
                   </div>
 
                   <motion.button
-                    whileTap={{ scale: 0.95 }}
+                    whileTap={{ opacity: 0.85 }}
                     onClick={() => setExportStatus('idle')}
                     style={{
                       padding: '10px 24px', borderRadius: '12px', border: '1px solid rgba(239, 68, 68, 0.4)',

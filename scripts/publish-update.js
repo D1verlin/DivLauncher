@@ -53,6 +53,11 @@ const filesToUpload = [
     local: "release/latest.yml",
     remote: "DivLauncher/updates/latest.yml",
     contentType: "text/yaml"
+  },
+  {
+    local: "release-notes.md",
+    remote: "DivLauncher/release-notes.md",
+    contentType: "text/markdown; charset=utf-8"
   }
 ];
 

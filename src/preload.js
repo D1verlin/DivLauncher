@@ -25,7 +25,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // --- CLEANUP (для предотвращения утечек IPC-слушателей) ---
   removeAllListeners: (channel) => {
     const ALLOWED_CHANNELS = [
-      'update-available', 'update-progress', 'update-downloaded',
+      'update-available', 'update-progress', 'update-downloaded', 'update-not-available',
       'server-log', 'server-status', 'server-players',
       'r2-upload-progress', 'download-progress', 'update-done',
       'launch-progress', 'launch-error', 'launch-closed', 'import-progress', 'export-progress'
@@ -45,6 +45,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onUpdateProgress: (callback) => ipcRenderer.on('update-progress', callback),
   onUpdateDownloaded: (callback) => ipcRenderer.on('update-downloaded', callback),
   restartAndInstall: () => ipcRenderer.send('restart-and-install'),
+  downloadUpdate: () => ipcRenderer.send('download-update'),
+  onUpdateNotAvailable: (callback) => ipcRenderer.on('update-not-available', callback),
 
   // --- ОБНОВЛЕНИЕ СБОРОК ---
   updatePack: (pack) => ipcRenderer.send('update-pack', pack),
@@ -142,4 +144,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getBuildsDir: () => ipcRenderer.invoke('get-builds-dir'),
   getDefaultBuildsDir: () => ipcRenderer.invoke('get-default-builds-dir'),
   setBuildsDir: (dir) => ipcRenderer.invoke('set-builds-dir', dir),
+
+  // --- AUTH TOKEN (для before-quit offline статус) ---
+  setAuthToken: (token) => ipcRenderer.send('set-auth-token', token),
+
+  // --- PROMOTE PACK TO R2 via mods.json ---
+  promotePackToR2: (packId) => ipcRenderer.invoke('promote-pack-to-r2', packId),
 });

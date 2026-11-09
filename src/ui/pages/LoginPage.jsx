@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTranslation } from '../utils/i18n';
 
-export default function LoginPage({ onLoginSuccess }) {
+export default function LoginPage({ onLoginSuccess, onShowUpdatePage }) {
   const { t } = useTranslation();
   const [loginMode, setLoginMode] = useState('login'); // 'login' | 'register' | 'offline'
   const [username, setUsername] = useState('');
@@ -207,12 +207,12 @@ export default function LoginPage({ onLoginSuccess }) {
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      height: '100%',
+      flex: 1,
       width: '100%',
+      height: '100%',
       position: 'relative',
-      overflowX: 'hidden',
-      overflowY: 'auto',
-      padding: '40px 20px 20px 20px',
+      overflow: 'hidden',
+      padding: '20px',
       boxSizing: 'border-box'
     }}>
       {/* Background radial glow */}
@@ -451,7 +451,7 @@ export default function LoginPage({ onLoginSuccess }) {
 
             <motion.button
               whileHover={{ boxShadow: '0 0 16px rgba(16,185,129,0.3)' }}
-              whileTap={{ scale: 0.98 }}
+              whileTap={{ opacity: 0.85 }}
               disabled={loading}
               type="submit"
               style={{
@@ -497,7 +497,7 @@ export default function LoginPage({ onLoginSuccess }) {
 
                 <motion.button
                   whileHover={{ background: 'rgba(255,255,255,0.08)' }}
-                  whileTap={{ scale: 0.98 }}
+                  whileTap={{ opacity: 0.85 }}
                   disabled={loading}
                   type="button"
                   onClick={handleGoogleLogin}
@@ -637,8 +637,8 @@ export default function LoginPage({ onLoginSuccess }) {
 
                 {/* Submit 2FA Code Button */}
                 <motion.button
-                  whileHover={{ scale: 1.02, boxShadow: '0 0 20px rgba(139,92,246,0.4)' }}
-                  whileTap={{ scale: 0.98 }}
+                  whileHover={{ opacity: 0.9, boxShadow: '0 0 20px rgba(139,92,246,0.4)' }}
+                  whileTap={{ opacity: 0.85 }}
                   disabled={loading}
                   type="submit"
                   style={{
@@ -675,7 +675,7 @@ export default function LoginPage({ onLoginSuccess }) {
                 {/* Cancel / Back Button */}
                 <motion.button
                   whileHover={{ background: 'rgba(255, 255, 255, 0.08)' }}
-                  whileTap={{ scale: 0.98 }}
+                  whileTap={{ opacity: 0.85 }}
                   disabled={loading}
                   type="button"
                   onClick={() => {
@@ -708,7 +708,36 @@ export default function LoginPage({ onLoginSuccess }) {
           )}
         </AnimatePresence>
       </div>
+
+      {/* Кнопка обновления — левый нижний угол */}
+      {onShowUpdatePage && (
+        <motion.button
+          whileHover={{ opacity: 0.9, }}
+          whileTap={{ opacity: 0.85 }}
+          onClick={onShowUpdatePage}
+          title="Обновления лаунчера"
+          style={{
+            position: 'absolute',
+            bottom: '24px',
+            left: '24px',
+            background: 'none',
+            border: 'none',
+            color: 'rgba(255,255,255,0.5)',
+            padding: '10px 14px',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            fontSize: '12px',
+            fontWeight: 700,
+            fontFamily: 'Montserrat',
+            transition: 'all 0.2s',
+            zIndex: 10
+          }}
+        >
+          <i className="fa-solid fa-arrows-rotate" style={{ fontSize: '13px' }} />
+        </motion.button>
+      )}
     </div>
   );
 }
-

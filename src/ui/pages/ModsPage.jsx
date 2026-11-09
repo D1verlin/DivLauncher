@@ -519,7 +519,7 @@ export default function ModsPage({ currentPack, onBack, showConfirm, showAlert }
           </p>
           <motion.button 
             whileHover={{ background: 'rgba(16, 185, 129, 0.2)' }}
-            whileTap={{ scale: 0.96 }}
+            whileTap={{ opacity: 0.85 }}
             onClick={onBack} 
             style={{ padding: '12px 24px', background: 'rgba(16, 185, 129, 0.1)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.3)', borderRadius: '11px', cursor: 'pointer', fontWeight: 800, fontSize: '13px', textTransform: 'uppercase', letterSpacing: '1.6px' }}
           >
@@ -785,7 +785,7 @@ export default function ModsPage({ currentPack, onBack, showConfirm, showAlert }
           
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }} onClick={(e) => e.stopPropagation()}>
             <motion.div
-              whileTap={{ scale: 0.9 }}
+              whileTap={{ opacity: 0.85 }}
               onClick={(e) => toggleFavorite(mod, e)}
               style={{ color: isFav ? '#fbbf24' : '#71717a', cursor: 'pointer', fontSize: '14px', display: 'flex', alignItems: 'center' }}
             >
@@ -850,7 +850,7 @@ export default function ModsPage({ currentPack, onBack, showConfirm, showAlert }
             {mod.websiteUrl && (
               <motion.button
                 whileHover={{ background: 'rgba(255, 255, 255, 0.1)' }}
-                whileTap={{ scale: 0.9 }}
+                whileTap={{ opacity: 0.85 }}
                 onClick={(e) => { e.stopPropagation(); window.electronAPI.openExternalLink(mod.websiteUrl); }}
                 style={{
                   background: 'rgba(255, 255, 255, 0.05)',
@@ -973,7 +973,7 @@ export default function ModsPage({ currentPack, onBack, showConfirm, showAlert }
 
         <div onClick={(e) => e.stopPropagation()} style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: '10px' }}>
           <motion.div
-            whileTap={{ scale: 0.9 }}
+            whileTap={{ opacity: 0.85 }}
             onClick={(e) => toggleFavorite(mod, e)}
             style={{ color: isFav ? '#fbbf24' : '#71717a', cursor: 'pointer', fontSize: '14px', display: 'flex', alignItems: 'center' }}
           >
@@ -984,7 +984,7 @@ export default function ModsPage({ currentPack, onBack, showConfirm, showAlert }
             {mod.websiteUrl && (
               <motion.button
                 whileHover={{ background: 'rgba(255, 255, 255, 0.1)' }}
-                whileTap={{ scale: 0.9 }}
+                whileTap={{ opacity: 0.85 }}
                 onClick={(e) => { e.stopPropagation(); window.electronAPI.openExternalLink(mod.websiteUrl); }}
                 style={{
                   background: 'rgba(255, 255, 255, 0.05)',
@@ -1115,7 +1115,7 @@ export default function ModsPage({ currentPack, onBack, showConfirm, showAlert }
         >
           <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
             <motion.div
-              whileTap={{ scale: 0.9 }}
+              whileTap={{ opacity: 0.85 }}
               onClick={(e) => toggleFavorite(mod, e)}
               style={{ color: isFav ? '#fbbf24' : '#71717a', cursor: 'pointer', fontSize: '11px', display: 'flex', alignItems: 'center' }}
             >
@@ -1329,7 +1329,7 @@ export default function ModsPage({ currentPack, onBack, showConfirm, showAlert }
               <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
                 <motion.button 
                   whileHover={{ background: 'rgba(255,255,255,0.06)' }}
-                  whileTap={{ scale: 0.96 }}
+                  whileTap={{ opacity: 0.85 }}
                   onClick={() => {
                     if (selectedPublisher) {
                       setSelectedPublisher(null);
@@ -1561,7 +1561,7 @@ export default function ModsPage({ currentPack, onBack, showConfirm, showAlert }
                 {/* Sidebar Toggle Action */}
                 <motion.button 
                   whileHover={{ background: 'rgba(255, 255, 255, 0.06)' }}
-                  whileTap={{ scale: 0.96 }}
+                  whileTap={{ opacity: 0.85 }}
                   onClick={() => setShowSidebar(!showSidebar)}
                   style={secondaryButtonStyle}
                 >
@@ -1572,7 +1572,7 @@ export default function ModsPage({ currentPack, onBack, showConfirm, showAlert }
                 {/* Refresh Action */}
                 <motion.button 
                   whileHover={{ background: 'rgba(255, 255, 255, 0.06)' }}
-                  whileTap={{ scale: 0.96 }}
+                  whileTap={{ opacity: 0.85 }}
                   onClick={handleRefresh}
                   disabled={refreshing}
                   style={secondaryButtonStyle}
@@ -1584,7 +1584,7 @@ export default function ModsPage({ currentPack, onBack, showConfirm, showAlert }
                 {/* Open Folder Action */}
                 <motion.button 
                   whileHover={{ background: 'rgba(255, 255, 255, 0.06)' }}
-                  whileTap={{ scale: 0.96 }}
+                  whileTap={{ opacity: 0.85 }}
                   onClick={handleOpenFolder}
                   style={secondaryButtonStyle}
                 >
@@ -1773,7 +1773,7 @@ export default function ModsPage({ currentPack, onBack, showConfirm, showAlert }
                     <div style={{ display: 'flex', justifyContent: 'center', marginTop: '24px' }}>
                       <motion.button 
                         whileHover={{ background: 'rgba(255,255,255,0.06)' }}
-                        whileTap={{ scale: 0.96 }}
+                        whileTap={{ opacity: 0.85 }}
                         onClick={() => searchMods(true)}
                         style={secondaryButtonStyle}
                       >
@@ -1999,7 +1999,7 @@ export default function ModsPage({ currentPack, onBack, showConfirm, showAlert }
             <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '20px', flexShrink: 0 }}>
               <motion.button 
                 whileHover={{ background: 'rgba(255,255,255,0.06)' }}
-                whileTap={{ scale: 0.96 }}
+                whileTap={{ opacity: 0.85 }}
                 onClick={() => { setSelectedMod(null); setSelectedModData(null); }}
                 style={{ 
                   width: '38px', 
@@ -2059,7 +2059,7 @@ export default function ModsPage({ currentPack, onBack, showConfirm, showAlert }
                         {selectedModData.title}
                       </h2>
                       <motion.button
-                        whileTap={{ scale: 0.9 }}
+                        whileTap={{ opacity: 0.85 }}
                         onClick={(e) => toggleFavorite(selectedModData, e)}
                         style={{
                           background: 'rgba(255, 255, 255, 0.03)',
@@ -2082,7 +2082,7 @@ export default function ModsPage({ currentPack, onBack, showConfirm, showAlert }
                       </motion.button>
                       {selectedModData.websiteUrl && (
                         <motion.button
-                          whileTap={{ scale: 0.9 }}
+                          whileTap={{ opacity: 0.85 }}
                           onClick={() => window.electronAPI.openExternalLink(selectedModData.websiteUrl)}
                           style={{
                             background: 'rgba(255, 255, 255, 0.03)',
@@ -2211,7 +2211,7 @@ export default function ModsPage({ currentPack, onBack, showConfirm, showAlert }
                         {lang === 'ru' && !translatedBody && (
                           <motion.button
                             whileHover={{ background: 'rgba(16, 185, 129, 0.2)' }}
-                            whileTap={{ scale: 0.98 }}
+                            whileTap={{ opacity: 0.85 }}
                             onClick={handleTranslateBody}
                             disabled={translatingBody}
                             style={{
@@ -2306,7 +2306,7 @@ export default function ModsPage({ currentPack, onBack, showConfirm, showAlert }
                                 </div>
 
                                 <motion.button
-                                  whileTap={{ scale: 0.96 }}
+                                  whileTap={{ opacity: 0.85 }}
                                   onClick={() => isCurrentFileInstalled ? handleUninstallVersion(selectedModData, v.fileName) : handleInstallVersion(selectedModData, v)}
                                   style={{
                                     padding: '6px 14px',
@@ -2476,7 +2476,7 @@ export default function ModsPage({ currentPack, onBack, showConfirm, showAlert }
             >
               <motion.button 
                 whileHover={{ background: 'rgba(255,255,255,0.1)' }}
-                whileTap={{ scale: 0.9 }}
+                whileTap={{ opacity: 0.85 }}
                 onClick={() => setActiveScreenshotIndex(prev => (prev - 1 + selectedModData.gallery.length) % selectedModData.gallery.length)}
                 style={{ background: 'rgba(255,255,255,0.05)', border: 'none', color: '#fff', padding: '8px 14px', borderRadius: '8px', cursor: 'pointer', fontSize: '16px' }}
               >
@@ -2487,7 +2487,7 @@ export default function ModsPage({ currentPack, onBack, showConfirm, showAlert }
               </span>
               <motion.button 
                 whileHover={{ background: 'rgba(255,255,255,0.1)' }}
-                whileTap={{ scale: 0.9 }}
+                whileTap={{ opacity: 0.85 }}
                 onClick={() => setActiveScreenshotIndex(prev => (prev + 1) % selectedModData.gallery.length)}
                 style={{ background: 'rgba(255,255,255,0.05)', border: 'none', color: '#fff', padding: '8px 14px', borderRadius: '8px', cursor: 'pointer', fontSize: '16px' }}
               >

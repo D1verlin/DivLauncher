@@ -822,7 +822,7 @@ export default function AdminModpacksSection({ onModpacksUpdate, onManageMods, s
           </div>
           <div style={{ display: 'flex', gap: '8px' }}>
             <motion.button
-              whileTap={{ scale: 0.96 }}
+              whileTap={{ opacity: 0.85 }}
               onClick={handleCreateClick}
               style={{
                 background: 'linear-gradient(135deg, #10b981, #059669)', border: 'none',

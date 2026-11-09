@@ -232,7 +232,7 @@ export default function PublishCurseForgeModal({ isOpen, onClose, onSuccess }) {
               </div>
 
               <motion.button
-                whileTap={{ scale: 0.97 }}
+                whileTap={{ opacity: 0.85 }}
                 disabled={isInspecting || isPublishing}
                 onClick={handleSelectFile}
                 style={{
@@ -439,7 +439,7 @@ export default function PublishCurseForgeModal({ isOpen, onClose, onSuccess }) {
             </button>
 
             <motion.button
-              whileTap={{ scale: 0.98 }}
+              whileTap={{ opacity: 0.85 }}
               disabled={isPublishing || !zipPath || !packId}
               onClick={handlePublish}
               style={{

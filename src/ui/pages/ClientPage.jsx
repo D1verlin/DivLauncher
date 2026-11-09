@@ -58,10 +58,121 @@ export default function ClientPage({
   onExportLogs,
   setClientStatus,
   showConfirm,
-  showAlert
+  showAlert,
+  launchError,
+  onClearLaunchError
 }) {
   const { lang, t } = useTranslation();
   const [activeUsername, setActiveUsername] = useState(localStorage.getItem('launcher_username') || '');
+
+  // Stepper state — драйвится структурированными launch-progress объектами
+  const [stepperStage, setStepperStage] = useState('init');
+  const [stepperPercent, setStepperPercent] = useState(0);
+  const [stepperDetail, setStepperDetail] = useState('');
+
+  // Обновляем stepper при получении структурированного прогресса
+  useEffect(() => {
+    if (!status) return;
+    if (typeof status === 'object' && status !== null && status.stage) {
+      setStepperStage(status.stage);
+      setStepperPercent(typeof status.percent === 'number' ? status.percent : 0);
+      setStepperDetail(typeof status.detail === 'string' ? status.detail : String(status.detail || ''));
+    } else if (typeof status === 'string') {
+      const matchPct = status.match(/(\d{1,3})\s*%/);
+      if (matchPct) {
+        const pct = parseInt(matchPct[1], 10);
+        if (!isNaN(pct)) setStepperPercent(pct);
+      }
+
+      const s = status.toLowerCase();
+      if (s.includes('подготов') || s.includes('проверк') || s.includes('инициализ')) {
+        setStepperStage('init');
+      } else if (s.includes('мод') || s.includes('mod') || s.includes('обновление') || s.includes('установка')) {
+        setStepperStage('download_mods');
+      } else if (
+        s.includes('ресурс') || s.includes('библиот') || s.includes('assets') || 
+        s.includes('libraries') || s.includes('ассет') || s.includes('текстур') ||
+        s.includes('classes') || s.includes('natives') || s.includes('.jar') || 
+        s.includes('download-status') || s.includes('progress')
+      ) {
+        setStepperStage('download_assets');
+      } else if (s.includes('запуск minecraft') || s.includes('передача управления java') || s.includes('движок') || s.includes('запуск') || s.includes('game started')) {
+        setStepperStage('launch');
+      }
+      setStepperDetail(status);
+    }
+  }, [status]);
+
+  useEffect(() => {
+    if (typeof downloadProgress === 'number' && downloadProgress > 0) {
+      setStepperStage('download_mods');
+      setStepperPercent(downloadProgress);
+    }
+  }, [downloadProgress]);
+
+  const getLocalizedDetail = (detail) => {
+    if (!detail) return '';
+    let text = detail.replace(/^\[LOG\]/, '').trim();
+    if (text.includes('/') || text.includes('\\')) {
+      text = text.split(/[/\\]/).pop();
+    }
+    const lower = text.toLowerCase();
+
+    if (lower.startsWith('мод ') || lower.startsWith('mod ')) {
+      const match = text.match(/(?:мод|mod)\s+(\d+\/\d+):?\s*(.*)/i);
+      if (match) {
+        const count = match[1];
+        let filename = match[2] || '';
+        if (filename.includes('/') || filename.includes('\\')) {
+          filename = filename.split(/[/\\]/).pop();
+        }
+        if (filename.length > 15) {
+          filename = filename.substring(0, 12) + '...';
+        }
+        return lang === 'ru'
+          ? `Загрузка: ${filename} (${count})`
+          : `Downloading: ${filename} (${count})`;
+      }
+    }
+
+    if (lower.startsWith('classes-maven-custom') || lower.startsWith('classes-custom')) {
+      const match = text.match(/(\d+)\s*\/\s*(\d+)/);
+      if (match) {
+        return lang === 'ru' 
+          ? `Загрузка библиотек ядра: ${match[1]} из ${match[2]}`
+          : `Downloading core libraries: ${match[1]} of ${match[2]}`;
+      }
+    }
+    if (lower.startsWith('classes')) {
+      const match = text.match(/(\d+)\s*\/\s*(\d+)/);
+      if (match) {
+        return lang === 'ru' 
+          ? `Загрузка классов игры: ${match[1]} из ${match[2]}`
+          : `Downloading game classes: ${match[1]} of ${match[2]}`;
+      }
+    }
+    if (lower.startsWith('assets')) {
+      const match = text.match(/(\d+)\s*\/\s*(\d+)/);
+      if (match) {
+        return lang === 'ru' 
+          ? `Загрузка игровых ресурсов: ${match[1]} из ${match[2]}`
+          : `Downloading game assets: ${match[1]} of ${match[2]}`;
+      }
+    }
+    if (lower.startsWith('natives')) {
+      const match = text.match(/(\d+)\s*\/\s*(\d+)/);
+      if (match) {
+        return lang === 'ru' 
+          ? `Сборка нативных библиотек: ${match[1]} из ${match[2]}`
+          : `Loading native libraries: ${match[1]} of ${match[2]}`;
+      }
+    }
+
+    if (text.length > 32) {
+      return text.substring(0, 29) + '...';
+    }
+    return text;
+  };
 
   // States for playtime editing modal
   const [showEditModal, setShowEditModal] = useState(false);
@@ -69,6 +180,7 @@ export default function ClientPage({
   const [editMinutes, setEditMinutes] = useState('0');
 
   const getLogColor = (log) => {
+    if (typeof log !== 'string') return '#a1a1aa';
     if (log.includes('[ERROR]') || log.includes('[FATAL]') || log.includes('Exception') || log.toLowerCase().includes('error')) {
       return '#ef4444'; // Red
     }
@@ -85,9 +197,8 @@ export default function ClientPage({
     const handleSettingsUpdate = () => {
       setActiveUsername(localStorage.getItem('launcher_username') || '');
     };
-    window.addEventListener('settings-changed', handleSettingsUpdate);
-    handleSettingsUpdate();
-    return () => window.removeEventListener('settings-changed', handleSettingsUpdate);
+    window.addEventListener('storage', handleSettingsUpdate);
+    return () => window.removeEventListener('storage', handleSettingsUpdate);
   }, []);
 
   // --- УМНАЯ ПРОВЕРКА ВЕРСИИ И УСТАНОВКИ ---
@@ -130,7 +241,7 @@ export default function ClientPage({
   };
 
   const handleOpenEditModal = () => {
-    const totalMins = Math.floor(playtime / 60000);
+    const totalMins = Math.floor((playtime || 0) / 60000);
     const h = Math.floor(totalMins / 60);
     const m = totalMins % 60;
     setEditHours(String(h));
@@ -139,21 +250,28 @@ export default function ClientPage({
   };
 
   const handleSavePlaytime = () => {
-    const h = parseInt(editHours, 10);
-    const m = parseInt(editMinutes, 10);
-    if (isNaN(h) || isNaN(m) || h < 0 || m < 0 || m >= 60) {
-      showAlert(t('error'), t('client_playtime_invalid_input'));
-      return;
+    const h = parseInt(editHours, 10) || 0;
+    const m = parseInt(editMinutes, 10) || 0;
+    const newMs = (h * 60 + m) * 60000;
+    if (onPlaytimeChange) {
+      onPlaytimeChange(newMs);
     }
-    const newPlaytime = (h * 60 + m) * 60000;
-    localStorage.setItem(`playtime_${currentPack.id}`, String(newPlaytime));
-    onPlaytimeChange(newPlaytime);
+    if (currentPack) {
+      localStorage.setItem(`playtime_${currentPack.id}`, newMs);
+    }
     setShowEditModal(false);
   };
 
   const handleResetPlaytime = () => {
+    if (onPlaytimeChange) {
+      onPlaytimeChange(0);
+    }
+    if (currentPack) {
+      localStorage.setItem(`playtime_${currentPack.id}`, '0');
+    }
     setEditHours('0');
     setEditMinutes('0');
+    setShowEditModal(false);
   };
 
   const containerVariants = {
@@ -166,31 +284,48 @@ export default function ClientPage({
     visible: { opacity: 1, x: 0, transition: { type: "spring", stiffness: 300, damping: 24 } }
   };
 
+  // Определяем этапы Stepperа
+  const STEPS = [
+    { id: 'init',            label: lang === 'ru' ? 'Подготовка'    : 'Preparation' },
+    { id: 'download_mods',   label: lang === 'ru' ? 'Модификации' : 'Modifications' },
+    { id: 'download_assets', label: lang === 'ru' ? 'Ресурсы'       : 'Resources' },
+    { id: 'launch',          label: lang === 'ru' ? 'Запуск'         : 'Launch' },
+  ];
+  const stepIndex = STEPS.findIndex(s => s.id === stepperStage);
+  const activeStepIdx = stepIndex >= 0 ? stepIndex : 0;
+
+  const isShowStepper = isUpdating || isLaunching || downloadProgress > 0 || (typeof status === 'string' && (status.includes('%') || status.includes('Скачивание') || status.includes('Установка') || status.includes('Запуск') || status.includes('Загрузка')));
+
   return (
     <div style={{ 
-      display: 'flex', flexDirection: 'column', justifyContent: 'center', 
-      alignItems: 'flex-start', height: '100%', width: '100%', paddingLeft: '60px' 
+      display: 'flex', height: '100%', width: '100%', overflow: 'hidden', position: 'relative'
     }}>
+      {/* Левая колонка с информацией о сборке и кнопками */}
+      <div style={{ 
+        flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', 
+        alignItems: 'flex-start', height: '100%', paddingLeft: '60px',
+        transition: 'all 0.4s ease'
+      }}>
       
-      {(isLaunching || isUpdating) && <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 999, cursor: 'wait' }} />}
+        {(isLaunching || isUpdating) && <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 999, cursor: 'wait' }} />}
 
-      <motion.div variants={containerVariants} initial="hidden" animate="visible" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', maxWidth: '600px', zIndex: 1 }}>
-        <>
+        <motion.div variants={containerVariants} initial="hidden" animate="visible" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', maxWidth: '520px', zIndex: 1 }}>
           {currentPack.logo && (
             <motion.img 
-              variants={itemVariants} 
+              variants={itemVariants}
               src={currentPack.logo} 
               alt={currentPack.name} 
               onError={(e) => { e.target.style.display = 'none'; }}
-              style={{ height: '140px', width: 'auto', maxWidth: '100%', objectFit: 'contain', marginBottom: '15px', filter: 'drop-shadow(0px 10px 20px rgba(0,0,0,0.8))' }} 
+              style={{ maxHeight: '120px', maxWidth: '400px', objectFit: 'contain', marginBottom: '20px', filter: 'drop-shadow(0 10px 20px rgba(0,0,0,0.8))' }} 
             />
           )}
+
           <motion.div 
             variants={itemVariants}
             style={{ display: 'flex', alignItems: 'center', gap: '20px', marginBottom: currentPack.logo ? '10px' : '20px' }}
           >
             {!currentPack.logo && currentPack.icon && (
-              currentPack.icon.startsWith('fa-') ? (
+              (typeof currentPack.icon === 'string' && currentPack.icon.startsWith('fa-')) ? (
                 <i className={currentPack.icon} style={{ fontSize: '44px', color: currentPack.titleColor && !currentPack.titleColor.includes('gradient') ? currentPack.titleColor : '#60a5fa', filter: 'drop-shadow(0 5px 15px rgba(0,0,0,0.5))' }} />
               ) : (
                 <img src={currentPack.icon} alt={currentPack.name} style={{ width: '56px', height: '56px', objectFit: 'contain', borderRadius: '14px', filter: 'drop-shadow(0 5px 15px rgba(0,0,0,0.5))' }} />
@@ -199,215 +334,269 @@ export default function ClientPage({
             <h1 
               key={currentPack.titleColor || 'default'}
               style={{ 
-                fontSize: currentPack.logo ? '38px' : '44px', 
-                fontWeight: currentPack.logo ? 900 : 950, 
+                fontFamily: 'Montserrat', 
+                fontWeight: 900, 
+                fontSize: '38px', 
                 margin: 0, 
-                textTransform: 'uppercase', 
-                letterSpacing: currentPack.logo ? '1px' : '1.5px', 
+                letterSpacing: '1px',
+                color: currentPack.titleColor || '#ffffff',
                 ...(currentPack.titleColor && currentPack.titleColor.includes('gradient') ? {
                   background: currentPack.titleColor,
                   WebkitBackgroundClip: 'text',
-                  WebkitTextFillColor: 'transparent',
-                  color: 'transparent',
-                  filter: 'drop-shadow(0 4px 10px rgba(0,0,0,0.5))',
-                  textShadow: 'none'
-                } : currentPack.titleColor ? {
-                  color: currentPack.titleColor,
-                  textShadow: '0 5px 15px rgba(0,0,0,0.9)',
-                  background: 'none',
-                  WebkitBackgroundClip: 'unset',
-                  WebkitTextFillColor: 'unset'
-                } : !currentPack.logo ? {
-                  background: 'linear-gradient(90deg, #60a5fa, #c084fc)',
-                  WebkitBackgroundClip: 'text',
-                  WebkitTextFillColor: 'transparent',
-                  color: 'transparent',
-                  filter: 'drop-shadow(0 4px 10px rgba(0,0,0,0.5))',
-                  textShadow: 'none'
-                } : {
-                  color: '#fff',
-                  textShadow: '0 5px 15px rgba(0,0,0,0.9)',
-                  background: 'none',
-                  WebkitBackgroundClip: 'unset',
-                  WebkitTextFillColor: 'unset'
-                })
+                  WebkitTextFillColor: 'transparent'
+                } : {}),
+                textShadow: '0 5px 15px rgba(0,0,0,0.5)'
               }}
             >
               {currentPack.name}
             </h1>
           </motion.div>
-        </>
-        <motion.div variants={itemVariants} style={{ display: 'flex', alignItems: 'center', gap: '15px', minHeight: '30px', marginBottom: '35px', position: 'relative', width: '100%' }}>
-          <div style={{ background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.05)', padding: '6px 12px', borderRadius: '10px', fontSize: '13px', color: '#a1a1aa', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px', boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.3)', flexShrink: 0 }}>
-            <i className="fa-regular fa-clock" style={{ color: '#3b82f6' }}></i>
-            {t('client_playtime')}
-            <span style={{ color: '#fff' }}>{formatPlaytime(playtime, t)}</span>
-            <motion.button 
-              whileHover={{ color: '#f59e0b' }} 
-              whileTap={{ scale: 0.95 }}
-              onClick={handleOpenEditModal}
-              title={t('client_playtime_edit')}
-              style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.4)', cursor: 'pointer', fontSize: '12px', padding: '0 4px', display: 'flex', alignItems: 'center', marginLeft: '4px' }}
-            >
-              <i className="fa-solid fa-pen"></i>
-            </motion.button>
-          </div>
-          <p style={{ 
-            fontSize: '15px', 
-            color: isAnotherPackRunning ? '#ef4444' : (isLaunching || isUpdating) ? '#34d399' : (isPlaying ? '#60a5fa' : ((needsInstall || needsUpdate) ? '#f59e0b' : '#e4e4e7')), 
-            fontWeight: 600, 
-            margin: 0, 
-            textShadow: '0 2px 6px rgba(0,0,0,1)', 
-            transition: 'color 0.3s',
-            whiteSpace: 'nowrap',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            maxWidth: '350px'
-          }}>
-            {isAnotherPackRunning ? `${t('client_another_pack_running')} ${runningPackName}` : status}
-          </p>
-        </motion.div>
 
-        <AnimatePresence>
-          {isUpdating && (
-            <motion.div 
-              initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} 
-              style={{ width: '100%', marginBottom: '20px', overflow: 'hidden' }}
+          {currentPack.description && (
+            <motion.p 
+              variants={itemVariants}
+              style={{ fontSize: '14px', color: 'rgba(255,255,255,0.7)', margin: '0 0 25px 0', maxWidth: '500px', lineHeight: '1.6', textShadow: '0 2px 4px rgba(0,0,0,0.8)' }}
             >
-              <div style={{ width: '100%', height: '6px', background: 'rgba(255,255,255,0.1)', borderRadius: '10px', overflow: 'hidden' }}>
-                <motion.div animate={{ width: `${downloadProgress}%` }} style={{ height: '100%', background: '#3b82f6', boxShadow: '0 0 10px #3b82f6' }} />
+              {currentPack.description}
+            </motion.p>
+          )}
+
+          <motion.div variants={itemVariants} style={{ display: 'flex', alignItems: 'center', gap: '15px', minHeight: '30px', marginBottom: '25px', position: 'relative', width: '100%' }}>
+            <div style={{ background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.05)', padding: '6px 12px', borderRadius: '10px', fontSize: '13px', color: '#a1a1aa', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px', boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.3)', flexShrink: 0 }}>
+              <i className="fa-regular fa-clock" style={{ color: '#3b82f6' }}></i>
+              {t('client_playtime')}
+              <span style={{ color: '#fff' }}>{formatPlaytime(playtime, t)}</span>
+              <motion.button 
+                whileHover={{ color: '#f59e0b' }} 
+                whileTap={{ opacity: 0.85 }}
+                onClick={handleOpenEditModal}
+                title={t('client_playtime_edit')}
+                style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.4)', cursor: 'pointer', fontSize: '12px', padding: '0 4px', display: 'flex', alignItems: 'center', marginLeft: '4px' }}
+              >
+                <i className="fa-solid fa-pen"></i>
+              </motion.button>
+            </div>
+            
+            {!isShowStepper && (
+              <p style={{ 
+                fontSize: '15px', 
+                color: isAnotherPackRunning ? '#ef4444' : (isPlaying ? '#60a5fa' : ((needsInstall || needsUpdate) ? '#f59e0b' : '#e4e4e7')), 
+                fontWeight: 600, 
+                margin: 0, 
+                textShadow: '0 2px 6px rgba(0,0,0,1)', 
+                transition: 'color 0.3s',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                maxWidth: '350px'
+              }}>
+                {isAnotherPackRunning ? `${t('client_another_pack_running')} ${runningPackName}` : (isPlaying ? t('client_playing') : '')}
+              </p>
+            )}
+          </motion.div>
+
+          <motion.div variants={itemVariants} style={{ display: 'flex', gap: '15px', zIndex: 10 }}>
+            <motion.button 
+              whileHover={!(isLaunching || isUpdating || isAnotherPackRunning) ? { boxShadow: isPlaying ? '0 10px 30px rgba(239, 68, 68, 0.5)' : ((needsInstall || needsUpdate) ? '0 10px 30px rgba(59, 130, 246, 0.5)' : '0 10px 30px rgba(16, 185, 129, 0.5)') } : {}} 
+              whileTap={!(isLaunching || isUpdating || isAnotherPackRunning) ? { scale: 0.95 } : {}} 
+              onClick={!(isLaunching || isUpdating || isAnotherPackRunning) ? handleAction : undefined} 
+              style={{ 
+                background: isAnotherPackRunning 
+                  ? 'rgba(255, 255, 255, 0.05)' 
+                  : (isLaunching || isUpdating) 
+                    ? '#059669' 
+                    : (isPlaying 
+                      ? '#ef4444' 
+                      : ((needsInstall || needsUpdate) 
+                        ? 'linear-gradient(135deg, #3b82f6, #2563eb)' 
+                        : 'linear-gradient(135deg, #10b981, #059669)')), 
+                color: isAnotherPackRunning ? '#71717a' : '#fff', 
+                border: isAnotherPackRunning ? '1px solid rgba(255, 255, 255, 0.08)' : 'none', 
+                padding: '0 40px', height: '65px', borderRadius: '20px', 
+                fontSize: '18px', fontWeight: 800, 
+                cursor: isAnotherPackRunning ? 'not-allowed' : (isLaunching || isUpdating) ? 'wait' : 'pointer', 
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '15px', textTransform: 'uppercase', 
+                letterSpacing: '1.5px', boxShadow: isAnotherPackRunning ? 'none' : '0 10px 25px rgba(0,0,0,0.6)', 
+                position: 'relative', overflow: 'hidden',
+                transition: 'background 0.3s'
+              }}
+            >
+              {(isLaunching || isUpdating) && <motion.div animate={{ x: ['-150%', '250%'] }} transition={{ repeat: Infinity, duration: 1.5, ease: "easeInOut" }} style={{ position: 'absolute', top: 0, left: 0, width: '50%', height: '100%', background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent)', transform: 'skewX(-20deg)' }} />}
+              
+              {isAnotherPackRunning ? (
+                <i className="fa-solid fa-ban"></i>
+              ) : (isLaunching || isUpdating) ? (
+                <i className="fa-solid fa-spinner fa-spin"></i>
+              ) : isPlaying ? (
+                <i className="fa-solid fa-stop"></i>
+              ) : needsInstall ? (
+                <i className="fa-solid fa-download"></i>
+              ) : needsUpdate ? (
+                <i className="fa-solid fa-cloud-arrow-down"></i>
+              ) : (
+                <i className="fa-solid fa-play"></i>
+              )} 
+              
+              {isAnotherPackRunning ? (
+                (lang === 'ru' ? 'ЗАПУЩЕНА ДРУГАЯ СБОРКА' : 'ANOTHER PACK IS RUNNING')
+              ) : isLaunching ? (
+                (lang === 'ru' ? 'ЗАПУСК...' : 'LAUNCHING...')
+              ) : isUpdating ? (
+                needsInstall 
+                  ? (lang === 'ru' ? 'УСТАНОВКА...' : 'INSTALLING...') 
+                  : (lang === 'ru' ? 'ОБНОВЛЕНИЕ...' : 'UPDATING...')
+              ) : isPlaying ? (
+                (lang === 'ru' ? 'ОСТАНОВИТЬ' : 'STOP')
+              ) : needsInstall ? (
+                t('client_install').toUpperCase()
+              ) : needsUpdate ? (
+                t('client_update').toUpperCase()
+              ) : (
+                t('client_play').toUpperCase()
+              )}
+            </motion.button>
+
+            <motion.button 
+              whileHover={!(isLaunching || isUpdating) && !isPlaying ? { background: 'rgba(0,0,0,0.8)', borderColor: 'rgba(255,255,255,0.3)' } : {}} 
+              whileTap={!(isLaunching || isUpdating) && !isPlaying ? { scale: 0.95 } : {}} 
+              onClick={!(isLaunching || isUpdating) && !isPlaying ? openSettings : undefined} 
+              style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(10px)', color: (isLaunching || isUpdating || isPlaying) ? 'rgba(255,255,255,0.3)' : '#fff', border: '1px solid rgba(255,255,255,0.1)', width: '65px', height: '65px', borderRadius: '20px', fontSize: '22px', cursor: (isLaunching || isUpdating || isPlaying) ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 10px 25px rgba(0,0,0,0.5)', transition: 'color 0.3s' }}
+              title={t('tab_settings')}
+            >
+              <i className="fa-solid fa-sliders"></i>
+            </motion.button>
+
+            <motion.button 
+              whileHover={!(isLaunching || isUpdating) && !isPlaying ? { background: 'rgba(0,0,0,0.8)', borderColor: 'rgba(255,255,255,0.3)' } : {}} 
+              whileTap={!(isLaunching || isUpdating) && !isPlaying ? { scale: 0.95 } : {}} 
+              onClick={!(isLaunching || isUpdating) && !isPlaying ? openMods : undefined} 
+              style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(10px)', color: (isLaunching || isUpdating || isPlaying) ? 'rgba(255,255,255,0.3)' : '#fff', border: '1px solid rgba(255,255,255,0.1)', width: '65px', height: '65px', borderRadius: '20px', fontSize: '22px', cursor: (isLaunching || isUpdating || isPlaying) ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 10px 25px rgba(0,0,0,0.5)', transition: 'color 0.3s' }}
+              title={t('tab_mods')}
+            >
+              <i className="fa-solid fa-puzzle-piece"></i>
+            </motion.button>
+
+            <motion.button 
+              whileHover={!(isLaunching || isUpdating) ? { background: 'rgba(0,0,0,0.8)', borderColor: 'rgba(255,255,255,0.3)' } : {}} 
+              whileTap={!(isLaunching || isUpdating) ? { scale: 0.95 } : {}} onClick={!(isLaunching || isUpdating) ? () => window.electronAPI.openClientFolder(currentPack) : undefined} 
+              style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(10px)', color: (isLaunching || isUpdating) ? 'rgba(255,255,255,0.3)' : '#fff', border: '1px solid rgba(255,255,255,0.1)', width: '65px', height: '65px', borderRadius: '20px', fontSize: '22px', cursor: (isLaunching || isUpdating) ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 10px 25px rgba(0,0,0,0.5)', transition: 'color 0.3s' }}
+              title={lang === 'ru' ? 'Папка сборки' : 'Pack Folder'}
+            >
+              <i className="fa-regular fa-folder-open"></i>
+            </motion.button>
+
+            {(isLaunching || isPlaying || consoleLogs.length > 0) && (
+              <motion.button 
+                whileHover={{ background: 'rgba(0,0,0,0.8)', borderColor: 'rgba(255,255,255,0.3)' }} 
+                whileTap={{ opacity: 0.85 }}
+                onClick={onExportLogs} 
+                style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(10px)', color: '#fff', border: '1px solid rgba(255,255,255,0.1)', width: '65px', height: '65px', borderRadius: '20px', fontSize: '22px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 10px 25px rgba(0,0,0,0.5)', transition: 'color 0.3s' }}
+                title={t('client_export_logs')}
+              >
+                <i className="fa-solid fa-file-arrow-down"></i>
+              </motion.button>
+            )}
+          </motion.div>
+        </motion.div>
+      </div>
+
+      {/* Правая колонка со степпером (Абсолютно стабильна, не двигает левый контент!) */}
+      <div style={{
+        width: '380px',
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'flex-start',
+        paddingTop: '100px',
+        paddingRight: '60px',
+        boxSizing: 'border-box'
+      }}>
+        {/* --- 4-SEGMENT DIVIDED MONOCHROME STEPPER (NO ICONS / NO RAINBOW) --- */}
+        <AnimatePresence>
+          {isShowStepper && (
+            <motion.div
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 20 }}
+              transition={{ duration: 0.3 }}
+              style={{
+                width: '100%',
+                background: 'rgba(0, 0, 0, 0.25)',
+                backdropFilter: 'blur(15px)',
+                WebkitBackdropFilter: 'blur(15px)',
+                border: 'none',
+                borderRadius: '20px',
+                padding: '18px 22px', 
+                display: 'flex', 
+                flexDirection: 'column', 
+                gap: '14px',
+                boxShadow: 'none', // Без теней!
+                boxSizing: 'border-box',
+                overflow: 'hidden'
+              }}
+            >
+              {/* Vertical Steps List */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', width: '100%' }}>
+                {STEPS.map((step, idx) => {
+                  const isDone = idx < activeStepIdx;
+                  const isActive = idx === activeStepIdx;
+                  const opacity = isDone ? 0.8 : isActive ? 1 : 0.35;
+
+                  let segPercent = 0;
+                  if (isDone) {
+                    segPercent = 100;
+                  } else if (isActive) {
+                    segPercent = Math.max(5, Math.min(100, stepperPercent > 0 ? stepperPercent : 15));
+                  }
+
+                  // Get icon for step
+                  let iconClass = 'fa-solid fa-gears';
+                  if (step.id === 'init') iconClass = 'fa-solid fa-screwdriver-wrench';
+                  if (step.id === 'download_mods') iconClass = 'fa-solid fa-puzzle-piece';
+                  if (step.id === 'download_assets') iconClass = 'fa-solid fa-download';
+                  if (step.id === 'launch') iconClass = 'fa-solid fa-rocket';
+
+                  return (
+                    <div key={step.id} style={{ display: 'flex', alignItems: 'center', gap: '15px', width: '100%' }}>
+                      {/* Step Icon */}
+                      <div style={{ 
+                        width: '36px', height: '36px', borderRadius: '10px', 
+                        background: isActive ? 'rgba(255, 255, 255, 0.15)' : 'rgba(255, 255, 255, 0.04)', 
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        color: '#fff', fontSize: '15px', opacity,
+                        boxShadow: 'none', // Без теней у иконок!
+                        transition: 'all 0.3s ease',
+                        flexShrink: 0
+                      }}>
+                        <i className={iconClass}></i>
+                      </div>
+                      {/* Step Progress Bar Segment */}
+                      <div style={{ flex: 1, height: '4px', background: 'rgba(255, 255, 255, 0.08)', borderRadius: '2px', overflow: 'hidden' }}>
+                        <motion.div
+                          animate={{ width: `${segPercent}%` }}
+                          transition={{ ease: 'linear', duration: 0.2 }}
+                          style={{ height: '100%', background: '#ffffff', opacity: isActive ? 1 : 0.7, borderRadius: '2px' }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Detail file line + % percentage */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', marginTop: '2px', width: '100%', minWidth: 0 }}>
+                <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: '10px', fontWeight: 600, fontFamily: 'Consolas, monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, minWidth: 0 }}>
+                  {getLocalizedDetail(stepperDetail)}
+                </span>
+                {stepperPercent > 0 && stepperPercent < 99 && (
+                  <span style={{ color: '#fff', fontSize: '11px', fontWeight: 800, fontFamily: 'Montserrat', flexShrink: 0 }}>
+                    {Math.round(stepperPercent)}%
+                  </span>
+                )}
               </div>
             </motion.div>
           )}
         </AnimatePresence>
-        
-        <motion.div variants={itemVariants} style={{ display: 'flex', gap: '15px', zIndex: 10 }}>
-          <motion.button 
-            whileHover={!(isLaunching || isUpdating || isAnotherPackRunning) ? { boxShadow: isPlaying ? '0 10px 30px rgba(239, 68, 68, 0.5)' : ((needsInstall || needsUpdate) ? '0 10px 30px rgba(59, 130, 246, 0.5)' : '0 10px 30px rgba(16, 185, 129, 0.5)') } : {}} 
-            whileTap={!(isLaunching || isUpdating || isAnotherPackRunning) ? { scale: 0.95 } : {}} 
-            onClick={!(isLaunching || isUpdating || isAnotherPackRunning) ? handleAction : undefined} 
-            style={{ 
-              background: isAnotherPackRunning 
-                ? 'rgba(255, 255, 255, 0.05)' 
-                : (isLaunching || isUpdating) 
-                  ? '#059669' 
-                  : (isPlaying 
-                    ? '#ef4444' 
-                    : ((needsInstall || needsUpdate) 
-                      ? 'linear-gradient(135deg, #3b82f6, #2563eb)' 
-                      : 'linear-gradient(135deg, #10b981, #059669)')), 
-              color: isAnotherPackRunning ? '#71717a' : '#fff', 
-              border: isAnotherPackRunning ? '1px solid rgba(255, 255, 255, 0.08)' : 'none', 
-              padding: '0 40px', height: '65px', borderRadius: '20px', 
-              fontSize: '18px', fontWeight: 800, 
-              cursor: isAnotherPackRunning ? 'not-allowed' : (isLaunching || isUpdating) ? 'wait' : 'pointer', 
-              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '15px', textTransform: 'uppercase', 
-              letterSpacing: '1.5px', boxShadow: isAnotherPackRunning ? 'none' : '0 10px 25px rgba(0,0,0,0.6)', 
-              position: 'relative', overflow: 'hidden',
-              transition: 'background 0.3s'
-            }}
-          >
-            {(isLaunching || isUpdating) && <motion.div animate={{ x: ['-150%', '250%'] }} transition={{ repeat: Infinity, duration: 1.5, ease: "easeInOut" }} style={{ position: 'absolute', top: 0, left: 0, width: '50%', height: '100%', background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent)', transform: 'skewX(-20deg)' }} />}
-            
-            {/* ИКОНКА */}
-            {isAnotherPackRunning ? (
-              <i className="fa-solid fa-ban"></i>
-            ) : (isLaunching || isUpdating) ? (
-              <i className="fa-solid fa-spinner fa-spin"></i>
-            ) : isPlaying ? (
-              <i className="fa-solid fa-stop"></i>
-            ) : needsInstall ? (
-              <i className="fa-solid fa-download"></i>
-            ) : needsUpdate ? (
-              <i className="fa-solid fa-cloud-arrow-down"></i>
-            ) : (
-              <i className="fa-solid fa-play"></i>
-            )} 
-            
-            {/* ТЕКСТ */}
-            {isAnotherPackRunning ? (
-              (lang === 'ru' ? 'ЗАПУЩЕНА ДРУГАЯ СБОРКА' : 'ANOTHER PACK IS RUNNING')
-            ) : isLaunching ? (
-              (lang === 'ru' ? 'ЗАПУСК...' : 'LAUNCHING...')
-            ) : isUpdating ? (
-              needsInstall 
-                ? (lang === 'ru' ? 'УСТАНОВКА...' : 'INSTALLING...') 
-                : (lang === 'ru' ? 'ОБНОВЛЕНИЕ...' : 'UPDATING...')
-            ) : isPlaying ? (
-              (lang === 'ru' ? 'ОСТАНОВИТЬ' : 'STOP')
-            ) : needsInstall ? (
-              t('client_install').toUpperCase()
-            ) : needsUpdate ? (
-              t('client_update').toUpperCase()
-            ) : (
-              t('client_play').toUpperCase()
-            )}
-          </motion.button>
-
-          <motion.button 
-            whileHover={!(isLaunching || isUpdating) && !isPlaying ? { background: 'rgba(0,0,0,0.8)', borderColor: 'rgba(255,255,255,0.3)' } : {}} 
-            whileTap={!(isLaunching || isUpdating) && !isPlaying ? { scale: 0.95 } : {}} 
-            onClick={!(isLaunching || isUpdating) && !isPlaying ? openSettings : undefined} 
-            style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(10px)', color: (isLaunching || isUpdating || isPlaying) ? 'rgba(255,255,255,0.3)' : '#fff', border: '1px solid rgba(255,255,255,0.1)', width: '65px', height: '65px', borderRadius: '20px', fontSize: '22px', cursor: (isLaunching || isUpdating || isPlaying) ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 10px 25px rgba(0,0,0,0.5)', transition: 'color 0.3s' }}
-            title={t('tab_settings')}
-          >
-            <i className="fa-solid fa-sliders"></i>
-          </motion.button>
-
-          <motion.button 
-            whileHover={!(isLaunching || isUpdating) && !isPlaying ? { background: 'rgba(0,0,0,0.8)', borderColor: 'rgba(255,255,255,0.3)' } : {}} 
-            whileTap={!(isLaunching || isUpdating) && !isPlaying ? { scale: 0.95 } : {}} 
-            onClick={!(isLaunching || isUpdating) && !isPlaying ? openMods : undefined} 
-            style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(10px)', color: (isLaunching || isUpdating || isPlaying) ? 'rgba(255,255,255,0.3)' : '#fff', border: '1px solid rgba(255,255,255,0.1)', width: '65px', height: '65px', borderRadius: '20px', fontSize: '22px', cursor: (isLaunching || isUpdating || isPlaying) ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 10px 25px rgba(0,0,0,0.5)', transition: 'color 0.3s' }}
-            title={t('tab_mods')}
-          >
-            <i className="fa-solid fa-puzzle-piece"></i>
-          </motion.button>
-
-          <motion.button 
-            whileHover={!(isLaunching || isUpdating) ? { background: 'rgba(0,0,0,0.8)', borderColor: 'rgba(255,255,255,0.3)' } : {}} 
-            whileTap={!(isLaunching || isUpdating) ? { scale: 0.95 } : {}} onClick={!(isLaunching || isUpdating) ? () => window.electronAPI.openClientFolder(currentPack) : undefined} 
-            style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(10px)', color: (isLaunching || isUpdating) ? 'rgba(255,255,255,0.3)' : '#fff', border: '1px solid rgba(255,255,255,0.1)', width: '65px', height: '65px', borderRadius: '20px', fontSize: '22px', cursor: (isLaunching || isUpdating) ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 10px 25px rgba(0,0,0,0.5)', transition: 'color 0.3s' }}
-            title={lang === 'ru' ? 'Папка сборки' : 'Pack Folder'}
-          >
-            <i className="fa-regular fa-folder-open"></i>
-          </motion.button>
-
-          {(isLaunching || isPlaying || consoleLogs.length > 0) && (
-            <motion.button 
-              initial={{ scale: 0.8, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              whileHover={{ background: 'rgba(0,0,0,0.8)', borderColor: 'rgba(255,255,255,0.3)' }} 
-              whileTap={{ scale: 0.95 }}
-              onClick={onExportLogs} 
-              style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(10px)', color: '#fff', border: '1px solid rgba(255,255,255,0.1)', width: '65px', height: '65px', borderRadius: '20px', fontSize: '22px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 10px 25px rgba(0,0,0,0.5)', transition: 'color 0.3s' }}
-              title={t('client_export_logs')}
-            >
-              <i className="fa-solid fa-file-arrow-down"></i>
-            </motion.button>
-          )}
-
-        </motion.div>
-
-        <AnimatePresence>
-          {isLaunching && (
-            <motion.div
-              initial={{ opacity: 0, height: 0, y: -20 }} animate={{ opacity: 1, height: 'auto', y: 0 }} exit={{ opacity: 0, height: 0, y: -20 }} transition={{ duration: 0.4, type: "spring" }}
-              style={{ marginTop: '15px', width: '100%', maxWidth: '600px', padding: '10px 15px', borderRadius: '16px', WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, black 60%)', maskImage: 'linear-gradient(to bottom, transparent 0%, black 60%)', display: 'flex', flexDirection: 'column', gap: '4px' }}
-            >
-              {consoleLogs.map((log, index) => (
-                <div 
-                  key={index}
-                  style={{ fontFamily: 'Consolas, monospace', fontSize: '12px', color: index === consoleLogs.length - 1 ? '#34d399' : getLogColor(log), whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', textShadow: '0 1px 4px rgba(0,0,0,0.8)', transition: 'color 0.2s' }}
-                >
-                  {log}
-                </div>
-              ))}
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-      </motion.div>
+      </div>
 
       {/* --- PLAYTIME EDITING MODAL (GLASSMORPHIC) --- */}
       <AnimatePresence>
@@ -485,7 +674,7 @@ export default function ClientPage({
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '20px' }}>
                 <div style={{ display: 'flex', gap: '10px' }}>
                   <motion.button 
-                    whileTap={{ scale: 0.98 }} 
+                    whileTap={{ opacity: 0.85 }} 
                     onClick={() => setShowEditModal(false)}
                     style={{
                       flex: 1, padding: '12px', borderRadius: '12px',
@@ -496,7 +685,7 @@ export default function ClientPage({
                     {t('cancel')}
                   </motion.button>
                   <motion.button 
-                    whileTap={{ scale: 0.98 }} 
+                    whileTap={{ opacity: 0.85 }} 
                     onClick={handleSavePlaytime}
                     style={{
                       flex: 1, padding: '12px', borderRadius: '12px',
@@ -509,7 +698,7 @@ export default function ClientPage({
                 </div>
 
                 <motion.button 
-                  whileTap={{ scale: 0.99 }} 
+                  whileTap={{ opacity: 0.85 }} 
                   onClick={handleResetPlaytime}
                   style={{
                     width: '100%', padding: '10px', borderRadius: '12px',
@@ -525,6 +714,97 @@ export default function ClientPage({
           </motion.div>
         )}
       </AnimatePresence>
+
+
+      {/* --- ERROR PANEL (slide in from right) --- */}
+      <AnimatePresence>
+        {launchError && (
+          <motion.div
+            initial={{ x: '100%', opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            exit={{ x: '100%', opacity: 0 }}
+            transition={{ type: 'spring', stiffness: 220, damping: 26 }}
+            style={{
+              position: 'absolute',
+              top: 0, right: 0, bottom: 0,
+              width: '340px', zIndex: 100,
+              background: 'rgba(255, 255, 255, 0.05)',
+              backdropFilter: 'blur(30px)',
+              WebkitBackdropFilter: 'blur(30px)',
+              borderLeft: '1px solid rgba(255, 255, 255, 0.08)',
+              display: 'flex', flexDirection: 'column', padding: '24px 20px', gap: '16px',
+              boxSizing: 'border-box',
+              boxShadow: 'none',
+              overflow: 'hidden'
+            }}
+          >
+            {/* Header */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{
+                  width: '32px', height: '32px', borderRadius: '10px', flexShrink: 0,
+                  background: 'rgba(255, 255, 255, 0.06)', border: '1px solid rgba(255, 255, 255, 0.1)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center'
+                }}>
+                  <i className="fa-solid fa-triangle-exclamation" style={{ color: '#ffffff', opacity: 0.9, fontSize: '14px' }} />
+                </div>
+                <span style={{ color: '#ffffff', opacity: 0.9, fontSize: '13px', fontWeight: 800, fontFamily: 'Montserrat' }}>
+                  {lang === 'ru' ? 'Ошибка запуска' : 'Launch Error'}
+                </span>
+              </div>
+              <motion.button whileTap={{ opacity: 0.85 }} onClick={onClearLaunchError}
+                style={{ background: 'none', border: 'none', color: 'rgba(255, 255, 255, 0.4)', cursor: 'pointer', fontSize: '16px', padding: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <i className="fa-solid fa-xmark" />
+              </motion.button>
+            </div>
+
+            {/* Stacktrace */}
+            <div style={{
+              flex: 1, overflow: 'hidden',
+              background: 'rgba(0, 0, 0, 0.20)', borderRadius: '12px',
+              border: '1px solid rgba(255, 255, 255, 0.06)', padding: '12px',
+              boxSizing: 'border-box'
+            }}>
+              <pre style={{
+                color: 'rgba(255, 255, 255, 0.75)', fontSize: '11px', fontFamily: 'Consolas, monospace',
+                margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-all',
+                overflowY: 'auto', height: '100%', lineHeight: '1.5'
+              }}>
+                {launchError}
+              </pre>
+            </div>
+
+            {/* Buttons */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <motion.button
+                whileHover={{ background: 'rgba(255, 255, 255, 0.12)' }} whileTap={{ opacity: 0.85 }}
+                onClick={() => navigator.clipboard.writeText(launchError)}
+                style={{
+                  background: 'rgba(255, 255, 255, 0.06)', border: '1px solid rgba(255, 255, 255, 0.1)',
+                  color: '#ffffff', borderRadius: '11px', padding: '10px',
+                  fontFamily: 'Montserrat', fontWeight: 700, fontSize: '12px', cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'
+                }}
+              >
+                <i className="fa-solid fa-copy" style={{ color: '#ffffff', opacity: 0.8 }} />
+                {lang === 'ru' ? 'Копировать ошибку' : 'Copy Error'}
+              </motion.button>
+              <motion.button
+                whileHover={{ background: 'rgba(255, 255, 255, 0.08)' }} whileTap={{ opacity: 0.85 }}
+                onClick={onClearLaunchError}
+                style={{
+                  background: 'rgba(255, 255, 255, 0.02)', border: '1px solid rgba(255, 255, 255, 0.05)',
+                  color: 'rgba(255, 255, 255, 0.4)', borderRadius: '11px', padding: '10px',
+                  fontFamily: 'Montserrat', fontWeight: 700, fontSize: '12px', cursor: 'pointer'
+                }}
+              >
+                {lang === 'ru' ? 'Закрыть' : 'Dismiss'}
+              </motion.button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
     </div>
   );
 }

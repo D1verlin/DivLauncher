@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import * as skinview3d from 'skinview3d';
 import { getBadgeStyle, getBadgeText } from '../utils/badgeHelper';
 import { useTranslation } from '../utils/i18n';
+import { getAvatarUrl } from '../utils/pathUtils';
 
 // Glass card styling helper
 const glassCard = {
@@ -345,7 +346,7 @@ function TwoFactorSetupView({ setupData, onBack, onComplete, lang }) {
           </h3>
         </div>
         <motion.button
-          whileTap={{ scale: 0.95 }}
+          whileTap={{ opacity: 0.85 }}
           onClick={onBack}
           style={{
             background: 'rgba(255, 255, 255, 0.05)',
@@ -384,7 +385,7 @@ function TwoFactorSetupView({ setupData, onBack, onComplete, lang }) {
               {setupData.secret}
             </div>
             <motion.button
-              whileTap={{ scale: 0.98 }}
+              whileTap={{ opacity: 0.85 }}
               onClick={copySecret}
               style={{
                 background: 'rgba(192, 132, 252, 0.12)',
@@ -486,7 +487,7 @@ function TwoFactorSetupView({ setupData, onBack, onComplete, lang }) {
 
       <div style={{ display: 'flex', gap: '10px', marginTop: '4px' }}>
         <motion.button
-          whileTap={{ scale: 0.98 }}
+          whileTap={{ opacity: 0.85 }}
           onClick={handleEnable}
           disabled={loading}
           style={{
@@ -554,7 +555,7 @@ function TwoFactorDisableView({ onBack, onComplete, lang }) {
           </h3>
         </div>
         <motion.button
-          whileTap={{ scale: 0.95 }}
+          whileTap={{ opacity: 0.85 }}
           onClick={onBack}
           style={{
             background: 'rgba(255, 255, 255, 0.05)',
@@ -606,7 +607,7 @@ function TwoFactorDisableView({ onBack, onComplete, lang }) {
 
       <div style={{ display: 'flex', gap: '10px', marginTop: '6px' }}>
         <motion.button
-          whileTap={{ scale: 0.98 }}
+          whileTap={{ opacity: 0.85 }}
           onClick={handleDisable}
           disabled={loading}
           style={{
@@ -1020,9 +1021,9 @@ export default function ProfilePage({ profile: initialProfile, isOwnProfile = tr
 
   const currentBgStyle = profileBgType === 'preset'
     ? { background: PRESET_GRADIENTS[profileBgValue] || PRESET_GRADIENTS['preset-1'] }
-    : { backgroundImage: `url(${profileBgValue.startsWith('/') ? authServerUrl + profileBgValue : profileBgValue})`, backgroundSize: 'cover', backgroundPosition: 'center' };
+    : { backgroundImage: `url(${getAvatarUrl(profileBgValue)})`, backgroundSize: 'cover', backgroundPosition: 'center' };
 
-  const finalAvatarUrl = avatarUrl.startsWith('/') ? authServerUrl + avatarUrl : avatarUrl;
+  const finalAvatarUrl = getAvatarUrl(avatarUrl);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
@@ -1032,7 +1033,7 @@ export default function ProfilePage({ profile: initialProfile, isOwnProfile = tr
         <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
           {!isOwnProfile && (
             <motion.button
-              whileTap={{ scale: 0.95 }}
+              whileTap={{ opacity: 0.85 }}
               onClick={onBack}
               style={{
                 background: 'rgba(255, 255, 255, 0.05)',
@@ -1064,8 +1065,8 @@ export default function ProfilePage({ profile: initialProfile, isOwnProfile = tr
         {/* Eye Preview Toggle Button */}
         {isOwnProfile && (
           <motion.button
-            whileHover={{ scale: 1.03, boxShadow: '0 0 20px rgba(167, 139, 250, 0.3)' }}
-            whileTap={{ scale: 0.97 }}
+            whileHover={{ opacity: 0.9, boxShadow: '0 0 20px rgba(167, 139, 250, 0.3)' }}
+            whileTap={{ opacity: 0.85 }}
             onClick={() => setIsPreviewMode(!isPreviewMode)}
             style={{
               background: isPreviewMode
@@ -1199,7 +1200,7 @@ export default function ProfilePage({ profile: initialProfile, isOwnProfile = tr
                       {lang === 'ru' ? 'Кастомизация профиля недоступна. Войдите с учётной записью сервера.' : 'Profile customization unavailable. Please login with a server account.'}
                     </div>
                   </div>
-                  <motion.button whileTap={{ scale: 0.95 }} onClick={onLogout} style={{
+                  <motion.button whileTap={{ opacity: 0.85 }} onClick={onLogout} style={{
                     background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', color: '#f87171',
                     padding: '10px 20px', borderRadius: '12px', cursor: 'pointer', fontFamily: 'Montserrat',
                     fontWeight: 800, fontSize: '12px', display: 'flex', alignItems: 'center', gap: '8px'
@@ -1334,7 +1335,7 @@ export default function ProfilePage({ profile: initialProfile, isOwnProfile = tr
                             {/* Studio Controls */}
                             <div style={{ display: 'flex', gap: '8px', width: '100%' }}>
                               <motion.button
-                                whileTap={{ scale: 0.94 }}
+                                whileTap={{ opacity: 0.85 }}
                                 onClick={() => setStudioAutoRotate(!studioAutoRotate)}
                                 style={{
                                   flex: 1,
@@ -1358,7 +1359,7 @@ export default function ProfilePage({ profile: initialProfile, isOwnProfile = tr
                               </motion.button>
 
                               <motion.button
-                                whileTap={{ scale: 0.94 }}
+                                whileTap={{ opacity: 0.85 }}
                                 onClick={() => setStudioIsWalking(!studioIsWalking)}
                                 style={{
                                   flex: 1,
@@ -1393,8 +1394,8 @@ export default function ProfilePage({ profile: initialProfile, isOwnProfile = tr
                               </label>
                               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                                 <motion.div
-                                  whileHover={{ scale: 1.01 }}
-                                  whileTap={{ scale: 0.98 }}
+                                  whileHover={{ opacity: 0.9 }}
+                                  whileTap={{ opacity: 0.85 }}
                                   onClick={() => skinVariant !== 'classic' && handleToggleSkinVariant()}
                                   style={{
                                     padding: '12px 14px',
@@ -1425,8 +1426,8 @@ export default function ProfilePage({ profile: initialProfile, isOwnProfile = tr
                                 </motion.div>
 
                                 <motion.div
-                                  whileHover={{ scale: 1.01 }}
-                                  whileTap={{ scale: 0.98 }}
+                                  whileHover={{ opacity: 0.9 }}
+                                  whileTap={{ opacity: 0.85 }}
                                   onClick={() => skinVariant !== 'slim' && handleToggleSkinVariant()}
                                   style={{
                                     padding: '12px 14px',
@@ -1488,8 +1489,8 @@ export default function ProfilePage({ profile: initialProfile, isOwnProfile = tr
                               </div>
 
                               <motion.button
-                                whileHover={{ scale: 1.03, boxShadow: '0 0 16px rgba(167,139,250,0.35)' }}
-                                whileTap={{ scale: 0.96 }}
+                                whileHover={{ opacity: 0.9, boxShadow: '0 0 16px rgba(167,139,250,0.35)' }}
+                                whileTap={{ opacity: 0.85 }}
                                 onClick={handleUploadSkin}
                                 style={{
                                   background: 'linear-gradient(135deg, #8b5cf6, #6d28d9)',
@@ -1542,8 +1543,8 @@ export default function ProfilePage({ profile: initialProfile, isOwnProfile = tr
                               </div>
 
                               <motion.button
-                                whileHover={{ scale: 1.03, boxShadow: '0 0 16px rgba(16,185,129,0.35)' }}
-                                whileTap={{ scale: 0.96 }}
+                                whileHover={{ opacity: 0.9, boxShadow: '0 0 16px rgba(16,185,129,0.35)' }}
+                                whileTap={{ opacity: 0.85 }}
                                 onClick={handleUploadCape}
                                 style={{
                                   background: 'linear-gradient(135deg, #10b981, #059669)',
@@ -1586,14 +1587,14 @@ export default function ProfilePage({ profile: initialProfile, isOwnProfile = tr
                           </h3>
                           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '10px' }}>
                             {Object.keys(PRESET_GRADIENTS).map((key) => (
-                              <motion.button key={key} whileTap={{ scale: 0.95 }} onClick={() => handleSelectPreset(key)} style={{
+                              <motion.button key={key} whileTap={{ opacity: 0.85 }} onClick={() => handleSelectPreset(key)} style={{
                                 width: '36px', height: '36px', borderRadius: '50%',
                                 border: profileBgType === 'preset' && profileBgValue === key ? '3px solid #fff' : '2px solid rgba(255,255,255,0.1)',
                                 background: PRESET_GRADIENTS[key], cursor: 'pointer'
                               }} title={key} />
                             ))}
                           </div>
-                          <motion.button whileTap={{ scale: 0.97 }} onClick={handleUploadBackground} style={{
+                          <motion.button whileTap={{ opacity: 0.85 }} onClick={handleUploadBackground} style={{
                             background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',
                             color: '#fff', padding: '9px 14px', borderRadius: '10px', cursor: 'pointer',
                             fontSize: '11px', fontWeight: 800, fontFamily: 'Montserrat', display: 'flex', alignItems: 'center', gap: '8px'
@@ -1627,7 +1628,7 @@ export default function ProfilePage({ profile: initialProfile, isOwnProfile = tr
                             </div>
                             {avatarType === 'custom' && (
                               <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                <motion.button whileTap={{ scale: 0.97 }} onClick={handleUploadAvatar} style={{
+                                <motion.button whileTap={{ opacity: 0.85 }} onClick={handleUploadAvatar} style={{
                                   background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',
                                   color: '#fff', padding: '9px 14px', borderRadius: '10px', cursor: 'pointer',
                                   fontSize: '11px', fontWeight: 800, fontFamily: 'Montserrat', display: 'flex', alignItems: 'center', gap: '8px'
@@ -1648,7 +1649,7 @@ export default function ProfilePage({ profile: initialProfile, isOwnProfile = tr
                                 {['#a78bfa', '#10b981', '#3b82f6', '#f59e0b', '#ec4899', '#ef4444', '#06b6d4', '#eab308'].map(color => (
                                   <motion.button
                                     key={color}
-                                    whileTap={{ scale: 0.9 }}
+                                    whileTap={{ opacity: 0.85 }}
                                     onClick={() => handleSelectBorderColor(color)}
                                     style={{
                                       width: '28px', height: '28px', borderRadius: '50%',
@@ -1692,7 +1693,7 @@ export default function ProfilePage({ profile: initialProfile, isOwnProfile = tr
                                 style={{ ...inputStyle, minHeight: '60px', resize: 'vertical', fontFamily: 'Montserrat' }} maxLength={150} />
                             </div>
                             <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                              <motion.button whileTap={{ scale: 0.95 }} onClick={handleSaveStatus} style={{
+                              <motion.button whileTap={{ opacity: 0.85 }} onClick={handleSaveStatus} style={{
                                 background: 'linear-gradient(135deg, #a78bfa, #7c3aed)', border: 'none', color: '#fff',
                                 padding: '8px 20px', borderRadius: '10px', cursor: 'pointer', fontSize: '11px', fontWeight: 800, fontFamily: 'Montserrat'
                               }}>
@@ -1740,14 +1741,14 @@ export default function ProfilePage({ profile: initialProfile, isOwnProfile = tr
                             </div>
                             <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '2px' }}>
                               {twoFactorEnabled ? (
-                                <motion.button whileTap={{ scale: 0.98 }} onClick={() => setActiveTab('2fa_disable')} style={{
+                                <motion.button whileTap={{ opacity: 0.85 }} onClick={() => setActiveTab('2fa_disable')} style={{
                                   background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.3)', color: '#f87171',
                                   padding: '7px 14px', borderRadius: '9px', fontWeight: 800, fontSize: '11px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px'
                                 }}>
                                   <i className="fa-solid fa-unlock" />{lang === 'ru' ? 'Отключить 2FA' : 'Disable 2FA'}
                                 </motion.button>
                               ) : (
-                                <motion.button whileTap={{ scale: 0.98 }} onClick={handleStart2FA} style={{
+                                <motion.button whileTap={{ opacity: 0.85 }} onClick={handleStart2FA} style={{
                                   background: 'rgba(192,132,252,0.15)', border: '1px solid rgba(192,132,252,0.35)', color: '#c084fc',
                                   padding: '7px 14px', borderRadius: '9px', fontWeight: 800, fontSize: '11px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px'
                                 }}>
@@ -1776,7 +1777,7 @@ export default function ProfilePage({ profile: initialProfile, isOwnProfile = tr
                                   <div style={{ fontSize: '12px', color: '#fff', fontWeight: 600, marginTop: '1px' }}>{profile.google_email}</div>
                                 </div>
                               </div>
-                              <motion.button whileTap={{ scale: 0.95 }} onClick={handleUnlinkGoogle} disabled={googleLoading} style={{
+                              <motion.button whileTap={{ opacity: 0.85 }} onClick={handleUnlinkGoogle} disabled={googleLoading} style={{
                                 background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)', color: '#f87171',
                                 padding: '6px 12px', borderRadius: '8px', cursor: googleLoading ? 'wait' : 'pointer', fontFamily: 'Montserrat', fontSize: '10px', fontWeight: 800
                               }}>Отвязать</motion.button>
@@ -1792,7 +1793,7 @@ export default function ProfilePage({ profile: initialProfile, isOwnProfile = tr
                                   <div style={{ fontSize: '12px', color: '#fff', fontWeight: 600, marginTop: '1px' }}>Привяжите Google для защиты аккаунта</div>
                                 </div>
                               </div>
-                              <motion.button whileTap={{ scale: 0.95 }} onClick={handleLinkGoogle} disabled={googleLoading} style={{
+                              <motion.button whileTap={{ opacity: 0.85 }} onClick={handleLinkGoogle} disabled={googleLoading} style={{
                                 background: 'linear-gradient(135deg, #10b981, #059669)', border: 'none', color: '#fff',
                                 padding: '7px 12px', borderRadius: '8px', cursor: googleLoading ? 'wait' : 'pointer',
                                 fontFamily: 'Montserrat', fontSize: '11px', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '6px'
@@ -1817,7 +1818,7 @@ export default function ProfilePage({ profile: initialProfile, isOwnProfile = tr
                               <input type="password" placeholder={lang === 'ru' ? 'Повторите новый' : 'Confirm New'} value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} style={inputStyle} required />
                             </div>
                             <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                              <motion.button whileTap={{ scale: 0.95 }} type="submit" disabled={passwordLoading} style={{
+                              <motion.button whileTap={{ opacity: 0.85 }} type="submit" disabled={passwordLoading} style={{
                                 background: 'linear-gradient(135deg, #f59e0b, #d97706)', border: 'none', color: '#fff',
                                 padding: '8px 20px', borderRadius: '10px', cursor: passwordLoading ? 'wait' : 'pointer',
                                 fontSize: '11px', fontWeight: 800, fontFamily: 'Montserrat'
@@ -1840,7 +1841,7 @@ export default function ProfilePage({ profile: initialProfile, isOwnProfile = tr
 
                         {/* Logout */}
                         <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                          <motion.button whileTap={{ scale: 0.95 }} onClick={onLogout} style={{
+                          <motion.button whileTap={{ opacity: 0.85 }} onClick={onLogout} style={{
                             background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', color: '#f87171',
                             padding: '10px 18px', borderRadius: '12px', cursor: 'pointer', fontFamily: 'Montserrat',
                             fontWeight: 800, fontSize: '12px', display: 'flex', alignItems: 'center', gap: '8px'

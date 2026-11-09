@@ -1,5 +1,8 @@
 require('dotenv').config();
 const { app, BrowserWindow, ipcMain, protocol, net } = require('electron');
+
+// Задаём AppUserModelId ДО создания окна — иначе уведомления покажут иконку Electron
+app.setAppUserModelId('ru.diverlin.divlauncher');
 const { pathToFileURL } = require('url');
 
 protocol.registerSchemesAsPrivileged([
@@ -10,6 +13,7 @@ const { autoUpdater } = require('electron-updater');
 const path = require('path');
 const fs = require('fs');
 const axios = require('axios');
+axios.defaults.proxy = false;
 const AdmZip = require('adm-zip');
 
 const setupClient = require('./core/client');
@@ -40,11 +44,10 @@ function createWindow() {
 
   
   // Режим разработчика
-  
-  // mainWindow.webContents.openDevTools();
+  mainWindow.webContents.openDevTools();
   
   // Настраиваем автоапдейтер
-  autoUpdater.autoDownload = true;
+  autoUpdater.autoDownload = false;
   autoUpdater.autoInstallOnAppQuit = true;
 
   // Проверяем обновления, как только окно загрузилось
@@ -55,6 +58,10 @@ function createWindow() {
   // Отправляем события на фронтенд
   autoUpdater.on('update-available', (info) => {
     mainWindow.webContents.send('update-available', info.version);
+  });
+
+  autoUpdater.on('update-not-available', () => {
+    mainWindow.webContents.send('update-not-available');
   });
 
   autoUpdater.on('download-progress', (progressObj) => {
@@ -113,6 +120,59 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit(); 
 });
 
+// Сброс статуса в offline при закрытии лаунчера
+async function sendOfflinePresence() {
+  try {
+    const AUTH_SERVER = process.env.AUTH_SERVER || 'https://mcauth.diverlin.ru';
+    let token = global.launcherAuthToken;
+    if (!token) {
+      try {
+        const cacheFile = path.join(app.getPath('appData'), 'div-launcher', 'custom_auth.json');
+        if (fs.existsSync(cacheFile)) {
+          const cached = JSON.parse(fs.readFileSync(cacheFile, 'utf8'));
+          token = cached.webToken;
+        }
+      } catch (_) {}
+    }
+    if (token && token !== 'offline') {
+      const headers = { Authorization: `Bearer ${token}` };
+      const data = { current_activity: 'offline', current_game: null };
+      await Promise.allSettled([
+        axios.post(`${AUTH_SERVER}/api/profile/customize`, data, { headers, timeout: 1500 }),
+        axios.post(`${AUTH_SERVER}/api/user/heartbeat`, { status: 'offline' }, { headers, timeout: 1500 })
+      ]);
+    }
+  } catch (e) {}
+}
+
+let isCleanExit = false;
+app.on('before-quit', (e) => {
+  if (isCleanExit) return;
+  e.preventDefault();
+  isCleanExit = true;
+  sendOfflinePresence().finally(() => {
+    app.exit(0);
+  });
+});
+
+/*
+app.on('before-quit-legacy', () => {
+  try {
+    const axios = require('axios');
+    const AUTH_SERVER = process.env.AUTH_SERVER || 'https://mcauth.diverlin.ru';
+    const token = global.launcherAuthToken;
+    if (token) {
+      // keepAlive: true позволяет запросу завершиться даже при выходе
+      axios.post(`${AUTH_SERVER}/api/user/heartbeat`, { status: 'offline' }, {
+        headers: { Authorization: `Bearer ${token}` },
+        timeout: 2000
+      }).catch(() => {});
+    }
+  } catch (e) {}
+});
+
+*/
+
 // Обработка кнопок интерфейса
 ipcMain.on('window-minimize', () => { 
   if (mainWindow) mainWindow.minimize(); 
@@ -124,6 +184,10 @@ ipcMain.on('window-close', () => {
 
 ipcMain.on('check-for-updates', () => {
   autoUpdater.checkForUpdatesAndNotify();
+});
+
+ipcMain.on('download-update', () => {
+  autoUpdater.downloadUpdate();
 });
 
 // --- DISCORD RPC СОБЫТИЯ ---
@@ -160,6 +224,11 @@ ipcMain.handle('get-system-memory', () => {
   }
 });
 
+// --- Сохраняем JWT токен для использования при before-quit ---
+ipcMain.on('set-auth-token', (event, token) => {
+  global.launcherAuthToken = token;
+});
+
 // --- ОБНОВЛЕНИЕ СБОРКИ (МОДПАКОВ) ---
 ipcMain.on('update-pack', async (event, pack) => {
   try {
@@ -169,7 +238,6 @@ ipcMain.on('update-pack', async (event, pack) => {
     }
 
     // 2. Берем точный путь из твоего JSON (clientDir)
-    // Получится: AppData/Roaming/div-launcher/.statech-client
     const rootPath = path.join(app.getPath('appData'), 'div-launcher', pack.clientDir);
     
     if (!fs.existsSync(rootPath)) {
@@ -179,7 +247,7 @@ ipcMain.on('update-pack', async (event, pack) => {
     const zipPath = path.join(rootPath, 'update.zip');
 
     // Начинаем скачивание архива
-    event.reply('launch-progress', 'Подготовка к загрузке сборки...');
+    event.reply('launch-progress', { stage: 'download_mods', percent: 0, detail: 'Подготовка к загрузке сборки...' });
     
     const response = await axios({
       url: pack.packZipUrl, // ИСПОЛЬЗУЕМ ПРАВИЛЬНОЕ ПОЛЕ
@@ -208,7 +276,7 @@ ipcMain.on('update-pack', async (event, pack) => {
     });
 
     // Распаковка архива
-    event.reply('launch-progress', 'Распаковка файлов...');
+    event.reply('launch-progress', { stage: 'download_mods', percent: 99, detail: 'Распаковка файлов...' });
     
     const zip = new AdmZip(zipPath);
     zip.extractAllTo(rootPath, true); 

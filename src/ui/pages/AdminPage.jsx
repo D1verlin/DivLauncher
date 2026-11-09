@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getBadgeStyle, getBadgeText, getUserTheme } from '../utils/badgeHelper';
 import { useTranslation } from '../utils/i18n';
+import { getAvatarUrl } from '../utils/pathUtils';
 import AdminModpacksSection from './AdminModpacksSection';
 
 // --- Minecraft Head Avatar (Canvas) ---
@@ -435,7 +436,7 @@ export default function AdminPage({ profile, active, onProfileUpdate, onModpacks
           {/* Табы */}
           <div style={{ display: 'flex', background: 'rgba(255,255,255,0.04)', borderRadius: '12px', padding: '3px', gap: '4px', border: '1px solid rgba(255,255,255,0.05)' }}>
             <motion.button
-              whileTap={{ scale: 0.95 }}
+              whileTap={{ opacity: 0.85 }}
               onClick={() => setAdminTab('users')}
               style={{
                 padding: '6px 14px', borderRadius: '9px', border: 'none', cursor: 'pointer',
@@ -449,7 +450,7 @@ export default function AdminPage({ profile, active, onProfileUpdate, onModpacks
               {lang === 'ru' ? 'Игроки' : 'Players'}
             </motion.button>
             <motion.button
-              whileTap={{ scale: 0.95 }}
+              whileTap={{ opacity: 0.85 }}
               onClick={() => setAdminTab('packs')}
               style={{
                 padding: '6px 14px', borderRadius: '9px', border: 'none', cursor: 'pointer',
@@ -463,7 +464,7 @@ export default function AdminPage({ profile, active, onProfileUpdate, onModpacks
               {lang === 'ru' ? 'Сборки' : 'Packs'}
             </motion.button>
             <motion.button
-              whileTap={{ scale: 0.95 }}
+              whileTap={{ opacity: 0.85 }}
               onClick={() => setAdminTab('badges')}
               style={{
                 padding: '6px 14px', borderRadius: '9px', border: 'none', cursor: 'pointer',
@@ -483,7 +484,7 @@ export default function AdminPage({ profile, active, onProfileUpdate, onModpacks
           <div style={{ display: 'flex', gap: '8px' }}>
             <motion.button 
               whileHover={{ boxShadow: '0 0 15px rgba(16,185,129,0.25)' }}
-              whileTap={{ scale: 0.96 }}
+              whileTap={{ opacity: 0.85 }}
               onClick={() => { setCreateError(null); setShowCreateModal(true); }}
               style={{
                 background: 'linear-gradient(135deg, #10b981, #059669)', border: 'none',
@@ -564,7 +565,7 @@ export default function AdminPage({ profile, active, onProfileUpdate, onModpacks
                   return (
                     <motion.button
                       key={f}
-                      whileTap={{ scale: 0.97 }}
+                      whileTap={{ opacity: 0.85 }}
                       onClick={() => setListFilter(f)}
                       style={{
                         background: active ? `${activeColor}15` : 'rgba(255,255,255,0.02)',
@@ -640,7 +641,7 @@ export default function AdminPage({ profile, active, onProfileUpdate, onModpacks
                         >
                           {user.avatar_type === 'custom' && user.avatar_url ? (
                             <img 
-                              src={user.avatar_url.startsWith('/') ? authServerUrl + user.avatar_url : user.avatar_url} 
+                              src={getAvatarUrl(user.avatar_url)} 
                               alt="Avatar" 
                               style={{
                                 width: '36px',
@@ -739,7 +740,7 @@ export default function AdminPage({ profile, active, onProfileUpdate, onModpacks
             </div>
             <motion.button 
               whileHover={{ boxShadow: '0 0 15px rgba(16,185,129,0.25)' }}
-              whileTap={{ scale: 0.96 }}
+              whileTap={{ opacity: 0.85 }}
               onClick={handleOpenCreateBadge}
               style={{
                 background: 'linear-gradient(135deg, #10b981, #059669)', border: 'none',

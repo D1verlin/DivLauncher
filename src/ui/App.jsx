@@ -12,6 +12,8 @@ import CreatePackPage from './pages/CreatePackPage';
 import ModsPage from './pages/ModsPage';
 import ImportExportPage from './pages/ImportExportPage';
 import OfficialBuildManagerPage from './pages/OfficialBuildManagerPage';
+import UpdatePage from './pages/UpdatePage';
+import ChatPage from './pages/ChatPage';
 import InitialPathModal from './components/InitialPathModal';
 import { getSafeBgUrl, DEFAULT_BG } from './utils/pathUtils';
 import { useTranslation } from './utils/i18n';
@@ -57,11 +59,11 @@ function ConfirmModal({ title, message, onConfirm, onCancel }) {
           </div>
         </div>
         <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
-          <motion.button whileTap={{ scale: 0.97 }} onClick={onCancel}
+          <motion.button whileTap={{ opacity: 0.85 }} onClick={onCancel}
             style={{ flex: 1, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: '#a1a1aa', borderRadius: '12px', padding: '11px', fontWeight: 700, cursor: 'pointer', fontSize: '13px' }}>
             {t('cancel')}
           </motion.button>
-          <motion.button whileTap={{ scale: 0.97 }} onClick={onConfirm}
+          <motion.button whileTap={{ opacity: 0.85 }} onClick={onConfirm}
             style={{ flex: 1, background: 'linear-gradient(135deg, #ef4444, #dc2626)', border: 'none', color: '#fff', borderRadius: '12px', padding: '11px', fontWeight: 800, cursor: 'pointer', fontSize: '13px' }}>
             {t('confirm')}
           </motion.button>
@@ -182,7 +184,7 @@ function AlertModal({ title, message, type: explicitType, onClose }) {
             <p style={{ color: '#a1a1aa', fontWeight: 600, fontSize: '12px', margin: 0, lineHeight: '1.4' }}>{message}</p>
           </div>
         </div>
-        <motion.button whileTap={{ scale: 0.97 }} onClick={onClose}
+        <motion.button whileTap={{ opacity: 0.85 }} onClick={onClose}
           style={{ width: '100%', background: styleConfig.buttonBg, border: styleConfig.buttonBorder, color: '#fff', borderRadius: '12px', padding: '12px', fontWeight: 800, cursor: 'pointer', fontSize: '13px', fontFamily: 'Montserrat', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
           {lang === 'ru' ? 'Понятно' : 'OK'}
         </motion.button>
@@ -191,117 +193,6 @@ function AlertModal({ title, message, type: explicitType, onClose }) {
   );
 }
 
-// --- КОМПОНЕНТ АВТООБНОВЛЕНИЯ (Глассморфизм) ---
-function UpdateNotification() {
-  const { lang } = useTranslation();
-  const [status, setStatus] = useState('idle'); 
-  const [progress, setProgress] = useState(0);
-  const [version, setVersion] = useState('');
-
-  useEffect(() => {
-    if (!window.electronAPI) return;
-
-    window.electronAPI.onUpdateAvailable((event, v) => {
-      setVersion(v || (lang === 'ru' ? 'новую версию' : 'new version'));
-      setStatus('downloading');
-      setProgress(0);
-    });
-
-    window.electronAPI.onUpdateProgress((event, percent) => {
-      setProgress(percent);
-    });
-
-    window.electronAPI.onUpdateDownloaded(() => {
-      setStatus('downloaded');
-    });
-
-    return () => {
-      window.electronAPI.removeAllListeners?.('update-available');
-      window.electronAPI.removeAllListeners?.('update-progress');
-      window.electronAPI.removeAllListeners?.('update-downloaded');
-    };
-  }, [lang]);
-
-  return (
-    <AnimatePresence>
-      {status !== 'idle' && (
-        <motion.div
-          initial={{ opacity: 0, x: 50, y: -20, scale: 0.9 }}
-          animate={{ opacity: 1, x: 0, y: 0, scale: 1 }}
-          exit={{ opacity: 0, scale: 0.9, filter: 'blur(10px)' }}
-          transition={{ type: "spring", stiffness: 300, damping: 25 }}
-          style={{
-            position: 'absolute',
-            top: '50px',
-            right: '20px',
-            zIndex: 9999,
-            width: '320px',
-            background: 'rgba(15, 15, 20, 0.75)',
-            backdropFilter: 'blur(24px)',
-            WebkitBackdropFilter: 'blur(24px)',
-            border: '1px solid rgba(255, 255, 255, 0.1)',
-            borderRadius: '20px',
-            padding: '20px',
-            boxShadow: '0 20px 40px rgba(0,0,0,0.6)',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '12px'
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <div style={{ 
-              background: status === 'downloaded' ? 'rgba(16, 185, 129, 0.2)' : 'rgba(59, 130, 246, 0.2)', 
-              color: status === 'downloaded' ? '#10b981' : '#3b82f6', 
-              width: '40px', height: '40px', borderRadius: '12px', 
-              display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px' 
-            }}>
-              <i className={`fa-solid ${status === 'downloaded' ? 'fa-check' : 'fa-cloud-arrow-down'}`}></i>
-            </div>
-            <div>
-              <h4 style={{ margin: 0, color: '#fff', fontSize: '15px', fontWeight: 800 }}>
-                {status === 'downloaded' ? (lang === 'ru' ? 'Обновление готово!' : 'Update ready!') : (lang === 'ru' ? 'Загрузка обновления...' : 'Downloading update...')}
-              </h4>
-              <p style={{ margin: '4px 0 0 0', color: '#a1a1aa', fontSize: '12px', fontWeight: 600 }}>
-                {lang === 'ru' ? 'Версия' : 'Version'} {version}
-              </p>
-            </div>
-          </div>
-
-          {status === 'downloading' ? (
-            <div style={{ marginTop: '5px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px', fontSize: '11px', color: '#e4e4e7', fontWeight: 700 }}>
-                <span>{lang === 'ru' ? 'Скачивание файлов' : 'Downloading files'}</span>
-                <span style={{ color: '#3b82f6' }}>{progress}%</span>
-              </div>
-              <div style={{ width: '100%', height: '6px', background: 'rgba(0,0,0,0.5)', borderRadius: '10px', overflow: 'hidden', boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.5)' }}>
-                <motion.div 
-                  initial={{ width: 0 }} 
-                  animate={{ width: `${progress}%` }} 
-                  transition={{ ease: "linear", duration: 0.3 }}
-                  style={{ height: '100%', background: 'linear-gradient(90deg, #3b82f6, #60a5fa)', borderRadius: '10px', boxShadow: '0 0 10px rgba(59, 130, 246, 0.5)' }} 
-                />
-              </div>
-            </div>
-          ) : (
-            <motion.button
-              whileHover={{ boxShadow: '0 5px 15px rgba(16, 185, 129, 0.4)' }}
-              whileTap={{ scale: 0.95 }}
-              onClick={() => window.electronAPI.restartAndInstall()}
-              style={{
-                marginTop: '5px', background: 'linear-gradient(135deg, #10b981, #059669)', color: '#fff',
-                border: 'none', padding: '12px', borderRadius: '12px', fontSize: '13px', fontWeight: 800,
-                cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
-                textTransform: 'uppercase', letterSpacing: '1px'
-              }}
-            >
-              <i className="fa-solid fa-arrows-rotate"></i> {lang === 'ru' ? 'Перезапустить' : 'Restart'}
-            </motion.button>
-          )}
-        </motion.div>
-      )}
-    </AnimatePresence>
-  );
-}
 
 // ВЕРХНЯЯ ПАНЕЛЬ С КНОПКАМИ (Отображается везде)
 const TopBar = () => (
@@ -313,11 +204,11 @@ const TopBar = () => (
   </div>
 );
 
-// --- АНИМАЦИЯ СТРАНИЦ ---
+// --- АНИМАЦИЯ СТРАНИЦ (чистый opacity без transform для работы backdrop-filter) ---
 const pageVariants = {
-  initial: { opacity: 0, y: 12 },
-  animate: { opacity: 1, y: 0, transition: { duration: 0.22, ease: [0.4, 0, 0.2, 1] } },
-  exit:    { opacity: 0, y: -8,  transition: { duration: 0.15, ease: [0.4, 0, 1, 1] } },
+  initial: { opacity: 0 },
+  animate: { opacity: 1, transition: { duration: 0.18, ease: 'easeOut' } },
+  exit:    { opacity: 0, transition: { duration: 0.12, ease: 'easeIn' } },
 };
 
 // --- ОСНОВНОЕ ПРИЛОЖЕНИЕ ---
@@ -330,6 +221,13 @@ export default function App() {
   const [currentPack, setCurrentPack] = useState(null);
   const [loadingError, setLoadingError] = useState(null); 
   const [showInitialPathModal, setShowInitialPathModal] = useState(false);
+  const [appVersion, setAppVersion] = useState('0.0.0');
+
+  // Auth States
+  const [profile, setProfile] = useState(null);
+  const [profileCache, setProfileCache] = useState({});
+  const [authLoading, setAuthLoading] = useState(true);
+  const [badges, setBadges] = useState([]);
 
   useEffect(() => {
     const buildsDir = localStorage.getItem('launcher_builds_dir');
@@ -338,8 +236,56 @@ export default function App() {
     }
   }, []);
   
-  const [appVersion, setAppVersion] = useState('0.0.0');
+  // Menu Config & Accent Color State
+  const DEFAULT_MENU = { builds: true, client: true, server: true, users: true, chat: true, profile: true };
+  const [menuConfig, setMenuConfig] = useState(() => {
+    try {
+      const saved = localStorage.getItem('launcher_menu_config');
+      return saved ? { ...DEFAULT_MENU, ...JSON.parse(saved) } : DEFAULT_MENU;
+    } catch (_) { return DEFAULT_MENU; }
+  });
+  const [accentColor, setAccentColor] = useState(() => localStorage.getItem('launcher_accent_color') || '#3b82f6');
+  const [unreadChatCount, setUnreadChatCount] = useState(0);
+
+  useEffect(() => {
+    const handleSettingsChange = () => {
+      try {
+        const saved = localStorage.getItem('launcher_menu_config');
+        if (saved) setMenuConfig({ ...DEFAULT_MENU, ...JSON.parse(saved) });
+      } catch (_) {}
+      const savedColor = localStorage.getItem('launcher_accent_color');
+      if (savedColor) setAccentColor(savedColor);
+    };
+    window.addEventListener('settings-changed', handleSettingsChange);
+    return () => window.removeEventListener('settings-changed', handleSettingsChange);
+  }, []);
+
+  // Poll unread chat count
+  useEffect(() => {
+    if (!profile || profile.isOffline) return;
+
+    const fetchUnread = async () => {
+      try {
+        if (!window.electronAPI?.getWebToken) return;
+        const token = await window.electronAPI.getWebToken();
+        if (!token) return;
+        const res = await fetch('https://mcauth.diverlin.ru/api/chat/unread-count', {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setUnreadChatCount(data.unread || 0);
+        }
+      } catch (_) {}
+    };
+
+    fetchUnread();
+    const interval = setInterval(fetchUnread, 12000);
+    return () => clearInterval(interval);
+  }, [profile]);
   const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
+  // Стейт ошибки запуска для боковой панели
+  const [launchError, setLaunchError] = useState(null);
 
   const [serverLogs, setServerLogs] = useState(lang === 'ru' ? 'Ожидание загрузки сборок...\n' : 'Waiting for builds to load...\n');
   const [isServerRunning, setIsServerRunning] = useState(false);
@@ -347,12 +293,6 @@ export default function App() {
 
   // Animated background toggle
   const [animatedBg, setAnimatedBg] = useState(localStorage.getItem('launcher_animated_bg') !== 'false');
-
-  // Auth States
-  const [profile, setProfile] = useState(null);
-  const [profileCache, setProfileCache] = useState({});
-  const [authLoading, setAuthLoading] = useState(true);
-  const [badges, setBadges] = useState([]);
 
   // --- CLIENT GAME EXECUTION LIFTED STATE & EFFECTS ---
   const [isPlaying, setIsPlaying] = useState(false);
@@ -370,6 +310,11 @@ export default function App() {
   const fullLogsRef = useRef([]);
   const sessionStartRef = useRef(null);
   const profileRef = useRef(profile);
+  const isPlayingRef = useRef(false);
+
+  useEffect(() => {
+    isPlayingRef.current = isPlaying;
+  }, [isPlaying]);
 
   useEffect(() => {
     currentPackRef.current = currentPack;
@@ -467,21 +412,34 @@ export default function App() {
       window.electronAPI.onUpdateDone(() => {
         if (currentPackRef.current) {
           localStorage.setItem(`installed_v_${currentPackRef.current.id}`, currentPackRef.current.packVersion);
-          setIsUpdating(false);
-          setClientStatus(lang === 'ru' ? 'Сборка успешно установлена!' : 'Modpack installed successfully!');
+          if (!isLaunchingRef.current) {
+            setIsUpdating(false);
+            setClientStatus(lang === 'ru' ? 'Сборка успешно установлена!' : 'Modpack installed successfully!');
+          }
         }
       });
     }
 
     window.electronAPI.onProgress((event, msg) => {
-      if (msg.startsWith('[LOG]')) {
+      if (typeof msg === 'string' && msg.startsWith('[LOG]')) {
         const cleanMsg = msg.replace('[LOG]', '').trim();
         if (cleanMsg) {
           const lines = cleanMsg.split('\n').map(l => l.trim()).filter(l => l);
           fullLogsRef.current.push(...lines);
           setClientConsoleLogs(prev => [...prev, ...lines].slice(-6));
 
-          if (isLaunchingRef.current) {
+          // Проверяем, действительно ли игра запустилась (появились логи старта Minecraft)
+          const isGameStarted = lines.some(l => 
+            l.includes('Setting user:') ||
+            l.includes('LWJGL') ||
+            l.includes('OpenAL') ||
+            l.includes('Minecraft Version:') ||
+            l.includes('Backend library') ||
+            l.includes('Completely loaded') ||
+            l.includes('Starting minecraft')
+          );
+
+          if (isLaunchingRef.current && isGameStarted) {
             setIsLaunching(false);
             setIsPlaying(true);
             setClientStatus(t('client_playing'));
@@ -496,18 +454,23 @@ export default function App() {
         return;
       }
 
-      setClientStatus(msg);
-      if (msg.includes('Запуск Minecraft...') || msg.includes('Launching Minecraft...')) {
-        setClientConsoleLogs(lang === 'ru' 
-          ? ["Инициализация движка...", "Передача управления Java..."] 
-          : ["Initializing engine...", "Handing over to Java..."]
-        );
+      if (typeof msg === 'object' && msg !== null) {
+        setClientStatus(msg);
+      } else if (typeof msg === 'string') {
+        setClientStatus(msg);
+        if (msg.includes('Запуск Minecraft...') || msg.includes('Launching Minecraft...')) {
+          setClientConsoleLogs(lang === 'ru' 
+            ? ["Инициализация движка...", "Передача управления Java..."] 
+            : ["Initializing engine...", "Handing over to Java..."]
+          );
+        }
       }
     });
 
     window.electronAPI.onError((event, msg) => {
       setClientStatus(`${t('error')}: ${msg}`);
       fullLogsRef.current.push(`[ERROR] ${lang === 'ru' ? 'Ошибка запуска' : 'Launch error'}: ${msg}`);
+      setLaunchError(msg);
       setIsLaunching(false);
       setIsPlaying(false);
       setIsUpdating(false);
@@ -555,6 +518,7 @@ export default function App() {
   }, [lang, t]);
 
   const handleLaunchGame = (pack, options) => {
+    setLaunchError(null);
     setIsLaunching(true);
     setIsPlaying(false);
     setRunningPackId(pack.id);
@@ -569,6 +533,7 @@ export default function App() {
   };
 
   const handleUpdatePack = (pack) => {
+    setLaunchError(null);
     setIsUpdating(true);
     setRunningPackId(pack.id);
     const installedVersion = localStorage.getItem(`installed_v_${pack.id}`);
@@ -608,6 +573,8 @@ export default function App() {
     if (window.electronAPI?.customLogout) {
       await window.electronAPI.customLogout();
     }
+    // Сбрасываем токен в main-процессе
+    window.electronAPI?.setAuthToken?.('');
     setProfile(null);
     localStorage.removeItem('launcher_username');
     setCurrentPage('client');
@@ -628,6 +595,9 @@ export default function App() {
             setProfile(mappedProf);
             setProfileCache(prev => ({ ...prev, [prof.uuid]: mappedProf }));
             localStorage.setItem('launcher_username', prof.name);
+            // Сохраняем токен в main-процессе для before-quit
+            if (prof.webToken) window.electronAPI?.setAuthToken?.(prof.webToken);
+            if (prof.newToken) window.electronAPI?.setAuthToken?.(prof.newToken);
           }
         })
         .catch(err => console.error("Session check error:", err))
@@ -662,6 +632,41 @@ export default function App() {
       updateOnlineActivity('online', null);
     }
   }, [profile, lang, updateOnlineActivity]);
+
+  // Heartbeat — пинг каждые 3 мин чтобы бэкенд знал что юзер онлайн (с сохранением статуса игры)
+  useEffect(() => {
+    if (!profile || profile.isOffline) return;
+    const interval = setInterval(() => {
+      if (isPlayingRef.current) {
+        updateOnlineActivity('playing', currentPackRef.current ? currentPackRef.current.name : 'Minecraft');
+      } else {
+        updateOnlineActivity('online', null);
+      }
+    }, 3 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [profile, updateOnlineActivity]);
+
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      if (profileRef.current && !profileRef.current.isOffline) {
+        updateOnlineActivity('offline', null);
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [updateOnlineActivity]);
+
+  /*
+  // Heartbeat-legacy
+  useEffect(() => {
+    if (!profile || profile.isOffline) return;
+    const interval = setInterval(() => {
+      updateOnlineActivity('online', null);
+    }, 3 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [profile, updateOnlineActivity]);
+
+  */
 
   const fetchBadges = useCallback(() => {
     if (window.electronAPI?.getBadges) {
@@ -773,14 +778,19 @@ export default function App() {
     if (window.electronAPI && window.electronAPI.saveCustomPack) {
       const result = await window.electronAPI.saveCustomPack(newPack);
       if (result.success) {
-        fetchModpacks();
-        setCurrentPack(newPack);
         localStorage.setItem('launcher_last_pack', newPack.id);
-        setServerLogs(lang === 'ru' ? `Создана и выбрана сборка: ${newPack.name}...\n` : `Pack created and selected: ${newPack.name}...\n`);
+        setCurrentPack(newPack);
+        fetchModpacks();
+        setServerLogs(lang === 'ru' ? `Сборка сохранена: ${newPack.name}...\n` : `Pack saved: ${newPack.name}...\n`);
+        setEditingPack(null);
+        setCurrentPage('builds');
+        return true;
       } else {
         showAlert(lang === 'ru' ? 'Ошибка сохранения' : 'Save Error', result.error || (lang === 'ru' ? 'Не удалось сохранить сборку.' : 'Failed to save the pack.'));
+        return false;
       }
     }
+    return false;
   };
 
   const handleDeleteCustomPack = async (id) => {
@@ -857,7 +867,6 @@ export default function App() {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', width: '100%', height: '100%', background: '#0a0a0c', color: '#fff', position: 'relative' }}>
         <TopBar />
-        <UpdateNotification />
         
         <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
           {loadingError ? (
@@ -867,7 +876,7 @@ export default function App() {
               <p style={{ color: '#a1a1aa', marginBottom: '30px', maxWidth: '350px', lineHeight: '1.5' }}>
                 {lang === 'ru' ? 'Не удалось загрузить данные лаунчера.' : 'Failed to load launcher data.'}<br/><span style={{ fontSize: '12px', color: '#52525b' }}>{loadingError}</span>
               </p>
-              <motion.button whileTap={{ scale: 0.95 }} onClick={fetchModpacks} style={{ background: '#059669', color: '#fff', border: 'none', padding: '12px 30px', borderRadius: '30px', fontWeight: 800, cursor: 'pointer' }}>
+              <motion.button whileTap={{ opacity: 0.85 }} onClick={fetchModpacks} style={{ background: '#059669', color: '#fff', border: 'none', padding: '12px 30px', borderRadius: '30px', fontWeight: 800, cursor: 'pointer' }}>
                 {lang === 'ru' ? 'ПОВТОРИТЬ ПОПЫТКУ' : 'RETRY'}
               </motion.button>
             </motion.div>
@@ -895,6 +904,24 @@ export default function App() {
   }
 
   if (!profile) {
+    if (currentPage === 'update') {
+      return (
+        <div style={{
+          display: 'flex',
+          flexDirection: 'column',
+          width: '100%',
+          height: '100%',
+          position: 'relative',
+          background: '#0a0a10',
+          padding: '40px 20px 20px 20px',
+          boxSizing: 'border-box'
+        }}>
+          <TopBar />
+          <UpdatePage onBack={() => setCurrentPage('client')} />
+        </div>
+      );
+    }
+
     return (
       <div style={{
         display: 'flex',
@@ -909,7 +936,12 @@ export default function App() {
           setProfile(prof);
           setProfileCache(prev => ({ ...prev, [prof.uuid]: prof }));
           localStorage.setItem('launcher_username', prof.name);
-        }} />
+          // Сохраняем токен для before-quit offline-статуса
+          if (prof.webToken) window.electronAPI?.setAuthToken?.(prof.webToken);
+          if (prof.newToken) window.electronAPI?.setAuthToken?.(prof.newToken);
+        }}
+          onShowUpdatePage={() => setCurrentPage('update')}
+        />
       </div>
     );
   }
@@ -933,7 +965,7 @@ export default function App() {
           <i className="fa-solid fa-layer-group" style={{ fontSize: '48px', color: 'rgba(255,255,255,0.2)' }} />
           <div style={{ color: '#a1a1aa', fontSize: '14px', fontWeight: 600 }}>{lang === 'ru' ? 'Пожалуйста, выберите сборку на странице сборок' : 'Please select a pack on the builds page'}</div>
           <motion.button 
-            whileTap={{ scale: 0.95 }}
+            whileTap={{ opacity: 0.85 }}
             onClick={() => setCurrentPage('builds')}
             style={{ background: 'linear-gradient(135deg, #3b82f6, #2563eb)', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: '10px', cursor: 'pointer', fontWeight: 700 }}
           >
@@ -944,6 +976,10 @@ export default function App() {
     }
 
     switch (currentPage) {
+      case 'update':
+        return (
+          <UpdatePage onBack={() => setCurrentPage(currentPage === 'update' ? 'client' : currentPage)} />
+        );
       case 'builds':
         return (
           <BuildsPage 
@@ -994,7 +1030,6 @@ export default function App() {
             editPack={editingPack}
             onCreate={(pack) => {
               handleCreateCustomPack(pack);
-              setEditingPack(null);
             }} 
             onBack={() => {
               setEditingPack(null);
@@ -1025,6 +1060,8 @@ export default function App() {
             runningPackName={modpacks.find(p => p.id === runningPackId)?.name || ''}
             showConfirm={showConfirm}
             showAlert={showAlert}
+            launchError={launchError}
+            onClearLaunchError={() => setLaunchError(null)}
           />
         );
       case 'mods':
@@ -1054,6 +1091,8 @@ export default function App() {
             }} 
           />
         );
+      case 'chat':
+        return <ChatPage profile={profile} />;
       case 'profile': {
         const targetProfile = viewedProfile
           ? (profileCache[viewedProfile.uuid] || viewedProfile)
@@ -1117,7 +1156,7 @@ export default function App() {
   return (
     <div style={appStyle}>
       {/* Dynamic Background Layer */}
-      {animatedBg && currentPack?.bgVideo ? (
+      {currentPack?.bgVideo ? (
         <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 0, overflow: 'hidden', pointerEvents: 'none' }}>
           <video 
             key={currentPack.id + '_video'}
@@ -1130,76 +1169,73 @@ export default function App() {
       ) : (
         <div style={{ 
           position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 0, pointerEvents: 'none',
-          background: `linear-gradient(rgba(20, 20, 20, 0.7), rgba(20, 20, 20, 0.9)), url('${activeBgImage}') center/cover`,
+          background: `linear-gradient(rgba(20, 20, 20, 0.7), rgba(20, 20, 20, 0.9)), url('${getSafeBgUrl(currentPack?.bgImage)}') center/cover`,
           transition: 'background 0.5s ease-in-out'
         }} />
       )}
 
-      {/* Main UI Layer */}
-      <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', width: '100%', height: '100%', overflow: 'hidden' }}>
-        {/* Глобальные модалы */}
-        <AnimatePresence>
-          {confirmModal && (
-            <ConfirmModal
-              title={confirmModal.title}
-              message={confirmModal.message}
-              onConfirm={confirmModal.onConfirm}
-              onCancel={confirmModal.onCancel}
-            />
-          )}
-        </AnimatePresence>
-        <AnimatePresence>
-          {alertModal && (
-            <AlertModal
-              title={alertModal.title}
-              message={alertModal.message}
-              type={alertModal.type}
-              onClose={alertModal.onClose}
-            />
-          )}
-        </AnimatePresence>
+      {/* Контейнер модалок */}
+      <AnimatePresence>
+        {confirmModal && (
+          <ConfirmModal
+            title={confirmModal.title}
+            message={confirmModal.message}
+            onConfirm={confirmModal.onConfirm}
+            onCancel={confirmModal.onCancel}
+          />
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {alertModal && (
+          <AlertModal
+            title={alertModal.title}
+            message={alertModal.message}
+            type={alertModal.type}
+            onClose={alertModal.onClose}
+          />
+        )}
+      </AnimatePresence>
 
-        <TopBar />
-        <UpdateNotification />
+      <TopBar />
 
-        <div style={{ display: 'flex', flexGrow: 1, padding: '40px 20px 20px 20px', gap: '40px', overflow: 'hidden' }}>
+      <div style={{ display: 'flex', flexGrow: 1, padding: '40px 20px 20px 20px', gap: '40px', overflow: 'hidden' }}>
+        
+        <div style={{ width: '60px', minWidth: '60px', background: '#11111157', backdropFilter: 'blur(20px)', borderRadius: '30px', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '20px 0', border: '1px solid rgba(255,255,255,0.05)', overflowY: 'auto' }}>
           
-          <div style={{ width: '60px', minWidth: '60px', background: '#11111157', backdropFilter: 'blur(20px)', borderRadius: '30px', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '20px 0', border: '1px solid rgba(255,255,255,0.05)', overflowY: 'auto' }}>
-            
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-              <NavButton icon="fa-layer-group" active={currentPage === 'builds' || currentPage === 'create-pack'} onClick={() => { setViewedProfile(null); setCurrentPage('builds'); }} color="#f59e0b" title={t('tab_builds')} />
-              <NavButton icon="fa-gamepad" active={currentPage === 'client'} onClick={() => { setViewedProfile(null); setCurrentPage('client'); }} color="#10b981" title={t('client_play')} />
-              <NavButton icon="fa-server" active={currentPage === 'server'} onClick={() => { setViewedProfile(null); setCurrentPage('server'); }} color="#3b82f6" title={t('tab_server')}
-                dot={isServerRunning} dotColor="#10b981" />
-              {!profile?.isOffline && (
-                <>
-                  <NavButton icon="fa-users" active={currentPage === 'users'} onClick={() => { setViewedProfile(null); setCurrentPage('users'); }} color="#6366f1" title={t('tab_users')} />
-                  <NavButton icon="fa-circle-user" active={currentPage === 'profile'} onClick={() => { setViewedProfile(null); setCurrentPage('profile'); }} color="#a78bfa" title={t('tab_profile')} />
-                </>
-              )}
-              {profile && profile.is_admin === 1 && (
-                <NavButton icon="fa-shield-halved" active={currentPage === 'admin'} onClick={() => { setViewedProfile(null); setCurrentPage('admin'); }} color="#ef4444" title={t('tab_admin')} />
-              )}
-            </div>
-
-            <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '15px' }}>
-              <NavButton icon="fa-right-from-bracket" active={false} onClick={handleLogout} color="#ef4444" title={lang === 'ru' ? 'Выйти из аккаунта' : 'Logout'} />
-              <NavButton icon="fa-gear" active={currentPage === 'settings'} onClick={() => setCurrentPage('settings')} color="#f59e0b" title={t('tab_settings')} />
-              
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', paddingBottom: '10px' }}>
-                <motion.button
-                  onClick={handleManualUpdate}
-                  title={lang === 'ru' ? 'Проверить обновления' : 'Check for Updates'}
-                  animate={isCheckingUpdate ? { rotate: 360 } : {}}
-                  transition={isCheckingUpdate ? { repeat: Infinity, duration: 1, ease: "linear" } : {}}
-                  style={{ background: 'transparent', border: 'none', color: isCheckingUpdate ? '#10b981' : '#52525b', cursor: 'pointer', fontSize: '14px' }}
-                >
-                  <i className="fa-solid fa-arrows-rotate"></i>
-                </motion.button>
-                <span style={{ fontSize: '9px', fontWeight: 800, color: '#ffffff33', letterSpacing: '0.5px' }}>v{appVersion}</span>
-              </div>
-            </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+            {menuConfig.builds !== false && (
+              <NavButton icon="fa-layer-group" active={currentPage === 'builds' || currentPage === 'create-pack'} onClick={() => { setViewedProfile(null); setCurrentPage('builds'); }} color="#f59e0b" activeColor={accentColor} title={t('tab_builds')} />
+            )}
+            {menuConfig.client !== false && (
+              <NavButton icon="fa-gamepad" active={currentPage === 'client'} onClick={() => { setViewedProfile(null); setCurrentPage('client'); }} color="#10b981" activeColor={accentColor} title={t('client_play')} />
+            )}
+            {menuConfig.server !== false && (
+              <NavButton icon="fa-server" active={currentPage === 'server'} onClick={() => { setViewedProfile(null); setCurrentPage('server'); }} color="#3b82f6" activeColor={accentColor} title={t('tab_server')} dot={isServerRunning} dotColor="#10b981" />
+            )}
+            {!profile?.isOffline && (
+              <>
+                {menuConfig.users !== false && (
+                  <NavButton icon="fa-users" active={currentPage === 'users'} onClick={() => { setViewedProfile(null); setCurrentPage('users'); }} color="#6366f1" activeColor={accentColor} title={t('tab_users')} />
+                )}
+                {menuConfig.chat !== false && (
+                  <NavButton icon="fa-comments" active={currentPage === 'chat'} onClick={() => { setViewedProfile(null); setCurrentPage('chat'); setUnreadChatCount(0); }} color="#22d3ee" activeColor={accentColor} badgeCount={unreadChatCount} title={lang === 'ru' ? 'Чат' : 'Chat'} />
+                )}
+                {menuConfig.profile !== false && (
+                  <NavButton icon="fa-circle-user" active={currentPage === 'profile'} onClick={() => { setViewedProfile(null); setCurrentPage('profile'); }} color="#a78bfa" activeColor={accentColor} title={t('tab_profile')} />
+                )}
+              </>
+            )}
+            {profile && profile.is_admin === 1 && (
+              <NavButton icon="fa-shield-halved" active={currentPage === 'admin'} onClick={() => { setViewedProfile(null); setCurrentPage('admin'); }} color="#ef4444" activeColor={accentColor} title={t('tab_admin')} />
+            )}
           </div>
+
+          <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '15px' }}>
+            <NavButton icon="fa-right-from-bracket" active={false} onClick={handleLogout} color="#ef4444" title={lang === 'ru' ? 'Выйти из аккаунта' : 'Logout'} />
+            <NavButton icon="fa-gear" active={currentPage === 'settings'} onClick={() => setCurrentPage('settings')} color="#f59e0b" title={t('tab_settings')} />
+            <NavButton icon="fa-arrows-rotate" active={currentPage === 'update'} onClick={() => setCurrentPage('update')} color="#3b82f6" title={lang === 'ru' ? 'Обновления' : 'Updates'} />
+          </div>
+        </div>
 
         {/* Контентная область с анимацией переходов (ленивый рендер) */}
         <div style={{ flexGrow: 1, overflow: 'hidden', position: 'relative', zIndex: 10 }}>
@@ -1217,7 +1253,6 @@ export default function App() {
           </AnimatePresence>
         </div>
       </div>
-      </div>
       <InitialPathModal
         isOpen={showInitialPathModal}
         onClose={() => setShowInitialPathModal(false)}
@@ -1226,13 +1261,46 @@ export default function App() {
   );
 }
 
-function NavButton({ icon, active, onClick, color, title, dot, dotColor }) {
+function NavButton({ icon, active, onClick, color, title, dot, dotColor, badgeCount, activeColor }) {
+  const activeBg = activeColor || color;
   return (
     <div style={{ position: 'relative' }}>
-      <motion.button title={title} whileTap={{ scale: 0.9 }} onClick={onClick} style={{ width: '40px', height: '40px', borderRadius: '50%', border: 'none', cursor: 'pointer', background: active ? color : 'transparent', color: active ? '#fff' : '#52525b', fontSize: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <motion.button 
+        title={title} 
+        whileTap={{ opacity: 0.8 }} 
+        onClick={onClick} 
+        style={{ 
+          width: '40px', 
+          height: '40px', 
+          borderRadius: '50%', 
+          border: 'none', 
+          cursor: 'pointer', 
+          background: active ? activeBg : 'transparent', 
+          color: active ? '#fff' : '#52525b', 
+          fontSize: '18px', 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'center',
+          boxShadow: active ? `0 0 14px ${activeBg}80` : 'none',
+          transition: 'all 0.25s'
+        }}
+      >
         <i className={`fa-solid ${icon}`}></i>
       </motion.button>
-      {dot && (
+      {badgeCount > 0 && (
+        <span style={{
+          position: 'absolute', top: -3, right: -3,
+          minWidth: '18px', height: '18px', borderRadius: '10px',
+          background: 'linear-gradient(135deg, #ef4444, #dc2626)',
+          color: '#fff', fontSize: '10px', fontWeight: 900,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 4px',
+          border: '2px solid #0f0f18', boxShadow: '0 0 8px rgba(239, 68, 68, 0.7)',
+          fontFamily: 'Montserrat', pointerEvents: 'none', zIndex: 5
+        }}>
+          {badgeCount > 99 ? '99+' : badgeCount}
+        </span>
+      )}
+      {dot && !badgeCount && (
         <span style={{
           position: 'absolute', bottom: 1, right: 1,
           width: '8px', height: '8px', borderRadius: '50%',

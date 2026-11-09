@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getBadgeStyle, getBadgeText } from '../utils/badgeHelper';
 import { useTranslation } from '../utils/i18n';
+import { getAvatarUrl } from '../utils/pathUtils';
 
 // --- Minecraft Head Avatar ---
 function MinecraftAvatar({ skinDataUrl, size = 56, authServerUrl }) {
@@ -75,7 +76,7 @@ function PlayerCard({ user, authServerUrl, onViewProfile, index, lang }) {
       variants={cardVariants}
       initial="hidden"
       animate="visible"
-      whileTap={{ scale: 0.98 }}
+      whileTap={{ opacity: 0.85 }}
       onClick={() => onViewProfile && onViewProfile(user)}
       style={{
         background: 'rgba(255, 255, 255, 0.03)',
@@ -123,7 +124,7 @@ function PlayerCard({ user, authServerUrl, onViewProfile, index, lang }) {
       }}>
         {user.avatar_type === 'custom' && user.avatar_url ? (
           <img 
-            src={user.avatar_url.startsWith('/') ? (authServerUrl || 'https://mcauth.diverlin.ru') + user.avatar_url : user.avatar_url} 
+            src={getAvatarUrl(user.avatar_url)} 
             alt="Avatar" 
             style={{
               width: '100%',
@@ -366,7 +367,7 @@ export default function UsersPage({ onViewProfile, active }) {
 
         {/* Refresh Button on Right */}
         <motion.button 
-          whileTap={{ scale: 0.96 }}
+          whileTap={{ opacity: 0.85 }}
           onClick={fetchUsers} 
           disabled={loading}
           style={{

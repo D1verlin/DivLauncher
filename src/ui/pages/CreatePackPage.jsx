@@ -30,45 +30,57 @@ const FA_ICONS = [
   'fa-solid fa-dungeon', 'fa-solid fa-campground', 'fa-solid fa-mountain'
 ];
 
-const glassPanelStyle = {
-  background: 'rgba(15, 15, 20, 0.45)',
-  backdropFilter: 'blur(20px)',
-  WebkitBackdropFilter: 'blur(20px)',
-  border: '1px solid rgba(255, 255, 255, 0.12)',
-  borderRadius: '20px',
-  boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+// --- СТИЛЬ КОНТЕЙНЕРА СТРАНИЦЫ: ПОЛНОСТЬЮ ОТКРЫТЫЙ, БЕЗ ТЕМНЫХ ПЛАШЕК ---
+const pageContainerStyle = {
   display: 'flex',
   flexDirection: 'column',
   height: '100%',
   width: '100%',
-  padding: '25px',
-  color: '#fff',
-  position: 'relative',
-  overflow: 'hidden'
+  overflow: 'hidden',
+  background: 'transparent',
+  border: 'none',
+  padding: '0 4px 12px 4px',
+  boxSizing: 'border-box'
 };
 
 const inputStyle = {
-  background: 'rgba(255, 255, 255, 0.05)',
-  border: '1px solid rgba(255, 255, 255, 0.1)',
+  background: 'rgba(20, 20, 28, 0.6)',
+  backdropFilter: 'blur(16px)',
+  WebkitBackdropFilter: 'blur(16px)',
+  border: '1px solid rgba(255, 255, 255, 0.09)',
   borderRadius: '12px',
   color: '#fff',
-  padding: '12px 16px',
+  padding: '11px 14px',
   width: '100%',
   outline: 'none',
   fontFamily: 'Montserrat',
   fontSize: '13px',
   fontWeight: 600,
-  transition: 'border-color 0.25s, box-shadow 0.25s',
+  transition: 'border-color 0.25s, box-shadow 0.25s, background 0.25s',
+  boxSizing: 'border-box'
 };
 
 const labelStyle = {
   display: 'block',
-  color: '#a1a1aa',
+  color: '#d4d4d8',
+  fontSize: '11px',
+  fontWeight: 700,
+  marginBottom: '6px',
+  letterSpacing: '0.4px',
+  fontFamily: 'Montserrat'
+};
+
+const specBadgeStyle = {
   fontSize: '10px',
-  textTransform: 'uppercase',
-  fontWeight: 800,
-  marginBottom: '8px',
-  letterSpacing: '1.5px',
+  fontWeight: 700,
+  color: '#10b981',
+  background: 'rgba(16, 185, 129, 0.1)',
+  border: '1px solid rgba(16, 185, 129, 0.25)',
+  padding: '2px 8px',
+  borderRadius: '6px',
+  letterSpacing: '0.3px',
+  fontFamily: 'Montserrat',
+  whiteSpace: 'nowrap'
 };
 
 // Configurable Custom Dropdown Component with search support and rich descriptions
@@ -103,70 +115,70 @@ function CustomSelect({ label, value, options, onChange, placeholder, showSearch
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          borderColor: isOpen ? '#10b981' : 'rgba(255, 255, 255, 0.1)',
-          boxShadow: isOpen ? '0 0 10px rgba(16,185,129,0.15)' : 'none',
+          background: isOpen ? 'rgba(24, 24, 34, 0.85)' : 'rgba(20, 20, 28, 0.6)',
+          borderColor: isOpen ? '#10b981' : 'rgba(255, 255, 255, 0.09)',
+          boxShadow: isOpen ? '0 0 14px rgba(16, 185, 129, 0.2)' : 'none',
         }}
       >
-        <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {selectedOption?.icon && <i className={selectedOption.icon} style={{ color: selectedOption.color || '#10b981' }} />}
           {selectedOption ? selectedOption.label : placeholder}
         </span>
-        <i className={`fa-solid ${isOpen ? 'fa-angle-up' : 'fa-angle-down'}`} style={{ color: 'rgba(255,255,255,0.4)', fontSize: '13px' }} />
+        <i className={`fa-solid ${isOpen ? 'fa-angle-up' : 'fa-angle-down'}`} style={{ color: 'rgba(255,255,255,0.4)', fontSize: '12px' }} />
       </div>
 
       <AnimatePresence>
         {isOpen && (
           <motion.div
-            initial={{ opacity: 0, y: 10, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 10, scale: 0.95 }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
             transition={{ duration: 0.15 }}
             style={{
               position: 'absolute',
-              top: '75px',
+              top: 'calc(100% + 6px)',
               left: 0,
-              right: 0,
-              zIndex: 1000,
-              background: 'rgba(20, 20, 25, 0.96)',
+              width: '100%',
+              background: 'rgba(20, 20, 28, 0.85)',
               backdropFilter: 'blur(24px)',
-              border: '1px solid rgba(255, 255, 255, 0.15)',
-              borderRadius: '12px',
-              maxHeight: '260px',
-              boxShadow: '0 10px 30px rgba(0,0,0,0.6)',
+              WebkitBackdropFilter: 'blur(24px)',
+              border: '1px solid rgba(16, 185, 129, 0.35)',
+              borderRadius: '14px',
               padding: '6px',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '4px'
+              zIndex: 999,
+              boxShadow: '0 20px 40px rgba(0,0,0,0.65), 0 0 20px rgba(16, 185, 129, 0.08)',
+              boxSizing: 'border-box'
             }}
           >
             {showSearch && (
-              <div style={{ padding: '4px', position: 'sticky', top: 0, background: 'rgba(20, 20, 25, 0.96)', zIndex: 1001, marginBottom: '4px' }}>
+              <div style={{ padding: '4px', borderBottom: '1px solid rgba(255, 255, 255, 0.06)', marginBottom: '4px' }}>
                 <input
                   type="text"
-                  placeholder={lang === 'ru' ? 'Поиск версии...' : 'Search version...'}
+                  placeholder={lang === 'ru' ? 'Поиск...' : 'Search...'}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  onClick={(e) => e.stopPropagation()} // Prevent closing dropdown on input click
+                  onClick={(e) => e.stopPropagation()}
+                  autoFocus
                   style={{
-                    background: 'rgba(255, 255, 255, 0.08)',
-                    border: '1px solid rgba(255, 255, 255, 0.15)',
+                    width: '100%',
+                    background: 'rgba(255, 255, 255, 0.05)',
+                    border: '1px solid rgba(255, 255, 255, 0.08)',
                     borderRadius: '8px',
                     color: '#fff',
-                    padding: '8px 12px',
-                    width: '100%',
+                    padding: '6px 10px',
                     outline: 'none',
-                    fontSize: '12px',
                     fontFamily: 'Montserrat',
-                    fontWeight: 600
+                    fontSize: '11px',
+                    fontWeight: 600,
+                    boxSizing: 'border-box'
                   }}
                 />
               </div>
             )}
-            
-            <div style={{ overflowY: 'auto', flexGrow: 1, display: 'flex', flexDirection: 'column', gap: '3px' }}>
+            <div className="custom-scrollbar" style={{ maxHeight: '180px', overflowY: 'auto' }}>
               {filteredOptions.length === 0 ? (
-                <div style={{ padding: '10px 14px', fontSize: '12px', color: 'rgba(255,255,255,0.4)', textAlign: 'center' }}>
-                  {lang === 'ru' ? 'Ничего не найдено' : 'Nothing found'}
+                <div style={{ padding: '10px', textAlign: 'center', color: '#71717a', fontSize: '11px' }}>
+                  {lang === 'ru' ? 'Ничего не найдено' : 'No results found'}
                 </div>
               ) : (
                 filteredOptions.map(opt => (
@@ -178,25 +190,28 @@ function CustomSelect({ label, value, options, onChange, placeholder, showSearch
                       setSearchQuery('');
                     }}
                     style={{
-                      padding: opt.description ? '10px 14px' : '8px 14px',
+                      padding: '8px 10px',
                       borderRadius: '8px',
                       cursor: 'pointer',
-                      color: opt.value === value ? (opt.color || '#34d399') : '#fff',
-                      background: opt.value === value ? 'rgba(255, 255, 255, 0.06)' : 'transparent',
+                      background: value === opt.value ? 'rgba(16, 185, 129, 0.15)' : 'transparent',
+                      color: value === opt.value ? '#10b981' : '#fff',
+                      fontSize: '12px',
+                      fontWeight: 600,
                       display: 'flex',
                       flexDirection: 'column',
                       gap: '2px',
-                      transition: 'background 0.2s'
+                      transition: 'all 0.15s ease'
                     }}
-                    onMouseEnter={e => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)'}
-                    onMouseLeave={e => e.currentTarget.style.background = opt.value === value ? 'rgba(255, 255, 255, 0.06)' : 'transparent'}
+                    onMouseEnter={e => {
+                      if (value !== opt.value) e.currentTarget.style.background = 'rgba(255, 255, 255, 0.06)';
+                    }}
+                    onMouseLeave={e => {
+                      if (value !== opt.value) e.currentTarget.style.background = 'transparent';
+                    }}
                   >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
-                      <span style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', fontWeight: 700 }}>
-                        {opt.icon && <i className={opt.icon} style={{ color: opt.color || '#10b981', width: '16px', textAlign: 'center' }} />}
-                        {opt.label}
-                      </span>
-                      {opt.value === value && <i className="fa-solid fa-check" style={{ color: opt.color || '#10b981', fontSize: '12px' }} />}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      {opt.icon && <i className={opt.icon} style={{ color: opt.color || '#10b981', width: '16px', textAlign: 'center' }} />}
+                      <span>{opt.label}</span>
                     </div>
                     {opt.description && (
                       <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.45)', paddingLeft: opt.icon ? '24px' : '0', fontWeight: 500, lineHeight: '1.3' }}>
@@ -214,14 +229,12 @@ function CustomSelect({ label, value, options, onChange, placeholder, showSearch
   );
 }
 
-// LivePreviewCard Component
+// --- ИНТЕРАКТИВНОЕ LIVE PREVIEW КАРТОЧКИ (СИНХРОНИЗИРОВАНО С BUILDS PAGE, БЕЗ TRANSFORM) ---
 function LivePreviewCard({ name, mcVersion, loaderType, bgImage, bgVideo, icon, faIcon, titleColor, description }) {
   const { lang } = useTranslation();
+  const [isHovered, setIsHovered] = useState(false);
   const finalBg = bgImage?.trim() || DEFAULT_BG;
   const finalName = name?.trim() || (lang === 'ru' ? 'Моя Сборка' : 'My Pack');
-  const titleStyle = titleColor && titleColor.includes('gradient') 
-    ? { background: titleColor, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', color: 'transparent', textShadow: 'none' } 
-    : { color: titleColor || '#fff', background: 'none', WebkitBackgroundClip: 'unset', WebkitTextFillColor: 'unset' };
 
   const loadersList = [
     { value: 'vanilla', label: 'Vanilla' },
@@ -241,99 +254,160 @@ function LivePreviewCard({ name, mcVersion, loaderType, bgImage, bgVideo, icon, 
     }
   };
 
-  const getLoaderBg = () => {
-    switch (loaderType) {
-      case 'fabric': return 'rgba(52, 211, 153, 0.1)';
-      case 'forge': return 'rgba(245, 158, 11, 0.1)';
-      case 'quilt': return 'rgba(236, 72, 153, 0.1)';
-      case 'neoforge': return 'rgba(167, 139, 250, 0.1)';
-      default: return 'rgba(96, 165, 250, 0.1)';
-    }
-  };
-
-  const getLoaderBorder = () => {
-    switch (loaderType) {
-      case 'fabric': return 'rgba(52, 211, 153, 0.2)';
-      case 'forge': return 'rgba(245, 158, 11, 0.2)';
-      case 'quilt': return 'rgba(236, 72, 153, 0.2)';
-      case 'neoforge': return 'rgba(167, 139, 250, 0.2)';
-      default: return 'rgba(96, 165, 250, 0.2)';
-    }
-  };
+  const loaderColor = getLoaderColor();
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', gap: '25px' }}>
-      <div style={{
-        position: 'relative',
-        width: '100%',
-        height: '180px',
-        borderRadius: '16px',
-        overflow: 'hidden',
-        border: '1px solid rgba(255, 255, 255, 0.1)',
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        transition: 'transform 0.3s, box-shadow 0.3s'
-      }} className="hover-card">
-        <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 0, overflow: 'hidden' }}>
-          {bgVideo ? (
-            <video src={getSafeBgUrl(bgVideo)} autoPlay loop muted style={{ position: 'absolute', width: '100%', height: '100%', objectFit: 'cover' }} />
-          ) : (
-            <div style={{ position: 'absolute', width: '100%', height: '100%', background: `url('${getSafeBgUrl(finalBg)}') center/cover` }} />
-          )}
-          <div style={{ position: 'absolute', width: '100%', height: '100%', background: 'linear-gradient(to bottom, rgba(15,15,20,0.3), rgba(15,15,20,0.9))' }} />
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', gap: '20px' }}>
+      <div 
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+        style={{
+          position: 'relative',
+          width: '100%',
+          maxWidth: '280px',
+          height: '210px',
+          borderRadius: '20px',
+          overflow: 'hidden',
+          border: isHovered ? '1px solid rgba(255, 255, 255, 0.22)' : '1px solid rgba(255, 255, 255, 0.08)',
+          background: isHovered ? 'rgba(24, 24, 32, 0.65)' : 'rgba(18, 18, 24, 0.55)',
+          boxShadow: isHovered 
+            ? '0 10px 30px rgba(0, 0, 0, 0.7), 0 0 20px rgba(255, 255, 255, 0.04)' 
+            : '0 6px 20px -8px rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '22px 18px',
+          boxSizing: 'border-box',
+          transition: 'border-color 0.25s ease, background 0.25s ease, box-shadow 0.25s ease'
+        }}
+      >
+        {/* Фоновое видео или фоновый арт */}
+        {bgVideo ? (
+          <video 
+            src={getSafeBgUrl(bgVideo)} 
+            autoPlay loop muted 
+            style={{ 
+              position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover', zIndex: 0,
+              filter: isHovered ? 'brightness(1.12)' : 'brightness(1)',
+              transition: 'filter 0.3s ease'
+            }} 
+          />
+        ) : (
+          <div 
+            style={{ 
+              position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', 
+              background: `url('${getSafeBgUrl(finalBg)}') center/cover`,
+              zIndex: 0,
+              filter: isHovered ? 'brightness(1.12)' : 'brightness(1)',
+              transition: 'filter 0.3s ease'
+            }} 
+          />
+        )}
+
+        {/* Градиент затемнения */}
+        <div style={{ 
+          position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, 
+          background: isHovered 
+            ? 'linear-gradient(to bottom, rgba(10, 10, 14, 0.38) 0%, rgba(10, 10, 14, 0.88) 100%)' 
+            : 'linear-gradient(to bottom, rgba(10, 10, 14, 0.5) 0%, rgba(10, 10, 14, 0.92) 100%)', 
+          zIndex: 1,
+          transition: 'background 0.3s ease'
+        }} />
+
+        {/* Индикатор в левом углу */}
+        <div style={{
+          position: 'absolute', top: '14px', left: '14px',
+          fontSize: '10px', fontWeight: 800,
+          color: '#34d399', background: 'rgba(16, 185, 129, 0.16)',
+          border: '1px solid rgba(16, 185, 129, 0.4)',
+          padding: '3px 10px', borderRadius: '20px',
+          display: 'inline-flex', alignItems: 'center', gap: '5px',
+          letterSpacing: '0.4px', zIndex: 10, backdropFilter: 'blur(10px)'
+        }}>
+          <i className="fa-solid fa-check" style={{ fontSize: '9px' }} />
+          {lang === 'ru' ? 'Превью' : 'Preview'}
         </div>
 
-        <div style={{ position: 'relative', zIndex: 1, padding: '20px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', width: '100%' }}>
+        {/* Иконка сборки */}
+        <div style={{ position: 'relative', zIndex: 2, marginBottom: '14px' }}>
           {icon ? (
-            <img src={icon} alt="Icon" style={{ width: '48px', height: '48px', borderRadius: '10px', objectFit: 'cover', filter: 'drop-shadow(0 4px 6px rgba(0,0,0,0.6))', marginBottom: '12px' }} />
+            <img 
+              src={icon} 
+              alt="Icon" 
+              style={{ 
+                width: '54px', height: '54px', borderRadius: '14px', objectFit: 'contain', 
+                filter: 'drop-shadow(0 6px 12px rgba(0,0,0,0.5))' 
+              }} 
+            />
           ) : faIcon ? (
-            <div style={{ width: '48px', height: '48px', borderRadius: '10px', background: 'rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px', color: '#fff', boxShadow: '0 4px 10px rgba(0,0,0,0.5)', marginBottom: '12px' }}>
+            <div style={{ 
+              width: '54px', height: '54px', borderRadius: '14px', background: 'rgba(255,255,255,0.08)', 
+              border: '1px solid rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', 
+              fontSize: '26px', color: '#fff', boxShadow: '0 8px 16px rgba(0,0,0,0.4)' 
+            }}>
               <i className={faIcon} />
             </div>
           ) : (
             <div style={{
-              width: '48px', height: '48px', borderRadius: '10px',
-              background: 'linear-gradient(135deg, rgba(255,255,255,0.1), rgba(255,255,255,0.02))',
+              width: '54px', height: '54px', borderRadius: '14px',
+              background: `linear-gradient(135deg, ${loaderColor}30, rgba(255,255,255,0.05))`,
+              border: `1px solid ${loaderColor}40`,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: '24px', fontWeight: 900, color: '#fff',
-              boxShadow: '0 4px 10px rgba(0,0,0,0.5)',
-              border: '1px solid rgba(255,255,255,0.1)',
-              marginBottom: '12px'
+              fontSize: '20px', fontWeight: 800, color: '#fff',
+              boxShadow: '0 8px 16px rgba(0,0,0,0.4)'
             }}>
               {finalName.charAt(0).toUpperCase()}
             </div>
           )}
-          
-          <h3 key={titleColor} style={{ margin: '0 0 6px 0', fontSize: '18px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '1px', textAlign: 'center', ...titleStyle }}>
-            {finalName}
-          </h3>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span style={{ fontSize: '11px', fontWeight: 800, color: 'rgba(255,255,255,0.6)' }}>Minecraft {mcVersion || '...'}</span>
-            <span style={{ width: '4px', height: '4px', borderRadius: '50%', background: 'rgba(255,255,255,0.2)' }} />
-            <span style={{
-              fontSize: '10px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px',
-              color: getLoaderColor(), background: getLoaderBg(), border: `1px solid ${getLoaderBorder()}`,
-              padding: '2px 6px', borderRadius: '6px'
-            }}>
-              {loadersList.find(l => l.value === loaderType)?.label || 'Vanilla'}
-            </span>
-          </div>
         </div>
-      </div>
+        
+        {/* Название */}
+        <h4 style={{ 
+          margin: '0 0 10px 0', 
+          fontSize: '15.5px', 
+          fontWeight: 700, 
+          textAlign: 'center', 
+          letterSpacing: '0.2px',
+          width: '100%',
+          whiteSpace: 'nowrap',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          zIndex: 2,
+          position: 'relative',
+          fontFamily: 'Montserrat',
+          ...(titleColor && titleColor.includes('gradient') ? {
+            background: titleColor,
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+            color: 'transparent',
+            textShadow: 'none'
+          } : titleColor ? {
+            color: titleColor,
+            textShadow: '0 2px 4px rgba(0,0,0,0.8)'
+          } : {
+            color: '#ffffff',
+            textShadow: '0 2px 4px rgba(0,0,0,0.8)'
+          })
+        }}>
+          {finalName}
+        </h4>
 
-      <div style={{ width: '100%', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '14px', padding: '16px', display: 'flex', gap: '15px' }}>
-        <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#10b981', fontSize: '16px' }}>
-          <i className="fa-solid fa-circle-info" />
-        </div>
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '4px' }}>
-          <span style={{ fontSize: '12px', fontWeight: 800, color: '#fff' }}>{lang === 'ru' ? 'Информация' : 'Information'}</span>
-          <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)', lineHeight: 1.4 }}>
-            {lang === 'ru' 
-              ? 'Эта карточка показывает, как ваша сборка будет выглядеть в общем списке сборок. Убедитесь, что текст хорошо читается на выбранном фоне!' 
-              : 'This card shows how your pack will look in the main list. Make sure the text is readable on the selected background!'}
+        {/* Теги */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', zIndex: 2 }}>
+          <span style={{ 
+            fontSize: '10px', fontWeight: 700, color: '#e4e4e7',
+            background: 'rgba(255, 255, 255, 0.07)', border: '1px solid rgba(255, 255, 255, 0.06)',
+            padding: '3px 8px', borderRadius: '8px', fontFamily: 'monospace'
+          }}>
+            {mcVersion || '1.20.1'}
+          </span>
+          <span style={{
+            fontSize: '10px', fontWeight: 800, textTransform: 'capitalize',
+            color: loaderColor, background: `${loaderColor}15`, border: `1px solid ${loaderColor}30`,
+            padding: '3px 8px', borderRadius: '8px'
+          }}>
+            {loadersList.find(l => l.value === loaderType)?.label || 'Vanilla'}
           </span>
         </div>
       </div>
@@ -350,6 +424,7 @@ export default function CreatePackPage({ onCreate, onBack, isActive, editPack })
   const [customBg, setCustomBg] = useState('');
   const [customBgVideo, setCustomBgVideo] = useState('');
   const [customIcon, setCustomIcon] = useState('');
+  const [customLogo, setCustomLogo] = useState('');
   const [faIcon, setFaIcon] = useState('');
   const [titleColor, setTitleColor] = useState('#ffffff');
   const [customDir, setCustomDir] = useState('');
@@ -396,6 +471,7 @@ export default function CreatePackPage({ onCreate, onBack, isActive, editPack })
         setLoaderType(editPack.loaderType || 'vanilla');
         setCustomBg(editPack.bgImage && editPack.bgImage !== DEFAULT_BG ? editPack.bgImage : '');
         setCustomBgVideo(editPack.bgVideo || '');
+        setCustomLogo(editPack.logo || '');
         if (editPack.icon && editPack.icon.startsWith('fa-')) {
           setFaIcon(editPack.icon);
           setCustomIcon('');
@@ -412,6 +488,7 @@ export default function CreatePackPage({ onCreate, onBack, isActive, editPack })
         setCustomBg('');
         setCustomBgVideo('');
         setCustomIcon('');
+        setCustomLogo('');
         setFaIcon('');
         setTitleColor('#ffffff');
         setCustomDir('');
@@ -428,11 +505,9 @@ export default function CreatePackPage({ onCreate, onBack, isActive, editPack })
         setLoading(true);
         setError('');
 
-        // 1. Fetch versions manifest
         const manifestRes = await fetch('https://launchermeta.mojang.com/mc/game/version_manifest_v2.json');
         const manifestData = await manifestRes.json();
         
-        // Filter releases only, down to version 1.7.10
         const releases = manifestData.versions
           .filter(v => v.type === 'release')
           .map(v => v.id);
@@ -442,55 +517,44 @@ export default function CreatePackPage({ onCreate, onBack, isActive, editPack })
 
         setVersions(filteredReleases);
 
-        // 2. Fetch Forge promotions
         const promosRes = await fetch('https://files.minecraftforge.net/net/minecraftforge/forge/promotions_slim.json');
         const promosData = await promosRes.json();
         setPromos(promosData.promos || {});
 
-        // Only set default version when creating new pack (not editing)
-        // editPack's version is set via the isActive effect above
-        if (filteredReleases.length > 0 && !editPack) {
+        if (!editPack && filteredReleases.length > 0) {
           setMcVersion(filteredReleases[0]);
         }
       } catch (err) {
-        console.error("Failed to fetch dynamic manifests:", err);
-        setError(lang === 'ru' ? 'Не удалось загрузить списки версий. Проверьте подключение к сети.' : 'Failed to load versions list. Please check your network connection.');
+        console.error("Failed to fetch Minecraft versions manifest:", err);
+        setError(lang === 'ru' ? 'Не удалось загрузить список версий Minecraft' : 'Failed to load Minecraft versions');
       } finally {
         setLoading(false);
       }
     };
 
     fetchData();
-  }, []);
+  }, [lang, editPack]);
 
-  // Compute available loaders for selected Minecraft version
   const getAvailableLoaders = () => {
-    if (!mcVersion) return [{ value: 'vanilla', label: 'Vanilla' }];
+    if (!mcVersion) return [];
+    const available = [{ value: 'vanilla', label: 'Vanilla' }];
+    const hasForge = Object.keys(promos).some(key => key.startsWith(mcVersion));
+    if (hasForge) available.push({ value: 'forge', label: 'Forge' });
 
-    const list = [{ value: 'vanilla', label: 'Vanilla' }];
+    const parts = mcVersion.split('.').map(p => parseInt(p, 10));
+    const major = parts[0] || 0;
+    const minor = parts[1] || 0;
 
-    const versionParts = mcVersion.split('.');
-    const minorVersion = parseInt(versionParts[1] || '0', 10);
-    const patchVersion = parseInt(versionParts[2] || '0', 10);
+    const isFabricSupported = (major > 1) || (major === 1 && minor >= 14);
+    if (isFabricSupported) available.push({ value: 'fabric', label: 'Fabric' });
 
-    // Fabric check (Minecraft version >= 1.14)
-    if (minorVersion >= 14) {
-      list.push({ value: 'fabric', label: 'Fabric' });
-      list.push({ value: 'quilt', label: 'Quilt' });
-    }
+    const isQuiltSupported = (major > 1) || (major === 1 && minor >= 14);
+    if (isQuiltSupported) available.push({ value: 'quilt', label: 'Quilt' });
 
-    // Forge check (check promotions manifest)
-    const hasForge = promos[`${mcVersion}-recommended`] || promos[`${mcVersion}-latest`] || promos[mcVersion];
-    if (hasForge) {
-      list.push({ value: 'forge', label: 'Forge' });
-    }
+    const isNeoForgeSupported = (major > 1) || (major === 1 && minor >= 20);
+    if (isNeoForgeSupported) available.push({ value: 'neoforge', label: 'NeoForge' });
 
-    // NeoForge check (Minecraft version >= 1.20.1)
-    if (minorVersion > 20 || (minorVersion === 20 && patchVersion >= 1)) {
-      list.push({ value: 'neoforge', label: 'NeoForge' });
-    }
-
-    return list;
+    return available;
   };
 
   const allLoaders = [
@@ -499,42 +563,40 @@ export default function CreatePackPage({ onCreate, onBack, isActive, editPack })
       label: 'Vanilla',
       icon: 'fa-solid fa-cubes',
       color: '#60a5fa',
-      description: lang === 'ru' ? 'Чистая ванильная игра без модов. Идеально для стандартного режима.' : 'Clean vanilla game without mods. Ideal for standard gameplay.'
+      description: lang === 'ru' ? 'Чистая ванильная игра без модов.' : 'Clean vanilla game without mods.'
     },
     {
       value: 'fabric',
       label: 'Fabric',
       icon: 'fa-solid fa-scroll',
       color: '#34d399',
-      description: lang === 'ru' ? 'Легковесный современный загрузчик модов. Высокая производительность и совместимость.' : 'Lightweight modern mod loader. High performance and compatibility.'
+      description: lang === 'ru' ? 'Легковесный современный загрузчик модов.' : 'Lightweight modern mod loader.'
     },
     {
       value: 'forge',
       label: 'Forge',
       icon: 'fa-solid fa-hammer',
       color: '#f59e0b',
-      description: lang === 'ru' ? 'Классическое ядро с наибольшим количеством крупных сюжетных и технических модов.' : 'Classic core with the largest amount of major storyline and technical mods.'
+      description: lang === 'ru' ? 'Классическое ядро с наибольшим количеством сюжетных модов.' : 'Classic core with massive mod variety.'
     },
     {
       value: 'quilt',
       label: 'Quilt',
       icon: 'fa-solid fa-feather-pointed',
       color: '#ec4899',
-      description: lang === 'ru' ? 'Современный загрузчик модов, созданный как альтернатива Fabric. Поддерживает большинство модов Fabric.' : 'Modern mod loader designed as an alternative to Fabric. Supports most Fabric mods.'
+      description: lang === 'ru' ? 'Современная альтернатива Fabric.' : 'Modern mod loader alternative to Fabric.'
     },
     {
       value: 'neoforge',
       label: 'NeoForge',
       icon: 'fa-solid fa-shield-halved',
       color: '#a78bfa',
-      description: lang === 'ru' ? 'Новое улучшенное продолжение проекта Forge для современных версий Minecraft (1.20.1+).' : 'New improved continuation of Forge project for modern Minecraft versions (1.20.1+).'
+      description: lang === 'ru' ? 'Улучшенное продолжение Forge для современных версий (1.20.1+).' : 'Next-gen Forge continuation for 1.20.1+.'
     }
   ];
 
   const loadersList = allLoaders.filter(l => getAvailableLoaders().some(avail => avail.value === l.value));
 
-  // Reset loader if selected version doesn't support the current active loader
-  // Note: only reset when promos data is already loaded to avoid premature resets while editing
   useEffect(() => {
     if (mcVersion && Object.keys(promos).length > 0) {
       const validKeys = loadersList.map(l => l.value);
@@ -573,17 +635,15 @@ export default function CreatePackPage({ onCreate, onBack, isActive, editPack })
     const safeName = translit(name.trim()).toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '') || 'pack';
     const id = editPack ? editPack.id : `custom-${safeName}-${Date.now()}`;
     
-    let clientDir = `.${safeName}-client`;
-    let serverDir = `.${safeName}-server`;
-    if (customDir.trim()) {
+    let clientDir = editPack ? editPack.clientDir : `.${safeName}-client`;
+    let serverDir = editPack ? (editPack.serverDir || `${clientDir}-server`) : `.${safeName}-server`;
+    if (customDir.trim() && (!editPack || customDir.trim() !== editPack.clientDir)) {
       clientDir = customDir.trim();
       serverDir = `${customDir.trim()}-server`;
-    } else if (editPack) {
-      clientDir = editPack.clientDir;
-      serverDir = editPack.serverDir;
     }
 
     const newPack = {
+      ...(editPack || {}),
       id,
       name: name.trim(),
       mcVersion,
@@ -594,136 +654,162 @@ export default function CreatePackPage({ onCreate, onBack, isActive, editPack })
       bgImage: customBg.trim() || DEFAULT_BG,
       bgVideo: customBgVideo.trim() || "",
       icon: customIcon.trim() || faIcon || "",
-      titleColor: titleColor || "#ffffff",
-      logo: "" // Text title fallback will render on ClientPage
+      logo: customLogo.trim() || "",
+      titleColor: titleColor || "#ffffff"
     };
 
-    if (loaderType === 'fabric') {
-      newPack.loaderVersion = selectedLoaderVersion || '0.16.10';
-      newPack.installerUrl = 'https://maven.fabricmc.net/net/fabricmc/fabric-installer/1.1.1/fabric-installer-1.1.1.jar';
-      newPack.installerName = 'fabric-installer-1.1.1.jar';
-    } else if (loaderType === 'quilt') {
-      newPack.loaderVersion = selectedLoaderVersion || '0.26.3';
-      newPack.installerUrl = 'https://maven.quiltmc.org/repository/release/org/quiltmc/quilt-installer/0.14.1/quilt-installer-0.14.1.jar';
-      newPack.installerName = 'quilt-installer-0.14.1.jar';
-    } else if (loaderType === 'forge') {
-      const forgeVersion = selectedLoaderVersion || promos[`${mcVersion}-recommended`] || promos[`${mcVersion}-latest`] || promos[mcVersion];
-      if (!forgeVersion) {
-        setError(lang === 'ru' ? `Версия Forge для Minecraft ${mcVersion} не найдена.` : `Forge version for Minecraft ${mcVersion} not found.`);
-        return;
-      }
-      const needsSuffix = mcVersion === '1.8.9' || /^(1\.[0-7]\b)/.test(mcVersion);
-      const versionPath = needsSuffix ? `${mcVersion}-${forgeVersion}-${mcVersion}` : `${mcVersion}-${forgeVersion}`;
-      newPack.loaderVersion = forgeVersion;
-      newPack.forgeUrl = `https://maven.minecraftforge.net/net/minecraftforge/forge/${versionPath}/forge-${versionPath}-installer.jar`;
-      newPack.forgeInstallerName = `forge-${versionPath}-installer.jar`;
-    } else if (loaderType === 'neoforge') {
-      let neoVersion = selectedLoaderVersion;
-      if (!neoVersion) {
-        const neoForgeVersions = {
-          '1.20.1': '20.1.89', '1.20.2': '20.2.93', '1.20.4': '20.4.251',
-          '1.20.6': '20.6.139', '1.21': '21.0.167', '1.21.1': '21.1.233',
-          '1.21.2': '21.2.1-beta', '1.21.3': '21.3.96', '1.21.4': '21.4.157'
-        };
-        neoVersion = neoForgeVersions[mcVersion] || `${mcVersion.split('.')[1] || '21'}.${mcVersion.split('.')[2] || '0'}.150`;
-      }
-      newPack.loaderVersion = neoVersion;
-      newPack.forgeUrl = `https://maven.neoforged.net/releases/net/neoforged/neoforge/${neoVersion}/neoforge-${neoVersion}-installer.jar`;
-      newPack.forgeInstallerName = `neoforge-${neoVersion}-installer.jar`;
+    if (loaderType !== 'vanilla' && selectedLoaderVersion) {
+      newPack.loaderVersion = selectedLoaderVersion;
     }
 
     onCreate(newPack);
-    onBack();
   };
 
   return (
-    <div style={glassPanelStyle} className="tab-enter">
-      {/* Back button */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '25px', zIndex: 10 }}>
-        <motion.button
-          whileHover={{ background: 'rgba(255,255,255,0.08)' }}
-          whileTap={{ scale: 0.95 }}
-          onClick={onBack}
-          style={{
-            background: 'transparent',
-            border: '1px solid rgba(255,255,255,0.1)',
-            color: '#fff',
-            borderRadius: '12px',
-            width: '40px',
-            height: '40px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            cursor: 'pointer',
-            fontSize: '16px'
-          }}
-          title={lang === 'ru' ? "Назад к сборкам" : "Back to packs"}
-        >
-          <i className="fa-solid fa-arrow-left-long" />
-        </motion.button>
+    <div style={pageContainerStyle} className="tab-enter">
+      {/* --- ШАПКА: Кнопка Назад, Заголовок и Табы в одну линию --- */}
+      <div style={{ 
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'space-between', 
+        marginBottom: '18px', 
+        flexShrink: 0,
+        gap: '16px' 
+      }}>
+        {/* Левая часть: Стрелка назад + Заголовок */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+          <button
+            onClick={onBack}
+            style={{
+              background: 'rgba(20, 20, 28, 0.6)',
+              backdropFilter: 'blur(16px)',
+              WebkitBackdropFilter: 'blur(16px)',
+              border: '1px solid rgba(255, 255, 255, 0.09)',
+              color: '#fff',
+              borderRadius: '12px',
+              width: '38px',
+              height: '38px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              fontSize: '14px',
+              transition: 'all 0.2s ease'
+            }}
+            onMouseEnter={e => {
+              e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)';
+              e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.15)';
+            }}
+            onMouseLeave={e => {
+              e.currentTarget.style.background = 'rgba(20, 20, 28, 0.6)';
+              e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.09)';
+            }}
+            title={lang === 'ru' ? "Назад к сборкам" : "Back to packs"}
+          >
+            <i className="fa-solid fa-arrow-left-long" />
+          </button>
 
-        <div>
-          <h2 style={{ margin: 0, fontSize: '22px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '1px' }}>
-            {editPack ? (lang === 'ru' ? 'Настройка сборки' : 'Pack Settings') : (lang === 'ru' ? 'Создание сборки' : 'Create Pack')}
+          <h2 style={{ 
+            margin: 0, 
+            fontSize: '22px', 
+            fontWeight: 800, 
+            fontFamily: 'Montserrat', 
+            color: '#ffffff', 
+            letterSpacing: '0.3px' 
+          }}>
+            {editPack 
+              ? (lang === 'ru' ? 'Редактирование сборки' : 'Edit Pack') 
+              : (lang === 'ru' ? 'Создание сборки' : 'New Pack')}
           </h2>
-          <p style={{ margin: 0, color: '#10b981', fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '1px' }}>
-            {editPack ? (lang === 'ru' ? 'Изменение оформления вашей сборки' : 'Change layout of your pack') : (lang === 'ru' ? 'Настройте персональный профиль игрового клиента и сервера' : 'Configure custom client and server profile')}
-          </p>
+        </div>
+
+        {/* Правая часть: Переключатели вкладок в одну строку */}
+        <div style={{ 
+          display: 'flex', 
+          background: 'rgba(20, 20, 28, 0.6)', 
+          backdropFilter: 'blur(16px)',
+          WebkitBackdropFilter: 'blur(16px)',
+          padding: '3px', 
+          borderRadius: '12px', 
+          border: '1px solid rgba(255, 255, 255, 0.08)' 
+        }}>
+          <button 
+            type="button"
+            onClick={() => setActiveTab('basic')}
+            style={{ 
+              padding: '7px 18px', 
+              borderRadius: '9px', 
+              background: activeTab === 'basic' ? 'rgba(59, 130, 246, 0.18)' : 'transparent', 
+              border: activeTab === 'basic' ? '1px solid rgba(59, 130, 246, 0.35)' : '1px solid transparent', 
+              color: activeTab === 'basic' ? '#60a5fa' : '#a1a1aa', 
+              fontWeight: 700, 
+              fontSize: '12px', 
+              cursor: 'pointer', 
+              transition: 'all 0.2s ease', 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '7px',
+              fontFamily: 'Montserrat'
+            }}
+          >
+            <i className="fa-solid fa-cube" style={{ fontSize: '11px' }} />
+            <span>{lang === 'ru' ? 'Основные' : 'Basic'}</span>
+          </button>
+          <button 
+            type="button"
+            onClick={() => setActiveTab('design')}
+            style={{ 
+              padding: '7px 18px', 
+              borderRadius: '9px', 
+              background: activeTab === 'design' ? 'rgba(16, 185, 129, 0.18)' : 'transparent', 
+              border: activeTab === 'design' ? '1px solid rgba(16, 185, 129, 0.35)' : '1px solid transparent', 
+              color: activeTab === 'design' ? '#34d399' : '#a1a1aa', 
+              fontWeight: 700, 
+              fontSize: '12px', 
+              cursor: 'pointer', 
+              transition: 'all 0.2s ease', 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '7px',
+              fontFamily: 'Montserrat'
+            }}
+          >
+            <i className="fa-solid fa-palette" style={{ fontSize: '11px' }} />
+            <span>{lang === 'ru' ? 'Оформление' : 'Design'}</span>
+          </button>
         </div>
       </div>
 
       {loading ? (
         <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-          <motion.div 
-            animate={{ rotate: 360 }} 
-            transition={{ repeat: Infinity, duration: 1.2, ease: "linear" }} 
-            style={{ width: '40px', height: '40px', border: '3px solid rgba(16, 185, 129, 0.1)', borderTopColor: '#10b981', borderRadius: '50%', marginBottom: '15px' }} 
-          />
-          <span style={{ fontSize: '12px', fontWeight: 800, color: '#10b981', letterSpacing: '1px', textTransform: 'uppercase' }}>
-            {lang === 'ru' ? 'Загрузка списков версий с Mojang...' : 'Loading versions list from Mojang...'}
+          <div style={{ width: '38px', height: '38px', border: '3px solid rgba(16, 185, 129, 0.15)', borderTopColor: '#10b981', borderRadius: '50%', marginBottom: '14px', animation: 'spin 1s linear infinite' }} />
+          <span style={{ fontSize: '12px', fontWeight: 700, color: '#10b981', fontFamily: 'Montserrat' }}>
+            {lang === 'ru' ? 'Загрузка списков версий...' : 'Loading versions...'}
           </span>
         </div>
       ) : (
-        <div style={{ flexGrow: 1, display: 'flex', gap: '30px', overflow: 'hidden', paddingBottom: '10px' }}>
+        <div style={{ flexGrow: 1, display: 'flex', gap: '28px', overflow: 'hidden' }}>
           
-          {/* Left Column: Form Parameters */}
-          <div style={{ flex: '1.2', display: 'flex', flexDirection: 'column', overflowY: 'auto', paddingRight: '8px' }}>
-            <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', background: 'rgba(0,0,0,0.2)', padding: '6px', borderRadius: '14px', border: '1px solid rgba(255,255,255,0.05)' }}>
-              <button 
-                type="button"
-                onClick={() => setActiveTab('basic')}
-                style={{ flex: 1, padding: '10px', borderRadius: '10px', background: activeTab === 'basic' ? 'rgba(59,130,246,0.15)' : 'transparent', border: activeTab === 'basic' ? '1px solid rgba(59,130,246,0.3)' : '1px solid transparent', color: activeTab === 'basic' ? '#60a5fa' : '#a1a1aa', fontWeight: 800, fontSize: '12px', cursor: 'pointer', transition: '0.2s', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
-              >
-                <i className="fa-solid fa-cube" />
-                {lang === 'ru' ? 'ОСНОВНЫЕ' : 'BASIC'}
-              </button>
-              <button 
-                type="button"
-                onClick={() => setActiveTab('design')}
-                style={{ flex: 1, padding: '10px', borderRadius: '10px', background: activeTab === 'design' ? 'rgba(16,185,129,0.15)' : 'transparent', border: activeTab === 'design' ? '1px solid rgba(16,185,129,0.3)' : '1px solid transparent', color: activeTab === 'design' ? '#34d399' : '#a1a1aa', fontWeight: 800, fontSize: '12px', cursor: 'pointer', transition: '0.2s', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
-              >
-                <i className="fa-solid fa-palette" />
-                {lang === 'ru' ? 'ОФОРМЛЕНИЕ' : 'DESIGN'}
-              </button>
-            </div>
-
-            <form onSubmit={handleCreate} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          {/* Левая колонка: Форма настроек */}
+          <div style={{ flex: '1.25', display: 'flex', flexDirection: 'column', overflowY: 'auto', paddingRight: '8px' }}>
+            <form onSubmit={handleCreate} style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
               {activeTab === 'basic' && (
-                <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                   <div>
                     <label style={labelStyle}>{lang === 'ru' ? 'Название сборки' : 'Pack Name'}</label>
-                    <motion.input
-                      whileFocus={{ borderColor: 'rgba(16,185,129,0.6)', boxShadow: '0 0 10px rgba(16,185,129,0.15)' }}
+                    <input
                       type="text"
                       placeholder={lang === 'ru' ? 'Например: Мой ТехноМир' : 'e.g. My Tech World'}
                       value={name}
                       onChange={e => setName(e.target.value)}
                       style={inputStyle}
+                      onFocus={e => { e.target.style.borderColor = 'rgba(16,185,129,0.5)'; }}
+                      onBlur={e => { e.target.style.borderColor = 'rgba(255,255,255,0.08)'; }}
                       required
                     />
                   </div>
 
-                  <div style={{ display: 'flex', gap: '15px', zIndex: 100 }}>
+                  <div style={{ display: 'flex', gap: '12px', zIndex: 100 }}>
                     <div style={{ flex: 1 }}>
                       <CustomSelect
                         label={lang === 'ru' ? 'Версия игры' : 'Game Version'}
@@ -748,14 +834,14 @@ export default function CreatePackPage({ onCreate, onBack, isActive, editPack })
                     {loaderType !== 'vanilla' && (
                       <div style={{ flex: 1 }}>
                         <CustomSelect
-                          label={lang === 'ru' ? 'Версия ядра модов' : 'Mod Engine Version'}
+                          label={lang === 'ru' ? 'Версия ядра' : 'Loader Version'}
                           value={selectedLoaderVersion}
                           options={loaderVersionsList.map(v => ({
                             value: v.version,
-                            label: `${v.version} ${v.isRecommended ? (lang === 'ru' ? '(Реком.)' : '(Recommended)') : v.isLatest ? (lang === 'ru' ? '(Свежая)' : '(Latest)') : ''}`.trim()
+                            label: `${v.version} ${v.isRecommended ? (lang === 'ru' ? '(Реком.)' : '(Rec.)') : ''}`.trim()
                           }))}
                           onChange={setSelectedLoaderVersion}
-                          placeholder={loadingLoaderVersions ? (lang === 'ru' ? 'Загрузка версий...' : 'Loading versions...') : (lang === 'ru' ? 'Выберите версию ядра' : 'Select engine version')}
+                          placeholder={loadingLoaderVersions ? (lang === 'ru' ? 'Загрузка...' : 'Loading...') : (lang === 'ru' ? 'Версия ядра' : 'Core version')}
                           showSearch={true}
                         />
                       </div>
@@ -764,127 +850,234 @@ export default function CreatePackPage({ onCreate, onBack, isActive, editPack })
 
                   <div>
                     <label style={labelStyle}>{lang === 'ru' ? 'Путь к папке сборки (Опционально)' : 'Pack Folder Path (Optional)'}</label>
-                    <motion.input
-                      whileFocus={{ borderColor: 'rgba(16,185,129,0.6)', boxShadow: '0 0 10px rgba(16,185,129,0.15)' }}
+                    <input
                       type="text"
-                      placeholder={lang === 'ru' ? 'Например: D:\\Games\\MyPack (оставьте пустым для стандартного)' : 'e.g. D:\\Games\\MyPack (leave empty for default)'}
+                      placeholder={lang === 'ru' ? 'Например: D:\\Games\\MyPack (по умолчанию div-launcher)' : 'e.g. D:\\Games\\MyPack'}
                       value={customDir}
                       onChange={e => setCustomDir(e.target.value)}
                       style={inputStyle}
+                      onFocus={e => { e.target.style.borderColor = 'rgba(16,185,129,0.5)'; }}
+                      onBlur={e => { e.target.style.borderColor = 'rgba(255,255,255,0.08)'; }}
                     />
                   </div>
-                </motion.div>
+                </div>
               )}
 
               {activeTab === 'design' && (
-                <motion.div initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-
-
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', overflow: 'hidden' }}>
-                    <div style={{ display: 'flex', gap: '10px' }}>
-                      <div style={{ flex: 1 }}>
-                        <label style={labelStyle}>{lang === 'ru' ? 'Фон (Изображение)' : 'Background (Image)'}</label>
-                        <div style={{ display: 'flex', gap: '8px' }}>
-                          <motion.input
-                            whileFocus={{ borderColor: 'rgba(59,130,246,0.6)' }}
-                            type="text"
-                            placeholder={lang === 'ru' ? 'URL или путь к файлу...' : 'URL or file path...'}
-                            value={toDisplayUrl(customBg)}
-                            onChange={e => setCustomBg(getSafeBgUrl(e.target.value))}
-                            style={{ ...inputStyle, flexGrow: 1 }}
-                          />
-                          <label style={{ 
-                            background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',
-                            borderRadius: '12px', padding: '0 16px', display: 'flex', alignItems: 'center',
-                            cursor: 'pointer', transition: '0.2s'
-                          }} onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'} onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}>
-                            <i className="fa-solid fa-folder-open" style={{ color: '#60a5fa' }} />
-                            <input type="file" accept="image/*" style={{ display: 'none' }} onChange={(e) => {
-                              if (e.target.files[0]) {
-                                const filePath = getFilePath(e.target.files[0]);
-                                if (filePath) setCustomBg(getSafeBgUrl(filePath));
-                              }
-                            }} />
-                          </label>
-                        </div>
-                      </div>
-
-                      <div style={{ flex: 1 }}>
-                        <label style={labelStyle}>{lang === 'ru' ? 'Фон (Видео)' : 'Background (Video)'}</label>
-                        <div style={{ display: 'flex', gap: '8px' }}>
-                          <motion.input
-                            whileFocus={{ borderColor: 'rgba(59,130,246,0.6)' }}
-                            type="text"
-                            placeholder={lang === 'ru' ? 'URL видео (.mp4/.webm)' : 'Video URL (.mp4/.webm)'}
-                            value={toDisplayUrl(customBgVideo)}
-                            onChange={e => setCustomBgVideo(getSafeBgUrl(e.target.value))}
-                            style={{ ...inputStyle, flexGrow: 1 }}
-                          />
-                          <label style={{ 
-                            background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',
-                            borderRadius: '12px', padding: '0 16px', display: 'flex', alignItems: 'center',
-                            cursor: 'pointer', transition: '0.2s'
-                          }} onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'} onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}>
-                            <i className="fa-solid fa-folder-open" style={{ color: '#60a5fa' }} />
-                            <input type="file" accept="video/*" style={{ display: 'none' }} onChange={(e) => {
-                              if (e.target.files[0]) {
-                                const filePath = getFilePath(e.target.files[0]);
-                                if (filePath) setCustomBgVideo(getSafeBgUrl(filePath));
-                              }
-                            }} />
-                          </label>
-                        </div>
-                      </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  {/* Фон (Изображение) со спецификацией размера */}
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                      <label style={{ ...labelStyle, marginBottom: 0 }}>
+                        {lang === 'ru' ? 'Фон (Изображение)' : 'Background (Image)'}
+                      </label>
+                      <span style={specBadgeStyle}>1920×1080 (16:9) • JPG / WebP &lt; 1.5 МБ</span>
                     </div>
-
-                    <div>
-                      <label style={labelStyle}>{lang === 'ru' ? 'Иконка (Свое изображение)' : 'Icon (Custom Image)'}</label>
-                      <div style={{ display: 'flex', gap: '8px' }}>
-                        <motion.input
-                          whileFocus={{ borderColor: 'rgba(59,130,246,0.6)' }}
-                          type="text"
-                          placeholder={lang === 'ru' ? 'URL иконки...' : 'Icon URL...'}
-                          value={toDisplayUrl(customIcon)}
-                          onChange={e => { setCustomIcon(getSafeBgUrl(e.target.value)); setFaIcon(''); }}
-                          style={{ ...inputStyle, flexGrow: 1 }}
-                        />
-                        <label style={{ 
-                          background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <input
+                        type="text"
+                        placeholder={lang === 'ru' ? 'URL или путь к файлу...' : 'URL or file path...'}
+                        value={toDisplayUrl(customBg)}
+                        onChange={e => setCustomBg(getSafeBgUrl(e.target.value))}
+                        style={{ ...inputStyle, flexGrow: 1 }}
+                        onFocus={e => { e.target.style.borderColor = 'rgba(16,185,129,0.5)'; }}
+                        onBlur={e => { e.target.style.borderColor = 'rgba(255,255,255,0.08)'; }}
+                      />
+                      <label 
+                        style={{ 
+                          background: 'rgba(20, 20, 28, 0.6)', 
+                          backdropFilter: 'blur(16px)',
+                          WebkitBackdropFilter: 'blur(16px)',
+                          border: '1px solid rgba(255, 255, 255, 0.09)',
                           borderRadius: '12px', padding: '0 16px', display: 'flex', alignItems: 'center',
-                          cursor: 'pointer', transition: '0.2s'
-                        }} onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'} onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}>
-                          <i className="fa-solid fa-folder-open" style={{ color: '#60a5fa' }} />
-                          <input type="file" accept="image/*" style={{ display: 'none' }} onChange={(e) => {
-                            if (e.target.files[0]) {
-                              const filePath = getFilePath(e.target.files[0]);
-                              if (filePath) { setCustomIcon(getSafeBgUrl(filePath)); setFaIcon(''); }
-                            }
-                          }} />
-                        </label>
-                      </div>
-                    </div>
-
-                    <div>
-                      <label style={labelStyle}>{lang === 'ru' ? 'Или выберите готовую иконку:' : 'Or select pre-made icon:'}</label>
-                      <div className="custom-scrollbar" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(36px, 1fr))', gap: '6px', maxHeight: '110px', overflowY: 'auto', background: 'rgba(0,0,0,0.2)', padding: '10px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
-                        {FA_ICONS.map(i => (
-                          <div key={i} onClick={() => { setFaIcon(i); setCustomIcon(''); }} style={{ cursor: 'pointer', height: '36px', borderRadius: '8px', background: faIcon === i ? 'rgba(59,130,246,0.3)' : 'transparent', border: faIcon === i ? '1px solid #3b82f6' : '1px solid transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: '0.2s' }} onMouseEnter={e => { if(faIcon !== i) e.currentTarget.style.background = 'rgba(255,255,255,0.05)' }} onMouseLeave={e => { if(faIcon !== i) e.currentTarget.style.background = 'transparent' }}>
-                            <i className={i} style={{ color: faIcon === i ? '#fff' : 'rgba(255,255,255,0.5)', fontSize: '16px' }} />
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div>
-                      <label style={labelStyle}>{lang === 'ru' ? 'Цвет оформления текста' : 'Text Style Color'}</label>
-                      <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', background: 'rgba(0,0,0,0.2)', padding: '10px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
-                        {PREDEFINED_COLORS(lang).map(c => (
-                          <div key={c.id} onClick={() => setTitleColor(c.value)} title={c.label} style={{ cursor: 'pointer', width: '28px', height: '28px', borderRadius: '50%', background: c.value, border: titleColor === c.value ? '2px solid #fff' : '2px solid transparent', transition: 'all 0.2s', boxShadow: titleColor === c.value ? '0 0 10px rgba(255,255,255,0.4)' : 'none', transform: titleColor === c.value ? 'scale(1.15)' : 'scale(1)' }} />
-                        ))}
-                      </div>
+                          cursor: 'pointer', transition: 'all 0.2s ease'
+                        }}
+                        onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.09)'}
+                        onMouseLeave={e => e.currentTarget.style.background = 'rgba(20, 20, 28, 0.6)'}
+                        title={lang === 'ru' ? 'Выбрать файл' : 'Browse'}
+                      >
+                        <i className="fa-solid fa-folder-open" style={{ color: '#60a5fa' }} />
+                        <input type="file" accept="image/*" style={{ display: 'none' }} onChange={(e) => {
+                          if (e.target.files[0]) {
+                            const filePath = getFilePath(e.target.files[0]);
+                            if (filePath) setCustomBg(getSafeBgUrl(filePath));
+                          }
+                        }} />
+                      </label>
                     </div>
                   </div>
-                </motion.div>
+
+                  {/* Фон (Видео) со спецификацией размера */}
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                      <label style={{ ...labelStyle, marginBottom: 0 }}>
+                        {lang === 'ru' ? 'Фон (Видео)' : 'Background (Video)'}
+                      </label>
+                      <span style={specBadgeStyle}>1920×1080 (16:9) • MP4 без звука &lt; 25 МБ</span>
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <input
+                        type="text"
+                        placeholder={lang === 'ru' ? 'URL видео (.mp4)...' : 'Video URL (.mp4)...'}
+                        value={toDisplayUrl(customBgVideo)}
+                        onChange={e => setCustomBgVideo(getSafeBgUrl(e.target.value))}
+                        style={{ ...inputStyle, flexGrow: 1 }}
+                        onFocus={e => { e.target.style.borderColor = 'rgba(16,185,129,0.5)'; }}
+                        onBlur={e => { e.target.style.borderColor = 'rgba(255,255,255,0.08)'; }}
+                      />
+                      <label 
+                        style={{ 
+                          background: 'rgba(20, 20, 28, 0.6)', 
+                          backdropFilter: 'blur(16px)',
+                          WebkitBackdropFilter: 'blur(16px)',
+                          border: '1px solid rgba(255, 255, 255, 0.09)',
+                          borderRadius: '12px', padding: '0 16px', display: 'flex', alignItems: 'center',
+                          cursor: 'pointer', transition: 'all 0.2s ease'
+                        }}
+                        onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.09)'}
+                        onMouseLeave={e => e.currentTarget.style.background = 'rgba(20, 20, 28, 0.6)'}
+                        title={lang === 'ru' ? 'Выбрать видео' : 'Browse'}
+                      >
+                        <i className="fa-solid fa-folder-open" style={{ color: '#60a5fa' }} />
+                        <input type="file" accept="video/*" style={{ display: 'none' }} onChange={(e) => {
+                          if (e.target.files[0]) {
+                            const filePath = getFilePath(e.target.files[0]);
+                            if (filePath) setCustomBgVideo(getSafeBgUrl(filePath));
+                          }
+                        }} />
+                      </label>
+                    </div>
+                  </div>
+
+                  {/* Иконка сборки со спецификацией размера */}
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                      <label style={{ ...labelStyle, marginBottom: 0 }}>
+                        {lang === 'ru' ? 'Иконка сборки' : 'Pack Icon'}
+                      </label>
+                      <span style={specBadgeStyle}>128×128 (1:1) • PNG с прозрачностью</span>
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <input
+                        type="text"
+                        placeholder={lang === 'ru' ? 'URL иконки...' : 'Icon URL...'}
+                        value={toDisplayUrl(customIcon)}
+                        onChange={e => { setCustomIcon(getSafeBgUrl(e.target.value)); setFaIcon(''); }}
+                        style={{ ...inputStyle, flexGrow: 1 }}
+                        onFocus={e => { e.target.style.borderColor = 'rgba(16,185,129,0.5)'; }}
+                        onBlur={e => { e.target.style.borderColor = 'rgba(255,255,255,0.08)'; }}
+                      />
+                      <label 
+                        style={{ 
+                          background: 'rgba(20, 20, 28, 0.6)', 
+                          backdropFilter: 'blur(16px)',
+                          WebkitBackdropFilter: 'blur(16px)',
+                          border: '1px solid rgba(255, 255, 255, 0.09)',
+                          borderRadius: '12px', padding: '0 16px', display: 'flex', alignItems: 'center',
+                          cursor: 'pointer', transition: 'all 0.2s ease'
+                        }}
+                        onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.09)'}
+                        onMouseLeave={e => e.currentTarget.style.background = 'rgba(20, 20, 28, 0.6)'}
+                        title={lang === 'ru' ? 'Выбрать файл' : 'Browse'}
+                      >
+                        <i className="fa-solid fa-folder-open" style={{ color: '#60a5fa' }} />
+                        <input type="file" accept="image/*" style={{ display: 'none' }} onChange={(e) => {
+                          if (e.target.files[0]) {
+                            const filePath = getFilePath(e.target.files[0]);
+                            if (filePath) { setCustomIcon(getSafeBgUrl(filePath)); setFaIcon(''); }
+                          }
+                        }} />
+                      </label>
+                    </div>
+                  </div>
+
+                  {/* Логотип сборки (для шапки страницы клиента) со спецификацией размера */}
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                      <label style={{ ...labelStyle, marginBottom: 0 }}>
+                        {lang === 'ru' ? 'Логотип сборки (Опционально)' : 'Pack Logo (Optional)'}
+                      </label>
+                      <span style={specBadgeStyle}>800×200 (4:1) • PNG прозрачный фон</span>
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <input
+                        type="text"
+                        placeholder={lang === 'ru' ? 'URL логотипа для шапки клиента...' : 'Header logo URL...'}
+                        value={toDisplayUrl(customLogo)}
+                        onChange={e => setCustomLogo(getSafeBgUrl(e.target.value))}
+                        style={{ ...inputStyle, flexGrow: 1 }}
+                        onFocus={e => { e.target.style.borderColor = 'rgba(16,185,129,0.5)'; }}
+                        onBlur={e => { e.target.style.borderColor = 'rgba(255,255,255,0.08)'; }}
+                      />
+                      <label 
+                        style={{ 
+                          background: 'rgba(20, 20, 28, 0.6)', 
+                          backdropFilter: 'blur(16px)',
+                          WebkitBackdropFilter: 'blur(16px)',
+                          border: '1px solid rgba(255, 255, 255, 0.09)',
+                          borderRadius: '12px', padding: '0 16px', display: 'flex', alignItems: 'center',
+                          cursor: 'pointer', transition: 'all 0.2s ease'
+                        }}
+                        onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.09)'}
+                        onMouseLeave={e => e.currentTarget.style.background = 'rgba(20, 20, 28, 0.6)'}
+                        title={lang === 'ru' ? 'Выбрать логотип' : 'Browse'}
+                      >
+                        <i className="fa-solid fa-folder-open" style={{ color: '#60a5fa' }} />
+                        <input type="file" accept="image/*" style={{ display: 'none' }} onChange={(e) => {
+                          if (e.target.files[0]) {
+                            const filePath = getFilePath(e.target.files[0]);
+                            if (filePath) setCustomLogo(getSafeBgUrl(filePath));
+                          }
+                        }} />
+                      </label>
+                    </div>
+                  </div>
+
+                  {/* Готовые иконки */}
+                  <div>
+                    <label style={labelStyle}>{lang === 'ru' ? 'Или выберите готовую иконку:' : 'Or select pre-made icon:'}</label>
+                    <div className="custom-scrollbar" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(36px, 1fr))', gap: '6px', maxHeight: '90px', overflowY: 'auto', background: 'rgba(255,255,255,0.02)', padding: '8px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.06)' }}>
+                      {FA_ICONS.map(i => (
+                        <div 
+                          key={i} 
+                          onClick={() => { setFaIcon(i); setCustomIcon(''); }} 
+                          style={{ 
+                            cursor: 'pointer', height: '34px', borderRadius: '8px', 
+                            background: faIcon === i ? 'rgba(59,130,246,0.3)' : 'transparent', 
+                            border: faIcon === i ? '1px solid #3b82f6' : '1px solid transparent', 
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', 
+                            transition: 'all 0.15s ease' 
+                          }}
+                          onMouseEnter={e => { if(faIcon !== i) e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; }}
+                          onMouseLeave={e => { if(faIcon !== i) e.currentTarget.style.background = 'transparent'; }}
+                        >
+                          <i className={i} style={{ color: faIcon === i ? '#fff' : 'rgba(255,255,255,0.5)', fontSize: '15px' }} />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Цвет названия */}
+                  <div>
+                    <label style={labelStyle}>{lang === 'ru' ? 'Цвет названия' : 'Title Color'}</label>
+                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', background: 'rgba(255,255,255,0.02)', padding: '8px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.06)' }}>
+                      {PREDEFINED_COLORS(lang).map(c => (
+                        <div 
+                          key={c.id} 
+                          onClick={() => setTitleColor(c.value)} 
+                          title={c.label} 
+                          style={{ 
+                            cursor: 'pointer', width: '26px', height: '26px', borderRadius: '50%', 
+                            background: c.value, 
+                            border: titleColor === c.value ? '2px solid #fff' : '2px solid transparent', 
+                            transition: 'all 0.2s ease', 
+                            boxShadow: titleColor === c.value ? '0 0 10px rgba(255,255,255,0.4)' : 'none'
+                          }} 
+                        />
+                      ))}
+                    </div>
+                  </div>
+                </div>
               )}
 
               {error && (
@@ -894,74 +1087,88 @@ export default function CreatePackPage({ onCreate, onBack, isActive, editPack })
                   borderRadius: '10px',
                   color: '#ef4444',
                   fontSize: '12px',
-                  padding: '12px',
+                  padding: '10px 14px',
                   fontWeight: 600,
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '8px'
+                  gap: '8px',
+                  fontFamily: 'Montserrat'
                 }}>
-                  <i className="fa-solid fa-triangle-exclamation" style={{ fontSize: '14px' }} />
-                  {error}
+                  <i className="fa-solid fa-triangle-exclamation" style={{ fontSize: '13px' }} />
+                  <span>{error}</span>
                 </div>
               )}
 
-              <div style={{ display: 'flex', gap: '15px', marginTop: '10px' }}>
-                <motion.button
-                  whileHover={{ boxShadow: '0 4px 15px rgba(16, 185, 129, 0.4)' }}
-                  whileTap={{ scale: 0.98 }}
+              {/* Кнопки действий формы */}
+              <div style={{ display: 'flex', gap: '12px', marginTop: '4px' }}>
+                <button
                   type="submit"
                   style={{
                     flex: 1.2,
-                    background: 'linear-gradient(135deg, #10b981, #059669)',
-                    color: '#fff',
-                    border: 'none',
-                    padding: '14px',
+                    background: 'rgba(16, 185, 129, 0.16)',
+                    color: '#10b981',
+                    border: '1px solid rgba(16, 185, 129, 0.35)',
+                    padding: '12px',
                     borderRadius: '12px',
                     fontWeight: 800,
-                    textTransform: 'uppercase',
-                    fontSize: '12px',
-                    letterSpacing: '1px',
-                    cursor: 'pointer'
+                    fontSize: '12.5px',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                    fontFamily: 'Montserrat'
+                  }}
+                  onMouseEnter={e => {
+                    e.currentTarget.style.background = 'rgba(16, 185, 129, 0.26)';
+                    e.currentTarget.style.borderColor = 'rgba(16, 185, 129, 0.5)';
+                  }}
+                  onMouseLeave={e => {
+                    e.currentTarget.style.background = 'rgba(16, 185, 129, 0.16)';
+                    e.currentTarget.style.borderColor = 'rgba(16, 185, 129, 0.35)';
                   }}
                 >
                   {editPack ? (lang === 'ru' ? 'Сохранить изменения' : 'Save Changes') : (lang === 'ru' ? 'Создать сборку' : 'Create Pack')}
-                </motion.button>
-                <motion.button
-                  whileHover={{ background: 'rgba(255,255,255,0.08)' }}
-                  whileTap={{ scale: 0.98 }}
+                </button>
+                <button
                   type="button"
                   onClick={onBack}
                   style={{
                     flex: 0.8,
-                    background: 'rgba(255, 255, 255, 0.04)',
-                    color: '#fff',
-                    border: '1px solid rgba(255,255,255,0.08)',
-                    padding: '14px',
+                    background: 'rgba(20, 20, 28, 0.6)',
+                    backdropFilter: 'blur(16px)',
+                    WebkitBackdropFilter: 'blur(16px)',
+                    color: '#d4d4d8',
+                    border: '1px solid rgba(255, 255, 255, 0.09)',
+                    padding: '12px',
                     borderRadius: '12px',
-                    fontWeight: 800,
-                    textTransform: 'uppercase',
-                    fontSize: '12px',
-                    letterSpacing: '1px',
-                    cursor: 'pointer'
+                    fontWeight: 700,
+                    fontSize: '12.5px',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                    fontFamily: 'Montserrat'
+                  }}
+                  onMouseEnter={e => {
+                    e.currentTarget.style.background = 'rgba(255, 255, 255, 0.09)';
+                    e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.16)';
+                  }}
+                  onMouseLeave={e => {
+                    e.currentTarget.style.background = 'rgba(20, 20, 28, 0.6)';
+                    e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.09)';
                   }}
                 >
                   {t('cancel')}
-                </motion.button>
+                </button>
               </div>
             </form>
           </div>
 
-          {/* Right Column: Live Preview Panel */}
+          {/* Правая колонка: Live Preview карточки */}
           <div style={{
-            flex: '0.8',
+            flex: '0.85',
             display: 'flex',
             flexDirection: 'column',
             justifyContent: 'flex-start',
             alignItems: 'center',
-            background: 'rgba(0, 0, 0, 0.22)',
-            border: '1px solid rgba(255, 255, 255, 0.06)',
-            borderRadius: '20px',
-            padding: '25px',
+            background: 'transparent',
+            padding: '4px',
             height: '100%',
             overflowY: 'auto'
           }}>

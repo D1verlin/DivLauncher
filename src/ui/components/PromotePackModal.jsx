@@ -49,7 +49,7 @@ export default function PromotePackModal({ isOpen, pack, onClose, onSuccess }) {
 
       // Step 3: Fetch current modpacks.json
       setStep('updating_json');
-      setProgressText(lang === 'ru' ? 'Обновление реестра официальных сборок (modpacks.json)...' : 'Updating modpacks.json catalog...');
+      setProgressText(lang === 'ru' ? 'Обновление реестра официальных сборок...' : 'Updating modpacks.json catalog...');
       setProgressPercent(75);
 
       const jsonRes = await window.electronAPI.r2GetModsJson('DivLauncher/modpacks.json');
@@ -108,173 +108,246 @@ export default function PromotePackModal({ isOpen, pack, onClose, onSuccess }) {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
+        transition={{ duration: 0.15 }}
         style={{
           position: 'fixed',
           inset: 0,
           zIndex: 999999,
-          background: 'rgba(0, 0, 0, 0.85)',
+          background: 'rgba(0, 0, 0, 0.72)',
           backdropFilter: 'blur(12px)',
           WebkitBackdropFilter: 'blur(12px)',
           display: 'flex',
           alignItems: 'center',
-          justify: 'center',
+          justifyContent: 'center',
           padding: '20px',
+        }}
+        onClick={(e) => {
+          if (e.target === e.currentTarget && (step === 'idle' || step === 'success' || step === 'error')) {
+            onClose();
+          }
         }}
       >
         <motion.div
-          initial={{ scale: 0.9, y: 20 }}
-          animate={{ scale: 1, y: 0 }}
-          exit={{ scale: 0.9, y: 20 }}
-          transition={{ type: 'spring', stiffness: 380, damping: 28 }}
+          initial={{ scale: 0.94, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          exit={{ scale: 0.94, opacity: 0 }}
+          transition={{ duration: 0.15, ease: 'easeOut' }}
           style={{
-            background: 'linear-gradient(145deg, rgba(20, 20, 32, 0.95), rgba(12, 12, 20, 0.98))',
-            backdropFilter: 'blur(24px)',
-            WebkitBackdropFilter: 'blur(24px)',
-            border: '1px solid rgba(255, 255, 255, 0.12)',
-            borderRadius: '24px',
-            padding: '32px',
-            maxWidth: '520px',
+            background: 'rgba(16, 16, 24, 0.88)',
+            backdropFilter: 'blur(28px)',
+            WebkitBackdropFilter: 'blur(28px)',
+            border: '1px solid rgba(255, 255, 255, 0.08)',
+            borderRadius: '20px',
+            padding: '26px 28px',
+            maxWidth: '460px',
             width: '100%',
-            boxShadow: '0 30px 80px rgba(0, 0, 0, 0.8), 0 0 40px rgba(168, 85, 247, 0.15)',
+            boxShadow: '0 24px 60px rgba(0, 0, 0, 0.65)',
+            fontFamily: 'Montserrat, sans-serif',
+            boxSizing: 'border-box'
           }}
         >
-          {/* Header */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '24px' }}>
+          {/* Заголовок с минималистичной иконкой */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '18px' }}>
             <div style={{
-              width: '52px',
-              height: '52px',
-              borderRadius: '16px',
-              background: 'linear-gradient(135deg, rgba(168, 85, 247, 0.25), rgba(236, 72, 153, 0.25))',
-              border: '1px solid rgba(168, 85, 247, 0.4)',
+              width: '42px',
+              height: '42px',
+              borderRadius: '12px',
+              background: 'rgba(16, 185, 129, 0.12)',
+              border: '1px solid rgba(16, 185, 129, 0.25)',
               display: 'flex',
               alignItems: 'center',
-              justify: 'center',
-              boxShadow: '0 8px 20px rgba(168, 85, 247, 0.25)',
+              justifyContent: 'center',
+              flexShrink: 0
             }}>
-              <i className="fa-solid fa-cloud-arrow-up" style={{ color: '#c084fc', fontSize: '24px' }} />
+              <i className="fa-solid fa-cloud-arrow-up" style={{ color: '#10b981', fontSize: '18px' }} />
             </div>
-            <div>
-              <h3 style={{ color: '#fff', fontSize: '20px', fontWeight: 900, margin: '0 0 4px 0' }}>
+            <div style={{ overflow: 'hidden' }}>
+              <h3 style={{ 
+                color: '#ffffff', 
+                fontSize: '16px', 
+                fontWeight: 800, 
+                margin: '0 0 4px 0', 
+                letterSpacing: '0.2px',
+                fontFamily: 'Montserrat'
+              }}>
                 {lang === 'ru' ? 'Публикация в официальные' : 'Publish as Official Pack'}
               </h3>
-              <p style={{ color: '#94a3b8', fontSize: '13px', margin: 0, fontWeight: 500 }}>
-                {pack.name} ({pack.mcVersion} • {pack.loaderType})
-              </p>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                <span style={{ 
+                  color: '#e4e4e7', 
+                  fontSize: '12.5px', 
+                  fontWeight: 600,
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  maxWidth: '180px'
+                }}>
+                  {pack.name}
+                </span>
+                <span style={{ 
+                  color: '#a1a1aa', 
+                  fontSize: '10.5px', 
+                  fontWeight: 600, 
+                  background: 'rgba(255, 255, 255, 0.06)', 
+                  border: '1px solid rgba(255, 255, 255, 0.08)',
+                  padding: '1px 7px', 
+                  borderRadius: '6px',
+                  fontFamily: 'monospace'
+                }}>
+                  {pack.mcVersion} • {pack.loaderType}
+                </span>
+              </div>
             </div>
           </div>
 
           {step === 'idle' && (
             <div>
-              <p style={{ color: '#cbd5e1', fontSize: '14px', lineHeight: '1.6', marginBottom: '24px' }}>
+              <p style={{ 
+                color: '#a1a1aa', 
+                fontSize: '13px', 
+                lineHeight: '1.55', 
+                margin: '0 0 22px 0' 
+              }}>
                 {lang === 'ru'
-                  ? 'Сборка будет автоматически запакована в ZIP-архив, выгружена на сервер хостинга R2 и добавлена в главный каталог `modpacks.json`.'
-                  : 'The pack will be compressed into a ZIP archive, uploaded to Cloudflare R2 storage, and registered in `modpacks.json`.'}
+                  ? 'Сборка будет запакована в ZIP-архив, загружена на облачное хранилище R2 и добавлена в главный каталог официальных сборок.'
+                  : 'The pack will be compressed into a ZIP archive, uploaded to R2 storage, and registered in the official modpack catalog.'}
               </p>
 
-              <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+              <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
                 <motion.button
-                  whileTap={{ scale: 0.98 }}
+                  whileTap={{ scale: 0.97 }}
                   onClick={onClose}
                   style={{
-                    background: 'rgba(255, 255, 255, 0.08)',
-                    border: '1px solid rgba(255, 255, 255, 0.12)',
-                    color: '#94a3b8',
-                    borderRadius: '14px',
-                    padding: '12px 20px',
+                    background: 'rgba(255, 255, 255, 0.04)',
+                    border: '1px solid rgba(255, 255, 255, 0.08)',
+                    color: '#a1a1aa',
+                    borderRadius: '11px',
+                    padding: '9px 18px',
                     fontWeight: 700,
                     cursor: 'pointer',
-                    fontSize: '13px',
+                    fontSize: '12.5px',
+                    fontFamily: 'Montserrat',
+                    transition: 'all 0.15s ease'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)';
+                    e.currentTarget.style.color = '#ffffff';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = 'rgba(255, 255, 255, 0.04)';
+                    e.currentTarget.style.color = '#a1a1aa';
                   }}
                 >
                   {lang === 'ru' ? 'Отмена' : 'Cancel'}
                 </motion.button>
                 <motion.button
-                  whileTap={{ scale: 0.96 }}
+                  whileTap={{ scale: 0.97 }}
                   onClick={handlePromote}
                   style={{
-                    background: 'linear-gradient(135deg, #a855f7 0%, #ec4899 100%)',
-                    border: 'none',
-                    color: '#fff',
-                    borderRadius: '14px',
-                    padding: '12px 24px',
+                    background: 'rgba(16, 185, 129, 0.16)',
+                    border: '1px solid rgba(16, 185, 129, 0.35)',
+                    color: '#10b981',
+                    borderRadius: '11px',
+                    padding: '9px 20px',
                     fontWeight: 800,
                     cursor: 'pointer',
-                    fontSize: '13px',
-                    boxShadow: '0 8px 20px rgba(168, 85, 247, 0.35)',
+                    fontSize: '12.5px',
+                    fontFamily: 'Montserrat',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '8px',
+                    gap: '7px',
+                    transition: 'all 0.15s ease'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = 'rgba(16, 185, 129, 0.25)';
+                    e.currentTarget.style.borderColor = 'rgba(16, 185, 129, 0.5)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = 'rgba(16, 185, 129, 0.16)';
+                    e.currentTarget.style.borderColor = 'rgba(16, 185, 129, 0.35)';
                   }}
                 >
-                  <i className="fa-solid fa-rocket" />
-                  {lang === 'ru' ? 'Опубликовать' : 'Publish'}
+                  <i className="fa-solid fa-cloud-arrow-up" style={{ fontSize: '12px' }} />
+                  <span>{lang === 'ru' ? 'Опубликовать' : 'Publish'}</span>
                 </motion.button>
               </div>
             </div>
           )}
 
           {(step === 'exporting' || step === 'uploading_zip' || step === 'updating_json') && (
-            <div style={{ textAlign: 'center', padding: '20px 0' }}>
-              <div style={{ fontSize: '36px', color: '#c084fc', marginBottom: '16px' }}>
+            <div style={{ textAlign: 'center', padding: '16px 0 6px 0' }}>
+              <div style={{ fontSize: '26px', color: '#10b981', marginBottom: '14px' }}>
                 <i className="fa-solid fa-spinner fa-spin" />
               </div>
-              <p style={{ color: '#fff', fontWeight: 700, fontSize: '15px', marginBottom: '12px' }}>{progressText}</p>
+              <p style={{ color: '#ffffff', fontWeight: 700, fontSize: '13.5px', margin: '0 0 14px 0', fontFamily: 'Montserrat' }}>
+                {progressText}
+              </p>
               <div style={{
                 width: '100%',
-                height: '8px',
-                background: 'rgba(255, 255, 255, 0.1)',
-                borderRadius: '4px',
+                height: '6px',
+                background: 'rgba(255, 255, 255, 0.06)',
+                borderRadius: '3px',
                 overflow: 'hidden',
                 marginBottom: '8px',
               }}>
                 <motion.div
                   animate={{ width: `${progressPercent}%` }}
-                  transition={{ duration: 0.3 }}
-                  style={{ height: '100%', background: 'linear-gradient(90deg, #a855f7, #ec4899)' }}
+                  transition={{ duration: 0.25, ease: 'easeOut' }}
+                  style={{ height: '100%', background: '#10b981', borderRadius: '3px' }}
                 />
               </div>
-              <span style={{ color: '#64748b', fontSize: '12px', fontWeight: 600 }}>{progressPercent}%</span>
+              <span style={{ color: '#71717a', fontSize: '11.5px', fontWeight: 600, fontFamily: 'monospace' }}>
+                {progressPercent}%
+              </span>
             </div>
           )}
 
           {step === 'success' && (
-            <div style={{ textAlign: 'center', padding: '10px 0' }}>
+            <div style={{ textAlign: 'center', padding: '8px 0 4px 0' }}>
               <div style={{
-                width: '60px',
-                height: '60px',
+                width: '46px',
+                height: '46px',
                 borderRadius: '50%',
-                background: 'rgba(16, 185, 129, 0.2)',
-                border: '1px solid rgba(16, 185, 129, 0.4)',
+                background: 'rgba(16, 185, 129, 0.12)',
+                border: '1px solid rgba(16, 185, 129, 0.3)',
                 display: 'flex',
                 alignItems: 'center',
-                justify: 'center',
-                margin: '0 auto 16px auto',
+                justifyContent: 'center',
+                margin: '0 auto 14px auto',
               }}>
-                <i className="fa-solid fa-check" style={{ color: '#10b981', fontSize: '28px' }} />
+                <i className="fa-solid fa-check" style={{ color: '#10b981', fontSize: '18px' }} />
               </div>
-              <h4 style={{ color: '#fff', fontSize: '18px', fontWeight: 800, margin: '0 0 8px 0' }}>
-                {lang === 'ru' ? 'Сборка успешно опубликована!' : 'Pack Successfully Published!'}
+              <h4 style={{ color: '#ffffff', fontSize: '16px', fontWeight: 800, margin: '0 0 6px 0', fontFamily: 'Montserrat' }}>
+                {lang === 'ru' ? 'Сборка успешно опубликована' : 'Pack Successfully Published'}
               </h4>
-              <p style={{ color: '#94a3b8', fontSize: '13px', marginBottom: '24px' }}>
+              <p style={{ color: '#a1a1aa', fontSize: '12.5px', lineHeight: '1.5', margin: '0 0 20px 0' }}>
                 {lang === 'ru'
-                  ? 'Сборка переведена в разряд официальных и доступна для всех пользователей в главном каталоге.'
+                  ? 'Сборка переведена в каталог официальных и теперь доступна всем пользователям.'
                   : 'The pack is now official and visible to all users in the launcher catalog.'}
               </p>
               <motion.button
-                whileTap={{ scale: 0.98 }}
+                whileTap={{ scale: 0.97 }}
                 onClick={onClose}
                 style={{
-                  background: 'rgba(16, 185, 129, 0.2)',
-                  border: '1px solid rgba(16, 185, 129, 0.4)',
-                  color: '#34d399',
-                  borderRadius: '14px',
-                  padding: '12px 28px',
+                  background: 'rgba(16, 185, 129, 0.16)',
+                  border: '1px solid rgba(16, 185, 129, 0.35)',
+                  color: '#10b981',
+                  borderRadius: '11px',
+                  padding: '9px 24px',
                   fontWeight: 800,
                   cursor: 'pointer',
-                  fontSize: '14px',
+                  fontSize: '12.5px',
+                  fontFamily: 'Montserrat',
+                  transition: 'all 0.15s ease'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = 'rgba(16, 185, 129, 0.25)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'rgba(16, 185, 129, 0.16)';
                 }}
               >
-                {lang === 'ru' ? 'Отлично' : 'Done'}
+                {lang === 'ru' ? 'Готово' : 'Done'}
               </motion.button>
             </div>
           )}
@@ -282,31 +355,43 @@ export default function PromotePackModal({ isOpen, pack, onClose, onSuccess }) {
           {step === 'error' && (
             <div>
               <div style={{
-                background: 'rgba(239, 68, 68, 0.12)',
-                border: '1px solid rgba(239, 68, 68, 0.3)',
-                borderRadius: '16px',
-                padding: '16px',
-                marginBottom: '24px',
+                background: 'rgba(239, 68, 68, 0.08)',
+                border: '1px solid rgba(239, 68, 68, 0.2)',
+                borderRadius: '12px',
+                padding: '12px 14px',
+                margin: '14px 0 18px 0',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '12px',
+                gap: '10px',
               }}>
-                <i className="fa-solid fa-circle-exclamation" style={{ color: '#ef4444', fontSize: '20px' }} />
-                <p style={{ color: '#f87171', fontSize: '13px', margin: 0, fontWeight: 600 }}>{errorMessage}</p>
+                <i className="fa-solid fa-triangle-exclamation" style={{ color: '#ef4444', fontSize: '16px', flexShrink: 0 }} />
+                <p style={{ color: '#f87171', fontSize: '12.5px', margin: 0, fontWeight: 600, lineHeight: '1.4' }}>
+                  {errorMessage}
+                </p>
               </div>
-              <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
                 <motion.button
-                  whileTap={{ scale: 0.98 }}
+                  whileTap={{ scale: 0.97 }}
                   onClick={onClose}
                   style={{
-                    background: 'rgba(255, 255, 255, 0.08)',
-                    border: '1px solid rgba(255, 255, 255, 0.12)',
-                    color: '#94a3b8',
-                    borderRadius: '14px',
-                    padding: '12px 20px',
+                    background: 'rgba(255, 255, 255, 0.04)',
+                    border: '1px solid rgba(255, 255, 255, 0.08)',
+                    color: '#a1a1aa',
+                    borderRadius: '11px',
+                    padding: '9px 18px',
                     fontWeight: 700,
                     cursor: 'pointer',
-                    fontSize: '13px',
+                    fontSize: '12.5px',
+                    fontFamily: 'Montserrat',
+                    transition: 'all 0.15s ease'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)';
+                    e.currentTarget.style.color = '#ffffff';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = 'rgba(255, 255, 255, 0.04)';
+                    e.currentTarget.style.color = '#a1a1aa';
                   }}
                 >
                   {lang === 'ru' ? 'Закрыть' : 'Close'}

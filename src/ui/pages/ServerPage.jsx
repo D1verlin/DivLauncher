@@ -31,7 +31,7 @@ const glassInputStyle = {
 const TabButton = ({ active, icon, label, onClick }) => (
   <motion.button
     whileHover={{ background: active ? 'rgba(59, 130, 246, 0.2)' : 'rgba(255,255,255,0.05)' }}
-    whileTap={{ scale: 0.95 }}
+    whileTap={{ opacity: 0.85 }}
     onClick={onClick}
     style={{
       background: active ? 'rgba(59, 130, 246, 0.15)' : 'transparent',
@@ -620,7 +620,7 @@ export default function ServerPage({ logs, isRunning, players, currentPack, onPa
                   <div style={{ display: 'flex', gap: '8px' }}>
                     <motion.button 
                       whileHover={{ background: 'rgba(255,255,255,0.05)' }} 
-                      whileTap={{ scale: 0.95 }}
+                      whileTap={{ opacity: 0.85 }}
                       onClick={() => loadProps()} 
                       style={{ background: 'transparent', border: '1px solid transparent', color: '#a1a1aa', padding: '8px 12px', borderRadius: '10px', cursor: 'pointer', fontWeight: 600, fontSize: '12px', transition: 'all 0.2s' }}
                     >
@@ -628,7 +628,7 @@ export default function ServerPage({ logs, isRunning, players, currentPack, onPa
                     </motion.button>
                     <motion.button 
                       whileHover={{ boxShadow: '0 0 15px rgba(16, 185, 129, 0.3)' }} 
-                      whileTap={{ scale: 0.95 }}
+                      whileTap={{ opacity: 0.85 }}
                       onClick={saveProps} 
                       style={{ background: 'linear-gradient(135deg, #10b981, #059669)', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: '10px', cursor: 'pointer', fontWeight: 600, fontSize: '12px' }}
                     >
@@ -654,7 +654,7 @@ export default function ServerPage({ logs, isRunning, players, currentPack, onPa
                 </div>
                 <motion.button
                   whileHover={{ boxShadow: '0 0 15px rgba(59, 130, 246, 0.3)' }}
-                  whileTap={{ scale: 0.95 }}
+                  whileTap={{ opacity: 0.85 }}
                   onClick={handleCreateBackup}
                   disabled={backupsLoading || isRestoring}
                   style={{
@@ -711,7 +711,7 @@ export default function ServerPage({ logs, isRunning, players, currentPack, onPa
                       <div style={{ display: 'flex', gap: '8px' }}>
                         <motion.button
                           whileHover={{ background: 'rgba(16, 185, 129, 0.15)' }}
-                          whileTap={{ scale: 0.95 }}
+                          whileTap={{ opacity: 0.85 }}
                           onClick={() => handleRestoreBackup(backup.name)}
                           disabled={isRestoring || isRunning}
                           style={{
@@ -726,7 +726,7 @@ export default function ServerPage({ logs, isRunning, players, currentPack, onPa
                         </motion.button>
                         <motion.button
                           whileHover={{ background: 'rgba(239, 68, 68, 0.15)' }}
-                          whileTap={{ scale: 0.95 }}
+                          whileTap={{ opacity: 0.85 }}
                           onClick={() => handleDeleteBackup(backup.name)}
                           disabled={isRestoring}
                           style={{
